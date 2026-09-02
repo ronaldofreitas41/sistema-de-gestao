@@ -10,6 +10,19 @@ const queries: Record<string, string> = {
   estoque: 'SELECT * FROM estoque ORDER BY id DESC LIMIT 100',
   manutencao: 'SELECT * FROM manutencao ORDER BY id DESC LIMIT 100',
   agenda: 'SELECT * FROM contratos WHERE status IN (\'reservado\', \'ativo\') ORDER BY data_inicio LIMIT 100',
+  propostas: 'SELECT * FROM propostas ORDER BY id DESC LIMIT 100',
+  pendencias: 'SELECT * FROM pendencias ORDER BY id DESC LIMIT 100',
+  tratativas: 'SELECT * FROM tratativas ORDER BY id DESC LIMIT 100',
+  fluxo: 'SELECT * FROM fluxo ORDER BY id DESC LIMIT 100',
+  contas_pagar: 'SELECT * FROM contas_pagar ORDER BY id DESC LIMIT 100',
+  despesas: 'SELECT * FROM despesas ORDER BY id DESC LIMIT 100',
+  prejuizos: 'SELECT * FROM prejuizos ORDER BY id DESC LIMIT 100',
+  compras: 'SELECT * FROM compras ORDER BY id DESC LIMIT 100',
+  pneus: 'SELECT * FROM pneus ORDER BY id DESC LIMIT 100',
+  checklist: 'SELECT * FROM checklist ORDER BY id DESC LIMIT 100',
+  auditoria: 'SELECT * FROM auditoria ORDER BY id DESC LIMIT 100',
+  ajuda: 'SELECT * FROM ajuda ORDER BY id DESC LIMIT 100',
+  sistema: 'SELECT * FROM configuracoes ORDER BY id DESC LIMIT 100',
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ resource: string }> }) {
