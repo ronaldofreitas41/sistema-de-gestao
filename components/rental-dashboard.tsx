@@ -69,8 +69,12 @@ export function RentalDashboard() {
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border bg-sidebar px-5 py-6 transition-transform lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="mb-9 flex items-center justify-between px-2">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Truck /></div>
-            <div><p className="font-mono text-[11px] font-bold tracking-[0.2em] text-primary">MH3</p><p className="text-lg font-semibold tracking-tight">Rental</p></div>
+            <img
+              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-MmQnEBDcdmjJH5Ts9HWlQiYShvAUAO.png"
+              alt="MH3 Rental"
+              className="h-auto w-20 object-contain"
+            />
+            <div><p className="text-lg font-semibold tracking-tight">Rental</p><p className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground">GESTÃO DE FROTAS</p></div>
           </div>
           <button className="rounded-lg p-2 text-muted-foreground lg:hidden" onClick={() => setOpen(false)} aria-label="Fechar menu"><X /></button>
         </div>
