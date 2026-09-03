@@ -1,41 +1,547 @@
-'use client'
+"use client";
 
-import useSWR from 'swr'
-import { useState } from 'react'
-import { Activity, ArrowDownRight, ArrowUpRight, Bell, CalendarDays, CarFront, ChevronDown, CircleDollarSign, ClipboardCheck, FileText, LayoutDashboard, Menu, MoreHorizontal, Package, Plus, Search, Settings2, ShieldCheck, Users, WalletCards, X, Wrench, Receipt, BarChart3, MessageSquare, ShoppingCart, CircleAlert, UserRound, Banknote, ClipboardList, Database, History, FileSpreadsheet, Truck, CircleHelp } from 'lucide-react'
+import useSWR from "swr";
+import { useState } from "react";
+import {
+  Activity,
+  ArrowUpRight,
+  Bell,
+  CalendarDays,
+  CarFront,
+  ChevronDown,
+  CircleDollarSign,
+  LayoutDashboard,
+  Menu,
+  MoreHorizontal,
+  Plus,
+  Settings2,
+  ShieldCheck,
+  WalletCards,
+  X,
+  Database,
+  Search,
+} from "lucide-react";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
-
-type NavItem = { label: string; resource: string; icon: typeof LayoutDashboard; badge?: string }
-const navGroups: { label: string; items: NavItem[] }[] = [
-  { label: 'Visão geral', items: [{ label: 'Dashboard', resource: 'dashboard', icon: LayoutDashboard }] },
-  { label: 'Operação', items: [
-    { label: 'Agenda', resource: 'agenda', icon: CalendarDays, badge: '8' }, { label: 'Contratos', resource: 'contratos', icon: FileText }, { label: 'Propostas', resource: 'propostas', icon: ClipboardList }, { label: 'Frota', resource: 'veiculos', icon: CarFront }, { label: 'Manutenção', resource: 'manutencao', icon: Wrench }, { label: 'Clientes', resource: 'clientes', icon: Users }, { label: 'Pendências', resource: 'pendencias', icon: CircleAlert, badge: '3' }, { label: 'Tratativas', resource: 'tratativas', icon: MessageSquare },
-  ] },
-  { label: 'Financeiro', items: [
-    { label: 'Financeiro', resource: 'financeiro', icon: CircleDollarSign }, { label: 'Fluxo de caixa', resource: 'fluxo', icon: Banknote }, { label: 'Contas a pagar', resource: 'contas_pagar', icon: Receipt }, { label: 'Despesas', resource: 'despesas', icon: WalletCards }, { label: 'Prejuízos', resource: 'prejuizos', icon: ArrowDownRight }, { label: 'Relatórios', resource: 'relatorios', icon: BarChart3 },
-  ] },
-  { label: 'Estoque e compras', items: [{ label: 'Estoque', resource: 'estoque', icon: Package }, { label: 'Compras', resource: 'compras', icon: ShoppingCart }, { label: 'Pneus', resource: 'pneus', icon: Truck }] },
-  { label: 'Sistema', items: [{ label: 'Checklist', resource: 'checklist', icon: ClipboardCheck }, { label: 'Auditoria', resource: 'auditoria', icon: History }, { label: 'Configurações', resource: 'sistema', icon: Settings2 }, { label: 'Ajuda', resource: 'ajuda', icon: CircleHelp }] },
-]
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const dashboardBookings = [
-  { id: 'CTR-2026-084', client: 'Mariana Alves', vehicle: 'Toyota Corolla · RZT-4H21', date: 'Hoje, 14:30', status: 'Em andamento' },
-  { id: 'CTR-2026-083', client: 'Grupo Conecta Ltda.', vehicle: 'Fiat Toro · GHF-8A02', date: 'Hoje, 16:00', status: 'Aguardando retirada' },
-  { id: 'CTR-2026-082', client: 'Rafael Nogueira', vehicle: 'Jeep Compass · BXE-1C91', date: 'Amanhã, 09:00', status: 'Reservado' },
-]
+  {
+    id: "CTR-2026-084",
+    client: "Mariana Alves",
+    vehicle: "Toyota Corolla · RZT-4H21",
+    date: "Hoje, 14:30",
+    status: "Em andamento",
+  },
+  {
+    id: "CTR-2026-083",
+    client: "Grupo Conecta Ltda.",
+    vehicle: "Fiat Toro · GHF-8A02",
+    date: "Hoje, 16:00",
+    status: "Aguardando retirada",
+  },
+  {
+    id: "CTR-2026-082",
+    client: "Rafael Nogueira",
+    vehicle: "Jeep Compass · BXE-1C91",
+    date: "Amanhã, 09:00",
+    status: "Reservado",
+  },
+];
 
-function MetricCard({ label, value, delta, Icon }: { label: string; value: string; delta: string; Icon: typeof CircleDollarSign }) { return <div className="rounded-2xl border border-border bg-card p-5 shadow-sm"><div className="mb-5 flex items-center justify-between"><p className="text-sm text-muted-foreground">{label}</p><div className="rounded-xl bg-accent p-2.5 text-accent-foreground"><Icon className="size-4" /></div></div><p className="text-2xl font-bold tracking-tight">{value}</p><div className="mt-2 flex items-center gap-2 text-xs"><span className="flex items-center gap-1 font-semibold text-primary"><ArrowUpRight className="size-3.5" />{delta}</span><span className="text-muted-foreground">vs. mês anterior</span></div></div> }
+function MetricCard({
+  label,
+  value,
+  delta,
+  Icon,
+}: {
+  label: string;
+  value: string;
+  delta: string;
+  Icon: typeof CircleDollarSign;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="mb-5 flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <div className="rounded-xl bg-accent p-2.5 text-accent-foreground">
+          <Icon className="size-4" />
+        </div>
+      </div>
+      <p className="text-2xl font-bold tracking-tight">{value}</p>
+      <div className="mt-2 flex items-center gap-2 text-xs">
+        <span className="flex items-center gap-1 font-semibold text-primary">
+          <ArrowUpRight className="size-3.5" />
+          {delta}
+        </span>
+        <span className="text-muted-foreground">vs. mês anterior</span>
+      </div>
+    </div>
+  );
+}
 
-function DashboardHome({ onNavigate }: { onNavigate: (label: string) => void }) { return <>
-  <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="mb-1 text-sm font-medium text-primary">Resumo da operação</p><h2 className="text-3xl font-bold tracking-tight md:text-4xl">Visão geral</h2><p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Acompanhe o que está acontecendo na sua locadora em tempo real.</p></div><button className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm"><Plus className="size-4" />Novo contrato</button></div>
-  <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><MetricCard label="Receita do mês" value="R$ 84.920,00" delta="18,4%" Icon={CircleDollarSign} /><MetricCard label="Contratos ativos" value="48" delta="12,5%" Icon={FileText} /><MetricCard label="Taxa de ocupação" value="76,8%" delta="4,2%" Icon={CarFront} /><MetricCard label="A receber" value="R$ 12.480,00" delta="8,1%" Icon={WalletCards} /></section>
-  <section className="mt-6 grid gap-6 xl:grid-cols-[1.45fr_1fr]"><div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6"><div className="mb-6 flex items-start justify-between"><div><h3 className="font-semibold">Receita e contratos</h3><p className="mt-1 text-xs text-muted-foreground">Desempenho dos últimos 7 meses</p></div><button className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground">Últimos 7 meses <ChevronDown className="size-3" /></button></div><div className="flex h-56 items-end gap-3 border-b border-border px-2 sm:gap-6">{[['Abr','55%'],['Mai','68%'],['Jun','59%'],['Jul','78%'],['Ago','72%'],['Set','92%'],['Out','84%']].map(([month,height], i) => <div key={month} className="flex h-full flex-1 flex-col items-center justify-end gap-3"><div className={`w-full max-w-10 rounded-t-lg ${i === 5 ? 'bg-primary' : 'bg-accent'}`} style={{ height }} /><span className="pb-3 text-[11px] text-muted-foreground">{month}</span></div>)}</div></div><div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6"><div className="mb-5 flex items-start justify-between"><div><h3 className="font-semibold">Próximas retiradas</h3><p className="mt-1 text-xs text-muted-foreground">Agenda para hoje e amanhã</p></div><button onClick={() => onNavigate('Agenda')} className="text-xs font-semibold text-primary">Ver agenda</button></div><div className="flex flex-col gap-1">{dashboardBookings.map((booking) => <div key={booking.id} className="flex items-center gap-3 rounded-xl p-3 hover:bg-accent"><div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent"><CalendarDays className="size-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{booking.client}</p><p className="truncate text-xs text-muted-foreground">{booking.vehicle}</p></div><div className="text-right"><p className="text-xs font-semibold">{booking.date}</p><span className="mt-1 inline-flex rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">{booking.status}</span></div></div>)}</div></div></section>
-  <section className="mt-6 rounded-2xl border border-border bg-card shadow-sm"><div className="flex items-center justify-between border-b border-border p-5 md:p-6"><div><h3 className="font-semibold">Contratos recentes</h3><p className="mt-1 text-xs text-muted-foreground">Últimas movimentações da operação</p></div><button onClick={() => onNavigate('Contratos')} className="text-xs font-semibold text-primary">Ver todos</button></div><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{['Contrato','Cliente','Veículo','Data','Status',''].map((head) => <th key={head} className="px-6 py-3 font-medium">{head}</th>)}</tr></thead><tbody>{dashboardBookings.map((b) => <tr key={b.id} className="border-t border-border hover:bg-accent/40"><td className="px-6 py-4 font-mono text-xs font-semibold">{b.id}</td><td className="px-6 py-4 font-medium">{b.client}</td><td className="px-6 py-4 text-muted-foreground">{b.vehicle}</td><td className="px-6 py-4 text-muted-foreground">{b.date}</td><td className="px-6 py-4"><span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground">{b.status}</span></td><td className="px-6 py-4 text-right"><MoreHorizontal className="ml-auto size-4 text-muted-foreground" /></td></tr>)}</tbody></table></div></section>
-</> }
+function DashboardHome({
+  onNavigate,
+}: {
+  onNavigate: (label: string) => void;
+}) {
+  return (
+    <>
+      <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div>
+          <p className="mb-1 text-sm font-medium text-primary">
+            Resumo da operação
+          </p>
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+            Visão geral
+          </h2>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+            Acompanhe o que está acontecendo na sua locadora em tempo real.
+          </p>
+        </div>
+        <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm">
+          <Plus className="size-4" />
+          Novo contrato
+        </button>
+      </div>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="A Receber"
+          value="R$ 84.920,00"
+          delta="18,4%"
+          Icon={CircleDollarSign}
+        />
+        <MetricCard
+          label="A Pagar"
+          value="R$ 48.000,00"
+          delta="12,5%"
+          Icon={CircleDollarSign}
+        />
+        <MetricCard
+          label="Veiculos Disponíveis"
+          value="76,8%"
+          delta="4,2%"
+          Icon={CarFront}
+        />
+        <MetricCard
+          label="A Receber"
+          value="R$ 12.480,00"
+          delta="8,1%"
+          Icon={WalletCards}
+        />
+      </section>
+      <section className="mt-6 grid gap-6 xl:grid-cols-[1.45fr_1fr]">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h3 className="font-semibold">Receita e contratos</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Desempenho dos últimos 7 meses
+              </p>
+            </div>
+            <button className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground">
+              Últimos 7 meses <ChevronDown className="size-3" />
+            </button>
+          </div>
+          <div className="flex h-56 items-end gap-3 border-b border-border px-2 sm:gap-6">
+            {[
+              ["Abr", "55%"],
+              ["Mai", "68%"],
+              ["Jun", "59%"],
+              ["Jul", "78%"],
+              ["Ago", "72%"],
+              ["Set", "92%"],
+              ["Out", "84%"],
+            ].map(([month, height], i) => (
+              <div
+                key={month}
+                className="flex h-full flex-1 flex-col items-center justify-end gap-3"
+              >
+                <div
+                  className={`w-full max-w-10 rounded-t-lg ${i === 5 ? "bg-primary" : "bg-accent"}`}
+                  style={{ height }}
+                />
+                <span className="pb-3 text-[11px] text-muted-foreground">
+                  {month}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+          <div className="mb-5 flex items-start justify-between">
+            <div>
+              <h3 className="font-semibold">Próximas retiradas</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Agenda para hoje e amanhã
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigate("Agenda")}
+              className="text-xs font-semibold text-primary"
+            >
+              Ver agenda
+            </button>
+          </div>
+          <div className="flex flex-col gap-1">
+            {dashboardBookings.map((booking) => (
+              <div
+                key={booking.id}
+                className="flex items-center gap-3 rounded-xl p-3 hover:bg-accent"
+              >
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+                  <CalendarDays className="size-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {booking.client}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {booking.vehicle}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-semibold">{booking.date}</p>
+                  <span className="mt-1 inline-flex rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                    {booking.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section className="mt-6 rounded-2xl border border-border bg-card shadow-sm">
+        <div className="flex items-center justify-between border-b border-border p-5 md:p-6">
+          <div>
+            <h3 className="font-semibold">Contratos recentes</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Últimas movimentações da operação
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigate("Contratos")}
+            className="text-xs font-semibold text-primary"
+          >
+            Ver todos
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-175 text-left text-sm">
+            <thead className="bg-muted/50 text-xs text-muted-foreground">
+              <tr>
+                {["Contrato", "Cliente", "Veículo", "Data", "Status", ""].map(
+                  (head) => (
+                    <th key={head} className="px-6 py-3 font-medium">
+                      {head}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {dashboardBookings.map((b) => (
+                <tr
+                  key={b.id}
+                  className="border-t border-border hover:bg-accent/40"
+                >
+                  <td className="px-6 py-4 font-mono text-xs font-semibold">
+                    {b.id}
+                  </td>
+                  <td className="px-6 py-4 font-medium">{b.client}</td>
+                  <td className="px-6 py-4 text-muted-foreground">
+                    {b.vehicle}
+                  </td>
+                  <td className="px-6 py-4 text-muted-foreground">{b.date}</td>
+                  <td className="px-6 py-4">
+                    <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground">
+                      {b.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <MoreHorizontal className="ml-auto size-4 text-muted-foreground" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
 
-function ModulePage({ item }: { item: NavItem }) { const { data, isLoading, error } = useSWR(`/api/${item.resource}`, fetcher); const rows = Array.isArray(data?.data) ? data.data : []; const columns = rows.length ? Object.keys(rows[0]).filter((key) => !['id','created_at','updated_at'].includes(key)).slice(0, 7) : []; return <div className="flex flex-col gap-6"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="mb-1 text-sm font-medium text-primary">MH3 Rental / {item.label}</p><h2 className="text-3xl font-bold tracking-tight">{item.label}</h2><p className="mt-2 text-sm text-muted-foreground">Gestão completa de {item.label.toLowerCase()} integrada ao banco de dados.</p></div><button className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"><Plus className="size-4" />Adicionar registro</button></div><div className="grid gap-4 md:grid-cols-3"><MetricCard label="Registros encontrados" value={isLoading ? '...' : String(rows.length)} delta="Atualizado agora" Icon={Database} /><MetricCard label="Status da conexão" value={error ? 'Atenção' : data?.configured === false ? 'Configurar' : 'Online'} delta="API Next.js" Icon={ShieldCheck} /><MetricCard label="Última sincronização" value="Agora" delta="Dados protegidos" Icon={Activity} /></div><div className="rounded-2xl border border-border bg-card shadow-sm"><div className="flex flex-col gap-3 border-b border-border p-5 md:flex-row md:items-center md:justify-between md:p-6"><div><h3 className="font-semibold">Dados de {item.label}</h3><p className="mt-1 text-xs text-muted-foreground">Consulta realizada pelo Route Handler do Next.js</p></div><div className="flex gap-2"><div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground"><Search className="size-4" />Buscar registros</div><button className="rounded-lg border border-border px-3 py-2 text-xs font-medium">Exportar</button></div></div>{isLoading ? <div className="p-8 text-center text-sm text-muted-foreground">Carregando dados...</div> : error ? <div className="p-8 text-center text-sm text-destructive">Não foi possível carregar os dados desta área.</div> : rows.length === 0 ? <div className="p-10 text-center"><Database className="mx-auto mb-3 size-8 text-muted-foreground" /><p className="font-medium">Nenhum registro encontrado</p><p className="mt-1 text-sm text-muted-foreground">Quando houver dados no banco, eles aparecerão aqui.</p></div> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{columns.map((col) => <th key={col} className="px-6 py-3 font-medium">{col.replaceAll('_',' ')}</th>)}<th className="px-6 py-3" /></tr></thead><tbody>{rows.map((row: Record<string,string|number>, index: number) => <tr key={String(row.id ?? index)} className="border-t border-border hover:bg-accent/40">{columns.map((col) => <td key={col} className="max-w-[240px] truncate px-6 py-4 text-muted-foreground">{String(row[col] ?? '—')}</td>)}<td className="px-6 py-4 text-right"><MoreHorizontal className="ml-auto size-4 text-muted-foreground" /></td></tr>)}</tbody></table></div>}</div></div> }
+function ModulePage({ item }: { item: NavItem }) {
+  const { data, isLoading, error } = useSWR(`/api/${item.resource}`, fetcher);
+  const rows = Array.isArray(data?.data) ? data.data : [];
+  const columns = rows.length
+    ? Object.keys(rows[0])
+        .filter((key) => !["id", "created_at", "updated_at"].includes(key))
+        .slice(0, 7)
+    : [];
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div>
+          <p className="mb-1 text-sm font-medium text-primary">
+            MH3 Rental / {item.label}
+          </p>
+          <h2 className="text-3xl font-bold tracking-tight">{item.label}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Gestão completa de {item.label.toLowerCase()} integrada ao banco de
+            dados.
+          </p>
+        </div>
+        <button className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
+          <Plus className="size-4" />
+          Adicionar registro
+        </button>
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard
+          label="Registros encontrados"
+          value={isLoading ? "..." : String(rows.length)}
+          delta="Atualizado agora"
+          Icon={Database}
+        />
+        <MetricCard
+          label="Status da conexão"
+          value={
+            error
+              ? "Atenção"
+              : data?.configured === false
+                ? "Configurar"
+                : "Online"
+          }
+          delta="API Next.js"
+          Icon={ShieldCheck}
+        />
+        <MetricCard
+          label="Última sincronização"
+          value="Agora"
+          delta="Dados protegidos"
+          Icon={Activity}
+        />
+      </div>
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-border p-5 md:flex-row md:items-center md:justify-between md:p-6">
+          <div>
+            <h3 className="font-semibold">Dados de {item.label}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Consulta realizada pelo Route Handler do Next.js
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+              <Search className="size-4" />
+              Buscar registros
+            </div>
+            <button className="rounded-lg border border-border px-3 py-2 text-xs font-medium">
+              Exportar
+            </button>
+          </div>
+        </div>
+        {isLoading ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            Carregando dados...
+          </div>
+        ) : error ? (
+          <div className="p-8 text-center text-sm text-destructive">
+            Não foi possível carregar os dados desta área.
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="p-10 text-center">
+            <Database className="mx-auto mb-3 size-8 text-muted-foreground" />
+            <p className="font-medium">Nenhum registro encontrado</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Quando houver dados no banco, eles aparecerão aqui.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-190 text-left text-sm">
+              <thead className="bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col} className="px-6 py-3 font-medium">
+                      {col.replaceAll("_", " ")}
+                    </th>
+                  ))}
+                  <th className="px-6 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(
+                  (row: Record<string, string | number>, index: number) => (
+                    <tr
+                      key={String(row.id ?? index)}
+                      className="border-t border-border hover:bg-accent/40"
+                    >
+                      {columns.map((col) => (
+                        <td
+                          key={col}
+                          className="max-w-60 truncate px-6 py-4 text-muted-foreground"
+                        >
+                          {String(row[col] ?? "—")}
+                        </td>
+                      ))}
+                      <td className="px-6 py-4 text-right">
+                        <MoreHorizontal className="ml-auto size-4 text-muted-foreground" />
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-export function RentalDashboard() { const [active, setActive] = useState('Dashboard'); const [open, setOpen] = useState(false); const activeItem = navGroups.flatMap((group) => group.items).find((item) => item.label === active) ?? navGroups[0].items[0]; return <div className="min-h-screen bg-background text-foreground"><aside className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border bg-sidebar px-5 py-6 transition-transform lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}><div className="mb-8 flex items-center justify-between px-2"><div className="flex items-center gap-3"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-MmQnEBDcdmjJH5Ts9HWlQiYShvAUAO.png" alt="MH3 Rental" className="h-auto w-20 object-contain" /><div><p className="text-lg font-semibold tracking-tight">Rental</p><p className="font-mono text-[10px] tracking-[0.16em] text-primary">GESTÃO DE FROTAS</p></div></div><button className="rounded-lg p-2 text-muted-foreground lg:hidden" onClick={() => setOpen(false)} aria-label="Fechar menu"><X /></button></div><nav className="flex flex-1 flex-col gap-5 overflow-y-auto" aria-label="Navegação principal">{navGroups.map((group) => <div key={group.label} className="flex flex-col gap-1.5"><p className="px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-primary">{group.label}</p>{group.items.map((item) => <button key={item.label} onClick={() => { setActive(item.label); setOpen(false) }} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${active === item.label ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/15' : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-primary'}`}><item.icon className="size-4" />{item.label}{item.badge && <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] ${active === item.label ? 'bg-primary-foreground/20' : 'bg-primary text-primary-foreground'}`}>{item.badge}</span>}</button>)}</div>)}</nav><div className="mt-5 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold">Saúde da operação</span><ShieldCheck className="size-4 text-primary" /></div><div className="mb-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full w-[84%] rounded-full bg-primary" /></div><p className="text-xs text-muted-foreground">Tudo funcionando normalmente</p></div><div className="mt-5 flex items-center gap-3 border-t border-border pt-5"><div className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">MC</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">Marcos Carvalho</p><p className="truncate text-xs text-muted-foreground">Administrador</p></div><Settings2 className="size-4 text-muted-foreground" /></div></aside><div className="lg:pl-72"><header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-border bg-background/95 px-5 backdrop-blur md:px-9"><div className="flex items-center gap-4"><button className="rounded-xl border border-border p-2 lg:hidden" onClick={() => setOpen(true)} aria-label="Abrir menu"><Menu /></button><div><p className="text-sm text-muted-foreground">Terça-feira, 2 de setembro de 2026</p><h1 className="text-xl font-bold tracking-tight md:text-2xl">Olá, Marcos.</h1></div></div><div className="flex items-center gap-2 md:gap-4"><button className="hidden items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm text-muted-foreground md:flex"><Search className="size-4" />Buscar <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘ K</kbd></button><button className="relative rounded-xl border border-border bg-card p-2.5" aria-label="Notificações"><Bell className="size-4" /><span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" /></button><div className="hidden items-center gap-2 md:flex"><div className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">MC</div><ChevronDown className="size-4 text-muted-foreground" /></div></div></header><main className="mx-auto max-w-[1500px] p-5 md:p-9">{active === 'Dashboard' ? <DashboardHome onNavigate={setActive} /> : <ModulePage item={activeItem} />}</main></div></div> }
+export function RentalDashboard() {
+  const [active, setActive] = useState("Dashboard");
+  const [open, setOpen] = useState(false);
+  const activeItem =
+    navGroups
+      .flatMap((group) => group.items)
+      .find((item) => item.label === active) ?? navGroups[0].items[0];
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border bg-sidebar px-5 py-6 transition-transform lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <div className="mb-8 flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+            <img
+              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-MmQnEBDcdmjJH5Ts9HWlQiYShvAUAO.png"
+              alt="MH3 Rental"
+              className="h-auto w-20 object-contain"
+            />
+            <div>
+              <p className="text-lg font-semibold tracking-tight">Rental</p>
+              <p className="font-mono text-[10px] tracking-[0.16em] text-primary">
+                GESTÃO DE FROTAS
+              </p>
+            </div>
+          </div>
+          <button
+            className="rounded-lg p-2 text-muted-foreground lg:hidden"
+            onClick={() => setOpen(false)}
+            aria-label="Fechar menu"
+          >
+            <X />
+          </button>
+        </div>
+        <nav
+          className="flex flex-1 flex-col gap-5 overflow-y-auto"
+          aria-label="Navegação principal"
+        >
+          {navGroups.map((group) => (
+            <div key={group.label} className="flex flex-col gap-1.5">
+              <p className="px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-primary">
+                {group.label}
+              </p>
+              {group.items.map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => {
+                    setActive(item.label);
+                    setOpen(false);
+                  }}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${active === item.label ? "bg-primary/10 text-primary shadow-sm ring-1 ring-primary/15" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-primary"}`}
+                >
+                  <item.icon className="size-4" />
+                  {item.label}
+                  {item.badge && (
+                    <span
+                      className={`ml-auto rounded-full px-2 py-0.5 text-[10px] ${active === item.label ? "bg-primary-foreground/20" : "bg-primary text-primary-foreground"}`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="mt-5 rounded-2xl bg-card p-4 shadow-sm ring-1 ring-border">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-semibold">Saúde da operação</span>
+            <ShieldCheck className="size-4 text-primary" />
+          </div>
+          <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full w-[84%] rounded-full bg-primary" />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Tudo funcionando normalmente
+          </p>
+        </div>
+        <div className="mt-5 flex items-center gap-3 border-t border-border pt-5">
+          <div className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+            MC
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">Marcos Carvalho</p>
+            <p className="truncate text-xs text-muted-foreground">
+              Administrador
+            </p>
+          </div>
+          <Settings2 className="size-4 text-muted-foreground" />
+        </div>
+      </aside>
+      <div className="lg:pl-72">
+        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-border bg-background/95 px-5 backdrop-blur md:px-9">
+          <div className="flex items-center gap-4">
+            <button
+              className="rounded-xl border border-border p-2 lg:hidden"
+              onClick={() => setOpen(true)}
+              aria-label="Abrir menu"
+            >
+              <Menu />
+            </button>
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Terça-feira, 2 de setembro de 2026
+              </p>
+              <h1 className="text-xl font-bold tracking-tight md:text-2xl">
+                Olá, Marcos.
+              </h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <button className="hidden items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm text-muted-foreground md:flex">
+              <Search className="size-4" />
+              Buscar{" "}
+              <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                ⌘ K
+              </kbd>
+            </button>
+            <button
+              className="relative rounded-xl border border-border bg-card p-2.5"
+              aria-label="Notificações"
+            >
+              <Bell className="size-4" />
+              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" />
+            </button>
+            <div className="hidden items-center gap-2 md:flex">
+              <div className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                MC
+              </div>
+              <ChevronDown className="size-4 text-muted-foreground" />
+            </div>
+          </div>
+        </header>
+        <main className="mx-auto max-w-375 p-5 md:p-9">
+          {active === "Dashboard" ? (
+            <DashboardHome onNavigate={setActive} />
+          ) : (
+            <ModulePage item={activeItem} />
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
 
-export default RentalDashboard
+export default RentalDashboard;
