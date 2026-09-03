@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    return create(TABLE, FIELDS, await request.json());
+    return create(TABLE, FIELDS, await request.json(), request);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
