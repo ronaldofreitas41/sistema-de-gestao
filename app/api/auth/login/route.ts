@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     await (prisma as any).mh3_usuarios.update({
       where: { login },
-      data: { ultimo_login: new Date() },
+      data: { ultimo_acesso: new Date() },
     });
 
     const token = await createToken({

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { create, list } from "@/lib/crud-prisma";
 
 const TABLE = "mh3_usuarios";
-const FIELDS = ["empresa_id", "nome", "login", "senha", "perfil", "permissoes", "ativo", "ultimo_login"];
+const FIELDS = ["empresa_id", "nome", "login", "senha", "perfil", "permissoes", "ativo", "ultimo_acesso"];
 const SEARCH_FIELDS = ["nome", "login", "perfil"];
 
 export async function GET(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    return create(TABLE, FIELDS, await request.json(), request);
+    return create(TABLE, FIELDS, await request.json());
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }

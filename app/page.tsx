@@ -1,5 +1,7 @@
-import RentalDashboard from '@/components/rental-dashboard'
+
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <RentalDashboard />
+ redirect("/login");
+
 }
