@@ -44,3 +44,23 @@ export interface ContaPagar {
   status?: string | null;
   tipo?: string | null;
 }
+
+export interface Despesa {
+  id: string;
+  descricao: string;
+  categoria: string;
+  fornecedor: string;
+  data_competencia: string;
+  data_vencimento: string;
+  data_pagamento: string | null;
+  valor: string;
+  status_disp: "pago" | "pendente" | string;
+  observacoes: string | null;
+  criado_em: string;
+  atualizado_em: string;
+  conta_banco_id: string | null;
+  conta_banco: string | null;
+  placa: string | null;
+  antigo: boolean;
+  num_desp: string | null;
+}

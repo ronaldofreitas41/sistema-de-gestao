@@ -24,6 +24,8 @@ interface Usuario {
 }
 
 interface SidebarProps {
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
   onClose?: () => void;
 }
 
@@ -38,13 +40,19 @@ interface NavGroup {
   items: NavItem[];
 }
 
-export function Sidebar({ onClose }: SidebarProps) {
+export function Sidebar({
+  collapsed: collapsedProp,
+  onCollapsedChange,
+  onClose,
+}: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsedState, setCollapsedState] = useState(false);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [saindo, setSaindo] = useState(false);
+
+  const collapsed = collapsedProp ?? collapsedState;
 
   // Guarda quais grupos estão abertos.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -60,7 +68,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       const sidebarSalva = localStorage.getItem("mh3_sidebar_collapsed");
 
       if (sidebarSalva === "true") {
-        setCollapsed(true);
+        setCollapsedState(true);
       }
 
       const gruposSalvos = localStorage.getItem("mh3_sidebar_groups");
@@ -74,8 +82,10 @@ export function Sidebar({ onClose }: SidebarProps) {
   }, []);
 
   function toggleSidebar() {
-    setCollapsed((estadoAtual) => {
+    setCollapsedState((estadoAtual: boolean) => {
       const novoEstado = !estadoAtual;
+
+      onCollapsedChange?.(novoEstado);
 
       try {
         localStorage.setItem("mh3_sidebar_collapsed", String(novoEstado));
@@ -148,10 +158,9 @@ export function Sidebar({ onClose }: SidebarProps) {
 
   return (
     <aside
-      className={cn(
-        "flex h-screen shrink-0 flex-col border-r border-border bg-card transition-[width] duration-300",
-        collapsed ? "w-[72px]" : "w-[260px]",
-      )}
+      className={`flex h-full flex-col border-r border-border bg-card transition-[width] duration-300 ${
+        collapsed ? "w-18" : "w-65"
+      }`}
     >
       {/* Cabeçalho */}
       <div

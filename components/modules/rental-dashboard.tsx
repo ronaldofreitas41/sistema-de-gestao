@@ -27,8 +27,6 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { navGroups } from "@/lib/common";
 
-
-
 const dashboardBookings: Booking[] = [
   {
     id: "CTR-2026-084",
@@ -77,7 +75,6 @@ async function fetcher(url: string): Promise<ApiResponse> {
 
   return data;
 }
-
 
 function getDisplayValue(value: unknown) {
   if (value === null || value === undefined || value === "") {
@@ -356,7 +353,7 @@ function DashboardHome({
                     <th key={head} className="px-6 py-3 font-medium">
                       {head}
                     </th>
-                  )
+                  ),
                 )}
               </tr>
             </thead>
@@ -371,9 +368,7 @@ function DashboardHome({
                     {booking.id}
                   </td>
 
-                  <td className="px-6 py-4 font-medium">
-                    {booking.client}
-                  </td>
+                  <td className="px-6 py-4 font-medium">{booking.client}</td>
 
                   <td className="px-6 py-4 text-muted-foreground">
                     {booking.vehicle}
@@ -407,19 +402,13 @@ function ModulePage({ item }: { item: NavItem }) {
 
   const endpoint = item.resource
     ? `/api/${item.resource}?page=1&limit=50${
-        search.trim()
-          ? `&search=${encodeURIComponent(search.trim())}`
-          : ""
+        search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""
       }`
     : null;
 
-  const { data, error, isLoading } = useSWR<ApiResponse>(
-    endpoint,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-    }
-  );
+  const { data, error, isLoading } = useSWR<ApiResponse>(endpoint, fetcher, {
+    revalidateOnFocus: false,
+  });
 
   const rows = Array.isArray(data?.data) ? data.data : [];
 
@@ -435,7 +424,7 @@ function ModulePage({ item }: { item: NavItem }) {
             "updated_at",
             "criado_em",
             "atualizado_em",
-          ].includes(key)
+          ].includes(key),
       )
       .slice(0, 8);
   }, [rows]);
@@ -453,8 +442,8 @@ function ModulePage({ item }: { item: NavItem }) {
           </h2>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            Gestão completa de {item.label.toLowerCase()} integrada ao banco
-            de dados.
+            Gestão completa de {item.label.toLowerCase()} integrada ao banco de
+            dados.
           </p>
         </div>
 
@@ -477,7 +466,13 @@ function ModulePage({ item }: { item: NavItem }) {
 
         <MetricCard
           label="Status da conexão"
-          value={error ? "Atenção" : data?.configured === false ? "Configurar" : "Online"}
+          value={
+            error
+              ? "Atenção"
+              : data?.configured === false
+                ? "Configurar"
+                : "Online"
+          }
           delta="API Next.js"
           icon={ShieldCheck}
           negative={Boolean(error)}
@@ -602,16 +597,16 @@ function ModulePage({ item }: { item: NavItem }) {
 export function RentalDashboard() {
   const [active, setActive] = useState("Dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const allItems = navGroups.flatMap((group) => group.items) as NavItem[];
 
-  const activeItem =
-    allItems.find((item) => item.label.trim() === active) || {
-      href: "/",
-      label: "Dashboard",
-      resource: undefined,
-      icon: FileText,
-    };
+  const activeItem = allItems.find((item) => item.label.trim() === active) || {
+    href: "/",
+    label: "Dashboard",
+    resource: undefined,
+    icon: FileText,
+  };
 
   const today = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
@@ -623,7 +618,10 @@ export function RentalDashboard() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="fixed inset-y-0 left-0 z-40 hidden md:flex">
-        <Sidebar />
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
       </div>
 
       {menuOpen && (
@@ -648,7 +646,11 @@ export function RentalDashboard() {
         </div>
       )}
 
-      <div className="min-h-screen md:pl-65">
+      <div
+        className={`min-h-screen transition-[padding-left] duration-300 ${
+          sidebarCollapsed ? "md:pl-18" : "md:pl-65"
+        }`}
+      >
         <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9">
           <div className="flex min-w-0 items-center gap-3">
             <button
