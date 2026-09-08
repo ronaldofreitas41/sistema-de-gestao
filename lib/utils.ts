@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { ApiResponse } from './types';
+import { ApiResponse, Permissoes } from './types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -65,5 +65,55 @@ export async function fetcher(url: string): Promise<ApiResponse> {
   }
 
   return data;
+}
+
+export function normalizarPermissoes(
+  permissoes: Permissoes | string | null | undefined
+): Permissoes {
+  if (!permissoes) {
+    return {};
+  }
+
+  if (typeof permissoes === "object") {
+    return permissoes;
+  }
+
+  try {
+    const resultado = JSON.parse(permissoes);
+
+    if (
+      resultado &&
+      typeof resultado === "object" &&
+      !Array.isArray(resultado)
+    ) {
+      return resultado as Permissoes;
+    }
+
+    return {};
+  } catch (error) {
+    console.error("Erro ao interpretar permissões:", error);
+    return {};
+  }
+}
+
+export function contarPermissoes(
+  permissoes: Permissoes | string | null | undefined
+) {
+  const permissoesNormalizadas = normalizarPermissoes(permissoes);
+
+  const valores = Object.values(permissoesNormalizadas);
+
+  return {
+    ativas: valores.filter((valor) => valor === true).length,
+    total: valores.length,
+  };
+}
+
+export function formatarPermissoes(
+  permissoes: Permissoes | string | null | undefined
+) {
+  const { ativas, total } = contarPermissoes(permissoes);
+
+  return `${ativas}/${total}`;
 }
 

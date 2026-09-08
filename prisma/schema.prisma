@@ -94,28 +94,23 @@ model mh3_checklists {
 }
 
 model mh3_clientes {
-  id            BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id    BigInt?                   @db.UnsignedBigInt
-  tipo_pessoa   mh3_clientes_tipo_pessoa? @default(PJ)
-  nome          String                    @db.VarChar(150)
-  razao_social  String?                   @db.VarChar(200)
-  cpf_cnpj      String?                   @db.VarChar(30)
-  email         String?                   @db.VarChar(150)
-  telefone      String?                   @db.VarChar(30)
-  endereco      String?                   @db.VarChar(255)
-  cidade        String?                   @db.VarChar(100)
-  estado        String?                   @db.VarChar(2)
-  cep           String?                   @db.VarChar(10)
-  observacoes   String?                   @db.Text
-  ativo         Boolean?                  @default(true)
-  criado_em     DateTime                  @default(now()) @db.DateTime(0)
-  atualizado_em DateTime                  @default(now()) @db.DateTime(0)
-  mh3_empresas  mh3_empresas?             @relation(fields: [empresa_id], references: [id], onUpdate: Restrict, map: "fk_cliente_empresa")
+  id            BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  nome          String          @db.VarChar(150)
+  cpf_cnpj      String?         @db.VarChar(30)
+  email         String?         @db.VarChar(150)
+  telefone      String?         @db.VarChar(30)
+  endereco      String?         @db.VarChar(255)
+  cidade        String?         @db.VarChar(100)
+  estado        String?         @db.VarChar(2)
+  cep           String?         @db.VarChar(10)
+  observacoes   String?         @db.Text
+  criado_em     DateTime        @default(now()) @db.DateTime(0)
+  atualizado_em DateTime        @default(now()) @db.DateTime(0)
+  obra          String?         @db.VarChar(100)
   mh3_contratos mh3_contratos[]
   mh3_propostas mh3_propostas[]
   mh3_vendas    mh3_vendas[]
 
-  @@index([empresa_id], map: "fk_cliente_empresa")
   @@index([cpf_cnpj], map: "idx_cliente_documento")
 }
 
@@ -267,7 +262,6 @@ model mh3_empresas {
   ativo                Boolean                @default(true)
   criado_em            DateTime               @default(now()) @db.DateTime(0)
   atualizado_em        DateTime               @default(now()) @db.DateTime(0)
-  mh3_clientes         mh3_clientes[]
   mh3_configuracoes    mh3_configuracoes[]
   mh3_contas_bancarias mh3_contas_bancarias[]
   mh3_contratos        mh3_contratos[]
@@ -713,21 +707,21 @@ model mh3_tentativas {
 }
 
 model mh3_tratativas {
-  id            BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
-  usuario_id    String?       @db.VarChar(60)
-  titulo        String?       @db.VarChar(255)
-  descricao     String?       @db.Text
-  responsavel   String?       @db.VarChar(150)
-  prazo         DateTime?     @db.Date
-  status        String?       @default("aberta") @db.VarChar(50)
-  criado_em     DateTime      @default(now()) @db.DateTime(0)
-  atualizado_em DateTime      @default(now()) @db.DateTime(0)
-  mh3_usuarios  mh3_usuarios? @relation(fields: [usuario_id], references: [id], map: "fk_tratativa_usuario")
+  id            BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  usuario_id    String?      @db.VarChar(60)
+  titulo        String?      @db.VarChar(255)
+  descricao     String?      @db.Text
+  responsavel   String?      @db.VarChar(150)
+  prazo         DateTime?    @db.Date
+  status        String?      @default("aberta") @db.VarChar(50)
+  criado_em     DateTime     @default(now()) @db.DateTime(0)
+  atualizado_em DateTime     @default(now()) @db.DateTime(0)
+  mh3_usuarios  mh3Usuarios? @relation(fields: [usuario_id], references: [id], map: "fk_tratativa_usuario")
 
   @@index([usuario_id], map: "idx_tratativa_usuario")
 }
 
-model mh3_usuarios {
+model mh3Usuarios {
   id             String           @id @db.VarChar(60)
   nome           String           @db.VarChar(150)
   login          String           @unique(map: "login") @db.VarChar(80)
@@ -739,6 +733,8 @@ model mh3_usuarios {
   criado_em      DateTime?        @default(now()) @db.Timestamp(0)
   codigo_acesso  String?          @default("") @db.VarChar(40)
   mh3_tratativas mh3_tratativas[]
+
+  @@map("mh3_usuarios")
 }
 
 model mh3_venda_itens {
@@ -776,11 +772,6 @@ model mh3_vendas {
 
   @@index([cliente_id], map: "fk_venda_cliente")
   @@index([empresa_id], map: "fk_venda_empresa")
-}
-
-enum mh3_clientes_tipo_pessoa {
-  PF
-  PJ
 }
 
 enum mh3_nfs_cp {

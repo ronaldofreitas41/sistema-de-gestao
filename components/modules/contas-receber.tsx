@@ -30,23 +30,9 @@ import {
 import { Receipt, Plus, Search, Edit, Trash2, FileText, Menu, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Despesa } from "@/lib/types";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
-// Funções auxiliares de formatação
-const formatCurrency = (value?: string | number | null) => {
-  if (!value) return "R$ 0,00";
-  const numValue = typeof value === "string" ? parseFloat(value) : value;
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(numValue);
-};
-
-const formatDate = (dateString?: string | null) => {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("pt-BR", { timeZone: "UTC" });
-};
-
-export function ContasPagar() {
+export function ContasReceber() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -315,7 +301,7 @@ export function ContasPagar() {
                       {formatDate(despesa.data_pagamento)}
                     </TableCell>
                     <TableCell className="font-medium text-primary">
-                      {formatCurrency(despesa.valor)}
+                      {formatCurrency(Number(despesa.valor))}
                     </TableCell>
                     <TableCell className="text-center">
                       <span

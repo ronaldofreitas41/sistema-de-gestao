@@ -220,7 +220,7 @@ export function Sidebar({
             }
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              collapsed && "absolute left-[52px]",
+              collapsed && "absolute left-13",
             )}
           >
             {collapsed ? (
@@ -298,7 +298,7 @@ export function Sidebar({
                                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                 )}
                               >
-                                <Icon className="h-[18px] w-[18px] shrink-0" />
+                                <Icon className="h-4.5 w-4.5 shrink-0" />
 
                                 <span className="truncate">{item.label}</span>
                               </Link>
@@ -335,9 +335,9 @@ export function Sidebar({
                               : "text-muted-foreground hover:bg-muted hover:text-foreground",
                           )}
                         >
-                          <Icon className="h-[18px] w-[18px]" />
+                          <Icon className="h-4.5 w-4.5" />
 
-                          <span className="pointer-events-none absolute left-[62px] z-50 hidden whitespace-nowrap rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground shadow-lg group-hover:block">
+                          <span className="pointer-events-none absolute left-15.5 z-50 hidden whitespace-nowrap rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground shadow-lg group-hover:block">
                             {item.label}
                           </span>
                         </Link>
@@ -391,7 +391,7 @@ export function Sidebar({
             collapsed ? "justify-center px-0" : "gap-3 px-3",
           )}
         >
-          <LogOut className="h-[18px] w-[18px] shrink-0" />
+          <LogOut className="h-4.5 w-4.5 shrink-0" />
 
           {!collapsed && <span>{saindo ? "Saindo..." : "Sair"}</span>}
         </button>

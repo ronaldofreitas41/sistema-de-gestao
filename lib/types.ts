@@ -64,3 +64,32 @@ export interface Despesa {
   antigo: boolean;
   num_desp: string | null;
 }
+
+export type Permissoes = Record<string, boolean>;
+
+export interface Usuario {
+  id: string;
+  nome: string;
+  login: string;
+  senha?: string;
+  perfil: string;
+  permissoes: Permissoes | string | null;
+  ativo: boolean;
+  ultimo_acesso?: string | null;
+  criado_em?: string | null;
+  codigo_acesso?: string | null;
+}
+
+export interface Cliente {
+  id: string | number;
+  nome: string;
+  cpf_cnpj: string;
+  email: string;
+  telefone: string;
+  endereco: string;
+  cidade: string;
+  estado: string;
+  cep: string;
+  observacoes: string | null;
+  obra: string;
+}
