@@ -194,28 +194,29 @@ model mh3_dados {
   @@index([modulo, criado_em], map: "idx_mod_criado")
 }
 
-model mh3_despesas {
-  id               BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id       BigInt?       @db.UnsignedBigInt
-  descricao        String?       @db.VarChar(255)
-  categoria        String?       @db.VarChar(100)
-  fornecedor       String?       @db.VarChar(150)
-  documento        String?       @db.VarChar(100)
-  data_competencia DateTime?     @db.Date
-  data_vencimento  DateTime?     @db.Date
-  data_pagamento   DateTime?     @db.Date
-  valor            Decimal?      @default(0.00) @db.Decimal(14, 2)
-  forma_pagamento  String?       @db.VarChar(100)
-  status           String?       @default("pendente") @db.VarChar(50)
-  observacoes      String?       @db.Text
-  criado_em        DateTime      @default(now()) @db.DateTime(0)
-  atualizado_em    DateTime      @default(now()) @db.DateTime(0)
-  mh3_empresas     mh3_empresas? @relation(fields: [empresa_id], references: [id], onUpdate: Restrict, map: "fk_despesa_empresa")
+model mh3Despesas {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  descricao        String?   @db.VarChar(255)
+  categoria        String?   @db.VarChar(100)
+  fornecedor       String?   @db.VarChar(150)
+  data_competencia DateTime? @db.Date
+  data_vencimento  DateTime? @db.Date
+  data_pagamento   DateTime? @db.Date
+  valor            Decimal?  @default(0.00) @db.Decimal(14, 2)
+  status_disp      String?   @default("pendente") @db.VarChar(50)
+  observacoes      String?   @db.Text
+  criado_em        DateTime  @default(now()) @db.DateTime(0)
+  atualizado_em    DateTime  @default(now()) @db.DateTime(0)
+  conta_banco_id   String?   @db.VarChar(100)
+  conta_banco      String?   @db.VarChar(100)
+  placa            String?   @db.VarChar(45)
+  antigo           Boolean?  @default(false)
+  num_desp         String?   @db.VarChar(50)
 
-  @@index([empresa_id], map: "fk_despesa_empresa")
   @@index([categoria], map: "idx_despesa_categoria")
-  @@index([status], map: "idx_despesa_status")
+  @@index([status_disp], map: "idx_despesa_status")
   @@index([data_vencimento], map: "idx_despesa_vencimento")
+  @@map("mh3_despesas")
 }
 
 model mh3_email_contas {
@@ -270,7 +271,6 @@ model mh3_empresas {
   mh3_configuracoes    mh3_configuracoes[]
   mh3_contas_bancarias mh3_contas_bancarias[]
   mh3_contratos        mh3_contratos[]
-  mh3_despesas         mh3_despesas[]
   mh3_equipamentos     mh3_equipamentos[]
   mh3_estoque          mh3_estoque[]
   mh3_funcionarios     mh3_funcionarios[]
