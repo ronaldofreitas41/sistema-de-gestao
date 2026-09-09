@@ -109,7 +109,6 @@ model mh3_clientes {
   obra          String?         @db.VarChar(100)
   mh3_contratos mh3_contratos[]
   mh3_propostas mh3_propostas[]
-  mh3_vendas    mh3_vendas[]
 
   @@index([cpf_cnpj], map: "idx_cliente_documento")
 }
@@ -269,7 +268,6 @@ model mh3_empresas {
   mh3_nfs            mh3_nfs[]
   mh3_propostas      mh3_propostas[]
   mh3_sequencias     mh3_sequencias[]
-  mh3_vendas         mh3_vendas[]
 }
 
 model mh3_equipamentos {
@@ -326,7 +324,6 @@ model mh3_equipamentos {
   mh3_prejuizos           mh3_prejuizos[]
   mh3_revisoes            mh3_revisoes[]
   mh3_saidas_material     mh3_saidas_material[]
-  mh3_seguros             mh3_seguros[]
 
   @@index([placa], map: "idx_equip_placa")
   @@index([status], map: "idx_equip_status")
@@ -666,20 +663,16 @@ model mh3_saidas_material {
 }
 
 model mh3_seguros {
-  id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  equipamento_id   BigInt?           @db.UnsignedBigInt
-  seguradora       String?           @db.VarChar(150)
-  numero_apolice   String?           @db.VarChar(100)
-  data_inicio      DateTime?         @db.Date
-  data_fim         DateTime?         @db.Date
-  valor            Decimal?          @default(0.00) @db.Decimal(14, 2)
-  franquia         Decimal?          @default(0.00) @db.Decimal(14, 2)
-  status           String?           @db.VarChar(50)
-  observacoes      String?           @db.Text
-  criado_em        DateTime          @default(now()) @db.DateTime(0)
-  mh3_equipamentos mh3_equipamentos? @relation(fields: [equipamento_id], references: [id], onUpdate: Restrict, map: "fk_seguro_equipamento")
-
-  @@index([equipamento_id], map: "fk_seguro_equipamento")
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  seguradora     String?   @db.VarChar(150)
+  numero_apolice String?   @db.VarChar(100)
+  data_inicio    DateTime? @db.Date
+  data_fim       DateTime? @db.Date
+  valor          Decimal?  @default(0.00) @db.Decimal(14, 2)
+  franquia       Decimal?  @default(0.00) @db.Decimal(14, 2)
+  status         String?   @db.VarChar(50)
+  observacoes    String?   @db.Text
+  criado_em      DateTime  @default(now()) @db.DateTime(0)
 }
 
 model mh3_sequencias {
@@ -755,40 +748,41 @@ model mh3Usuarios {
 }
 
 model mh3_venda_itens {
-  id             BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
-  venda_id       BigInt     @db.UnsignedBigInt
-  descricao      String?    @db.VarChar(255)
-  quantidade     Decimal?   @default(1.000) @db.Decimal(14, 3)
-  valor_unitario Decimal?   @default(0.00) @db.Decimal(14, 2)
-  desconto       Decimal?   @default(0.00) @db.Decimal(14, 2)
-  total          Decimal?   @default(0.00) @db.Decimal(14, 2)
-  criado_em      DateTime   @default(now()) @db.DateTime(0)
-  mh3_vendas     mh3_vendas @relation(fields: [venda_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_venda_item_venda")
+  id         String     @id @db.VarChar(20)
+  venda_id   String     @db.VarChar(20)
+  descricao  String?    @db.VarChar(255)
+  quantidade Decimal    @default(1.000) @db.Decimal(14, 3)
+  valor      Decimal    @default(0.00) @db.Decimal(14, 2)
+  tipo       String?    @db.VarChar(50)
+  fonte      String?    @db.VarChar(50)
+  mh3_vendas mh3_vendas @relation(fields: [venda_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_venda_item_venda")
 
-  @@index([venda_id], map: "fk_venda_item_venda")
+  @@index([venda_id], map: "fk_venda_item")
 }
 
 model mh3_vendas {
-  id              BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id      BigInt?           @db.UnsignedBigInt
-  cliente_id      BigInt?           @db.UnsignedBigInt
-  numero          String?           @db.VarChar(50)
-  data_venda      DateTime          @db.Date
-  vendedor        String?           @db.VarChar(150)
-  subtotal        Decimal?          @default(0.00) @db.Decimal(14, 2)
-  desconto        Decimal?          @default(0.00) @db.Decimal(14, 2)
-  total           Decimal?          @default(0.00) @db.Decimal(14, 2)
-  forma_pagamento String?           @db.VarChar(100)
-  status          String?           @default("aberta") @db.VarChar(50)
+  id              String            @id @db.VarChar(20)
+  numero          String            @db.VarChar(20)
+  cliente         String            @db.VarChar(150)
+  data            DateTime          @db.Date
+  documento       String?           @db.VarChar(100)
+  tipo_documento  String?           @db.VarChar(50)
+  contato         String?           @db.VarChar(50)
+  pagamento       String?           @db.VarChar(100)
   observacoes     String?           @db.Text
+  sub_total       Decimal           @default(0.00) @db.Decimal(14, 2)
+  desconto        Decimal           @default(0.00) @db.Decimal(14, 2)
+  total           Decimal           @default(0.00) @db.Decimal(14, 2)
+  status          String            @default("pendente") @db.VarChar(30)
+  faturada        Boolean           @default(false)
+  vencimento      DateTime?         @db.Date
+  avaria          Boolean           @default(false)
+  em_medicao      Boolean           @default(false)
+  sinal_medicao   String?           @db.VarChar(5)
+  placa_medicao   String?           @db.VarChar(20)
   criado_em       DateTime          @default(now()) @db.DateTime(0)
   atualizado_em   DateTime          @default(now()) @db.DateTime(0)
   mh3_venda_itens mh3_venda_itens[]
-  mh3_clientes    mh3_clientes?     @relation(fields: [cliente_id], references: [id], onUpdate: Restrict, map: "fk_venda_cliente")
-  mh3_empresas    mh3_empresas?     @relation(fields: [empresa_id], references: [id], onUpdate: Restrict, map: "fk_venda_empresa")
-
-  @@index([cliente_id], map: "fk_venda_cliente")
-  @@index([empresa_id], map: "fk_venda_empresa")
 }
 
 model mh3_movimentacoes_bancarias {

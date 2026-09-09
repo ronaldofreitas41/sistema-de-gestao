@@ -170,3 +170,48 @@ export interface Equipamento {
   seguro_id?: string;
 }
 
+export interface Seguro {
+  id: string;
+  seguradora: string;
+  apolice: string;
+  data_inicio: string;
+  data_fim: string;
+  valor: number | null;
+  franquia: number | null;
+  status: string;
+  obs: string;
+}
+
+export interface VendaItem {
+  id: string;
+  desc: string;
+  qtd: number;
+  val: number;
+  tipo: string;
+  fonte: string;
+}
+
+export interface Venda {
+  id: string;
+  numero: string;
+  cliente: string;
+  data: string;
+  documento?: string;
+  tipo_documento?: string;
+  contato?: string;
+  pagamento?: string;
+  observacoes?: string;
+  items: VendaItem[];
+  sub_total: number;
+  desconto: number;
+  total: number;
+  status: "pendente" | "pago" | "cancelado";
+  faturada: boolean;
+  vencimento?: string;
+  avaria: boolean;
+  em_medicao: boolean;
+  sinal_medicao?: "+" | "-";
+  placa_medicao?: string;
+  criado_em?: string;
+  atualizado_em?: string;
+}

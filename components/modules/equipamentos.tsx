@@ -60,9 +60,15 @@ export function Equipamentos() {
     try {
       const res = await fetch("/api/equipamentos");
       const responseData = await res.json();
-      setEquipamentos(responseData.data || responseData || []);
+      const list = Array.isArray(responseData)
+        ? responseData
+        : Array.isArray(responseData?.data)
+          ? responseData.data
+          : [];
+      setEquipamentos(list);
     } catch (error) {
       console.error("Erro ao carregar equipamentos:", error);
+      setEquipamentos([]);
     }
   }
 
