@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Login e senha são obrigatórios." }, { status: 400 });
     }
 
-    const usuario = await (prisma as any).mh3_usuarios.findUnique({ where: { login } });
+    const usuario = await (prisma as any).mh3Usuarios.findUnique({ where: { login } });
 
     if (!usuario) {
       return NextResponse.json({ success: false, message: "Login ou senha inválidos." }, { status: 401 });
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Login ou senha inválidos." }, { status: 401 });
     }
 
-    await (prisma as any).mh3_usuarios.update({
+    await (prisma as any).mh3Usuarios.update({
       where: { login },
       data: { ultimo_acesso: new Date() },
     });

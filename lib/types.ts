@@ -93,3 +93,80 @@ export interface Cliente {
   observacoes: string | null;
   obra: string;
 }
+
+export interface Ajuda_Motorista{
+  id: string;
+  empresa: string;
+  motorista: string;
+  telefone: string;
+  valor: number;
+  data: string;
+  agencia: string;
+  conta_banco: string;
+  forma_pagamento: string;
+  pix: string;
+  observacoes: string | null;
+  placa: string;
+  recorrente: boolean;
+  confirma_user: string;
+  despesa_id: string;
+}
+
+export interface ContasBancarias{
+  id: string;
+  banco: string;
+  nome: string;
+  conta: string;
+  tipo:string;
+  saldo: number;
+  saldo_polpanca: number;
+  fluxo: boolean;
+  agencia: string;
+}
+
+export interface Equipamento {
+  id: string | number;
+  placa?: string;
+  frota?: string;
+  tipo?: string;
+  marca?: string;
+  modelo?: string;
+  ano?: string;
+  renavam?: string;
+  chassi?: string;
+  km_atual?: number;
+  horimetro?: number;
+  status?: string;
+  observacoes?: string | null;
+  criado_em?: string;
+  atualizado_em?: string;
+  crv?: string;
+  estado?: string;
+  dt_km_atual?: string;
+  prorietario?: string;
+  crlv?: string;
+  valor_aquisição?: number;
+  data_aquisicao?: string;
+  situacao_financeira?: string;
+  quantidade_parcelas?: string;
+  tipo_parcela?: string;
+  valor_parcela?: number;
+  parcelas_pagas?: string;
+  data_primeira_parcela?: string;
+  banco_financiamento?: string;
+  data_levantamento?: string;
+  valor_quitacao_atual?: number;
+  valor_atualizado?: number;
+  desvalorizacao_anual?: string;
+  possui_implemento?: boolean | number;
+  tipo_implemento?: string;
+  marca_implemento?: string;
+  modelo_implemento?: string;
+  valor_implemento?: number;
+  data_compra_implemento?: string;
+  obs_implemento?: string;
+  vencimento_licenca_antt?: string;
+  cronotacografo_venc?: string;
+  seguro_id?: string;
+}
+

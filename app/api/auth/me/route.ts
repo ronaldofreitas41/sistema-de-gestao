@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const usuario = await (prisma as any).mh3_usuarios.findUnique({ where: { id: auth.usuarioId } });
+    const usuario = await (prisma as any).mh3Usuarios.findUnique({ where: { id: auth.usuarioId } });
 
     if (!usuario || !usuario.ativo) {
       return NextResponse.json({ authenticated: false, message: "Usuário não encontrado ou inativo." }, { status: 401 });

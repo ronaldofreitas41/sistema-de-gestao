@@ -1,0 +1,613 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Truck,
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  Menu,
+  X,
+  Phone,
+  Building,
+  CreditCard,
+  DollarSign,
+  QrCode,
+  Calendar,
+} from "lucide-react";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Ajuda_Motorista, Despesa } from "@/lib/types";
+import { formatCurrency, formatDate } from "@/lib/utils";
+
+export function ComponenteAjudaMotorista() {
+  const [ajudas, setAjudas] = useState<Ajuda_Motorista[]>([]);
+  const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAjuda, setEditingAjuda] = useState<Ajuda_Motorista | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  async function fetchAjudas() {
+    try {
+      const res = await fetch("/api/ajudas-motorista");
+      const responseData = await res.json();
+      setAjudas(responseData.data || responseData || []);
+    } catch (error) {
+      console.error("Erro ao carregar ajudas de motorista:", error);
+    }
+  }
+
+  useEffect(() => {
+    fetchAjudas();
+  }, []);
+
+  const [formData, setFormData] = useState({
+    empresa: "",
+    motorista: "",
+    telefone: "",
+    valor: "",
+    data: "",
+    agencia: "",
+    conta_banco: "",
+    forma_pagamento: "",
+    pix: "",
+    observacoes: "",
+    placa: "",
+    recorrente: false,
+    confirma_user: "",
+    despesa_id: "",
+  });
+
+  const filteredAjudas = ajudas.filter((a) => {
+    const term = search.toLowerCase();
+    return (
+      (a.motorista?.toLowerCase() || "").includes(term) ||
+      (a.empresa?.toLowerCase() || "").includes(term) ||
+      (a.placa?.toLowerCase() || "").includes(term) ||
+      (a.pix?.toLowerCase() || "").includes(term) ||
+      (a.telefone?.toLowerCase() || "").includes(term)
+    );
+  });
+
+  const openNewAjuda = () => {
+    setEditingAjuda(null);
+    setFormData({
+      empresa: "",
+      motorista: "",
+      telefone: "",
+      valor: "",
+      data: "",
+      agencia: "",
+      conta_banco: "",
+      forma_pagamento: "PIX",
+      pix: "",
+      observacoes: "",
+      placa: "",
+      recorrente: false,
+      confirma_user: "",
+      despesa_id: "",
+    });
+    setDialogOpen(true);
+  };
+
+  const openEditAjuda = (ajuda: Ajuda_Motorista) => {
+    setEditingAjuda(ajuda);
+    setFormData({
+      empresa: ajuda.empresa || "",
+      motorista: ajuda.motorista || "",
+      telefone: ajuda.telefone || "",
+      valor: ajuda.valor ? String(ajuda.valor) : "",
+      data: ajuda.data ? ajuda.data.split("T")[0] : "",
+      agencia: ajuda.agencia || "",
+      conta_banco: ajuda.conta_banco || "",
+      forma_pagamento: ajuda.forma_pagamento || "PIX",
+      pix: ajuda.pix || "",
+      observacoes: ajuda.observacoes || "",
+      placa: ajuda.placa || "",
+      recorrente: ajuda.recorrente ?? false,
+      confirma_user: ajuda.confirma_user || "",
+      despesa_id: ajuda.despesa_id || "",
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    const payload = {
+      ...formData,
+      valor: Number(formData.valor) || 0,
+      data: formData.data ? new Date(formData.data).toISOString() : new Date().toISOString(),
+    };
+
+    if (editingAjuda) {
+      await fetch(`/api/ajudas-motorista/${editingAjuda.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      const res = await fetch("/api/despesas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const despesa: Despesa = await res.json();
+
+      await fetch("/api/ajudas-motorista", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, despesa_id: despesa.id }),
+      });
+    }
+
+    await fetchAjudas();
+    setDialogOpen(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/ajudas-motorista/${id}`, {
+      method: "DELETE",
+    });
+    setAjudas((prev) => prev.filter((a) => a.id !== id));
+    await fetchAjudas();
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="fixed inset-y-0 left-0 z-40 hidden md:flex">
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
+      </div>
+
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMenuOpen(false)}
+          />
+
+          <div className="relative z-10 flex h-full">
+            <Sidebar onClose={() => setMenuOpen(false)} />
+
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              aria-label="Fechar menu"
+              className="absolute left-[calc(100%+12px)] top-4 rounded-lg bg-card p-2 text-foreground shadow-sm"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`min-h-screen transition-[padding-left] duration-300 ${
+          sidebarCollapsed ? "md:pl-18" : "md:pl-65"
+        }`}
+      >
+        <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Abrir menu"
+              className="rounded-xl border border-border bg-card p-2 md:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+
+            <h1 className="truncate text-lg font-bold tracking-tight text-foreground sm:text-2xl">
+              Ajuda de Custo - Motoristas
+            </h1>
+          </div>
+
+          <Button
+            onClick={openNewAjuda}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Ajuda
+          </Button>
+        </header>
+
+        <main className="mx-auto w-full max-w-375 space-y-6 p-4 sm:p-6 lg:p-9">
+          {/* Filters */}
+          <Card className="bg-card border-border">
+            <CardContent className="pt-6">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por motorista, empresa, placa, telefone ou chave PIX..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Table */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <Truck className="h-5 w-5 text-primary" />
+                Registros de Ajudas de Custo ({filteredAjudas.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border">
+                      <TableHead className="text-muted-foreground">Data</TableHead>
+                      <TableHead className="text-muted-foreground">Motorista / Empresa</TableHead>
+                      <TableHead className="text-muted-foreground">Placa / Contato</TableHead>
+                      <TableHead className="text-muted-foreground">Forma Pagto / PIX</TableHead>
+                      <TableHead className="text-muted-foreground">Valor</TableHead>
+                      <TableHead className="text-muted-foreground text-center">Recorrente</TableHead>
+                      <TableHead className="text-muted-foreground text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAjudas.map((ajuda) => (
+                      <TableRow key={ajuda.id} className="border-border">
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatDate(ajuda.data)}
+                        </TableCell>
+                        <TableCell className="font-medium text-foreground">
+                          <div>{ajuda.motorista}</div>
+                          <div className="text-xs text-muted-foreground">{ajuda.empresa}</div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          <div className="font-mono">{ajuda.placa || "-"}</div>
+                          <div>{ajuda.telefone || "-"}</div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          <div className="font-semibold">{ajuda.forma_pagamento}</div>
+                          <div className="font-mono text-muted-foreground/80">{ajuda.pix || "-"}</div>
+                        </TableCell>
+                        <TableCell className="font-medium text-primary">
+                          {formatCurrency(Number(ajuda.valor))}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              ajuda.recorrente
+                                ? "bg-green-100 text-green-600 dark:bg-green-100 dark:text-green-600"
+                                : "bg-red-100 text-red-600 dark:bg-red-100 dark:text-red-600"
+                            }`}
+                          >
+                            {ajuda.recorrente ? "Sim" : "Não"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => openEditAjuda(ajuda)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(ajuda.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+
+      {/* Modal / Dialog de Cadastro/Edição */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="bg-card border-border max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              {editingAjuda ? "Editar Ajuda de Custo" : "Nova Ajuda de Custo"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingAjuda
+                ? "Edite as informações do registro de ajuda de custo."
+                : "Preencha os campos para registrar uma nova ajuda de custo para motorista."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-1">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="motorista" className="text-foreground">
+                  Motorista
+                </Label>
+                <Input
+                  id="motorista"
+                  value={formData.motorista}
+                  onChange={(e) =>
+                    setFormData({ ...formData, motorista: e.target.value })
+                  }
+                  className="bg-input border-border"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="empresa" className="text-foreground">
+                  Empresa
+                </Label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="empresa"
+                    value={formData.empresa}
+                    onChange={(e) =>
+                      setFormData({ ...formData, empresa: e.target.value })
+                    }
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="telefone" className="text-foreground">
+                  Telefone
+                </Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="telefone"
+                    value={formData.telefone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, telefone: e.target.value })
+                    }
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="placa" className="text-foreground">
+                  Placa do Veículo
+                </Label>
+                <Input
+                  id="placa"
+                  value={formData.placa}
+                  onChange={(e) =>
+                    setFormData({ ...formData, placa: e.target.value })
+                  }
+                  className="bg-input border-border"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="valor" className="text-foreground">
+                  Valor (R$)
+                </Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="valor"
+                    type="number"
+                    step="0.01"
+                    value={formData.valor}
+                    onChange={(e) =>
+                      setFormData({ ...formData, valor: e.target.value })
+                    }
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="data" className="text-foreground">
+                  Data
+                </Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="data"
+                    type="date"
+                    value={formData.data}
+                    onChange={(e) =>
+                      setFormData({ ...formData, data: e.target.value })
+                    }
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="forma_pagamento" className="text-foreground">
+                  Forma de Pagamento
+                </Label>
+                <Select
+                  value={formData.forma_pagamento}
+                  onValueChange={(val) =>
+                    setFormData({ ...formData, forma_pagamento: val ?? "" })
+                  }
+                >
+                  <SelectTrigger className="bg-input border-border">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PIX">PIX</SelectItem>
+                    <SelectItem value="TRANSFERENCIA">Transferência</SelectItem>
+                    <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                    <SelectItem value="CARTAO">Cartão</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pix" className="text-foreground">
+                  Chave PIX
+                </Label>
+                <div className="relative">
+                  <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="pix"
+                    value={formData.pix}
+                    onChange={(e) =>
+                      setFormData({ ...formData, pix: e.target.value })
+                    }
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="agencia" className="text-foreground">
+                  Agência
+                </Label>
+                <Input
+                  id="agencia"
+                  value={formData.agencia}
+                  onChange={(e) =>
+                    setFormData({ ...formData, agencia: e.target.value })
+                  }
+                  className="bg-input border-border"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="conta_banco" className="text-foreground">
+                  Conta Bancária
+                </Label>
+                <div className="relative">
+                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="conta_banco"
+                    value={formData.conta_banco}
+                    onChange={(e) =>
+                      setFormData({ ...formData, conta_banco: e.target.value })
+                    }
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="confirma_user" className="text-foreground">
+                  Usuário Confirmação
+                </Label>
+                <Input
+                  id="confirma_user"
+                  value={formData.confirma_user}
+                  onChange={(e) =>
+                    setFormData({ ...formData, confirma_user: e.target.value })
+                  }
+                  className="bg-input border-border"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="despesa_id" className="text-foreground">
+                  ID Despesa Vinculada
+                </Label>
+                <Input
+                  id="despesa_id"
+                  value={formData.despesa_id}
+                  onChange={(e) =>
+                    setFormData({ ...formData, despesa_id: e.target.value })
+                  }
+                  className="bg-input border-border"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="recorrente"
+                checked={formData.recorrente}
+                onChange={(e) =>
+                  setFormData({ ...formData, recorrente: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-border"
+              />
+              <Label htmlFor="recorrente" className="text-foreground cursor-pointer">
+                Pagamento Recorrente
+              </Label>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="observacoes" className="text-foreground">
+                Observações
+              </Label>
+              <Input
+                id="observacoes"
+                value={formData.observacoes}
+                onChange={(e) =>
+                  setFormData({ ...formData, observacoes: e.target.value })
+                }
+                className="bg-input border-border"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSave}
+              className="bg-primary text-primary-foreground"
+            >
+              {editingAjuda ? "Salvar" : "Cadastrar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
