@@ -75,7 +75,7 @@ export function Usuarios() {
     try {
       const res = await fetch("/api/usuarios");
       const responseData = await res.json();
-      setUsuarios(responseData.data || responseData || []);
+      setUsuarios(Array.isArray(responseData) ? responseData : Array.isArray(responseData?.data) ? responseData.data : []);
     } catch (error) {
       console.error("Erro ao carregar usuários:", error);
     }

@@ -59,7 +59,7 @@ export function ContasPagar() {
     try {
       const res = await fetch("/api/despesas");
       const responseData = await res.json();
-      setDespesas(responseData.data || responseData || []);
+      setDespesas(Array.isArray(responseData) ? responseData : Array.isArray(responseData?.data) ? responseData.data : []);
     } catch (error) {
       console.error("Erro ao carregar despesas:", error);
     }

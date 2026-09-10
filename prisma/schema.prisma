@@ -260,7 +260,6 @@ model mh3_empresas {
   atualizado_em      DateTime            @default(now()) @db.DateTime(0)
   mh3_configuracoes  mh3_configuracoes[]
   mh3_contratos      mh3_contratos[]
-  mh3_estoque        mh3_estoque[]
   mh3_investimentos  mh3_investimentos[]
   mh3_manutencoes    mh3_manutencoes[]
   mh3_medicoes       mh3_medicoes[]
@@ -329,23 +328,22 @@ model mh3_equipamentos {
 }
 
 model mh3_estoque {
-  id             BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id     BigInt?       @db.UnsignedBigInt
-  codigo         String?       @db.VarChar(50)
-  descricao      String?       @db.VarChar(255)
-  categoria      String?       @db.VarChar(100)
-  unidade        String?       @default("UN") @db.VarChar(20)
-  quantidade     Decimal?      @default(0.000) @db.Decimal(14, 3)
-  estoque_minimo Decimal?      @default(0.000) @db.Decimal(14, 3)
-  custo_unitario Decimal?      @default(0.00) @db.Decimal(14, 2)
-  fornecedor     String?       @db.VarChar(150)
-  localizacao    String?       @db.VarChar(150)
-  ativo          Boolean?      @default(true)
-  criado_em      DateTime      @default(now()) @db.DateTime(0)
-  atualizado_em  DateTime      @default(now()) @db.DateTime(0)
-  mh3_empresas   mh3_empresas? @relation(fields: [empresa_id], references: [id], onUpdate: Restrict, map: "fk_estoque_empresa")
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo         String?  @db.VarChar(50)
+  descricao      String?  @db.VarChar(255)
+  categoria      String?  @db.VarChar(100)
+  unidade        String?  @default("UN") @db.VarChar(20)
+  quantidade     Decimal? @default(0.000) @db.Decimal(14, 3)
+  estoque_minimo Decimal? @default(0.000) @db.Decimal(14, 3)
+  custo_unitario Decimal? @default(0.00) @db.Decimal(14, 2)
+  localizacao    String?  @db.VarChar(150)
+  ativo          Boolean? @default(true)
+  criado_em      DateTime @default(now()) @db.DateTime(0)
+  atualizado_em  DateTime @default(now()) @db.DateTime(0)
+  tabela_venda   String?  @db.VarChar(45)
+  margem         String?  @default("40") @db.VarChar(45)
+  nf_num         String?  @db.VarChar(45)
 
-  @@index([empresa_id], map: "fk_estoque_empresa")
   @@index([categoria], map: "idx_estoque_categoria")
   @@index([codigo], map: "idx_estoque_codigo")
 }

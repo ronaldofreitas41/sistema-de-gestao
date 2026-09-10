@@ -36,7 +36,7 @@ export function Clientes() {
     try {
       const res = await fetch("/api/clientes");
       const responseData = await res.json();
-      setClientes(responseData.data || responseData || []);
+      setClientes(Array.isArray(responseData) ? responseData : Array.isArray(responseData?.data) ? responseData.data : []);
     } catch (error) {
       console.error("Erro ao carregar clientes:", error);
     }

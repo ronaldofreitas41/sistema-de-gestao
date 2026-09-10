@@ -241,3 +241,39 @@ export interface Funcionario {
   arqs?: unknown;
   observacao?: string 
 }
+
+export interface Estoque {
+  codigo: string;
+  descricao: string;
+  categoria: string;
+  unidade: string;
+  quantidade: number;
+  estoque_minimo: number;
+  custo_unitario: number;
+  localizacao: string;
+  ativo: boolean;
+  tabela_venda: string;
+  margem: number;
+  nf_num: string;
+}
+
+export interface ItemNotaFiscal {
+  id: string;
+  descicao: string; // Mantido exatamente como no payload
+  quantidade: number;
+  valor: number;
+}
+
+export interface NotaFiscalEntrada {
+  id: string;
+  numero_nf: string;
+  data_emissao: string;
+  fornecedor: string;
+  cnpj: string;
+  items: ItemNotaFiscal[];
+  valor: number;
+  vencimento: string;
+  contas_pagar: boolean;
+  status: "pendente" | "pago" | "cancelado" | string;
+  observacao: string;
+}

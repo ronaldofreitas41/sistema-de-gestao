@@ -58,7 +58,7 @@ export function ComponenteAjudaMotorista() {
     try {
       const res = await fetch("/api/ajudas-motorista");
       const responseData = await res.json();
-      setAjudas(responseData.data || responseData || []);
+      setAjudas(Array.isArray(responseData) ? responseData : Array.isArray(responseData?.data) ? responseData.data : []);
     } catch (error) {
       console.error("Erro ao carregar ajudas de motorista:", error);
     }

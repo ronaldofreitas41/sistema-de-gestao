@@ -2,19 +2,31 @@ import { NextRequest } from "next/server";
 import { getById, remove, update } from "@/lib/crud-prisma";
 
 const TABLE = "mh3_estoque";
-const FIELDS = ["empresa_id", "codigo", "descricao", "categoria", "unidade", "quantidade", "estoque_minimo", "custo_unitario", "fornecedor", "localizacao", "ativo"];
-
+const FIELDS = [
+  "codigo",
+  "descricao",
+  "categoria",
+  "unidade",
+  "quantidade",
+  "estoque_minimo",
+  "custo_unitario",
+  "localizacao",
+  "ativo",
+  "tabela_venda",
+  "margem",
+  "nf_num",
+];
 type Context = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return getById(TABLE, id, request);
+  return getById(TABLE, id);
 }
 
 export async function PUT(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    return update(TABLE, FIELDS, id, await request.json(), request);
+    return update(TABLE, FIELDS, id, await request.json());
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
@@ -23,7 +35,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
 export async function PATCH(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    return update(TABLE, FIELDS, id, await request.json(), request);
+    return update(TABLE, FIELDS, id, await request.json());
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
@@ -31,5 +43,5 @@ export async function PATCH(request: NextRequest, { params }: Context) {
 
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return remove(TABLE, id, request);
+  return remove(TABLE, id);
 }

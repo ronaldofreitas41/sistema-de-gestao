@@ -62,7 +62,7 @@ export function Fluxo() {
     try {
       const res = await fetch("/api/contas-bancarias");
       const responseData = await res.json();
-      setContas(responseData.data || responseData || []);
+      setContas(Array.isArray(responseData) ? responseData : Array.isArray(responseData?.data) ? responseData.data : []);
     } catch (error) {
       console.error("Erro ao carregar contas bancárias:", error);
     }
