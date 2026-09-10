@@ -208,22 +208,6 @@ export function Fluxo() {
             <h1 className="text-lg font-bold text-foreground">
               Fluxo de Caixa
             </h1>
-            <div className="relative flex-1 hidden sm:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="BUSCAR PLACA, CLIENTE, OS..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-9 text-xs bg-muted/40 rounded-full border-border"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>09 de set. de 2026</span>
-            <span className="flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-[11px] font-semibold dark:bg-emerald-900/40 dark:text-emerald-300">
-              <CheckCircle2 className="h-3 w-3" /> Seguro
-            </span>
           </div>
         </header>
 

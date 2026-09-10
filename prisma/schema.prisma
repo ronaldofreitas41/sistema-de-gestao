@@ -261,7 +261,6 @@ model mh3_empresas {
   mh3_configuracoes  mh3_configuracoes[]
   mh3_contratos      mh3_contratos[]
   mh3_estoque        mh3_estoque[]
-  mh3_funcionarios   mh3_funcionarios[]
   mh3_investimentos  mh3_investimentos[]
   mh3_manutencoes    mh3_manutencoes[]
   mh3_medicoes       mh3_medicoes[]
@@ -353,24 +352,34 @@ model mh3_estoque {
 
 model mh3_funcionarios {
   id                  BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id          BigInt?               @db.UnsignedBigInt
   nome                String                @db.VarChar(150)
   cpf                 String?               @db.VarChar(20)
+  rg                  String?               @db.VarChar(20)
+  cnh                 String?               @db.VarChar(20)
+  cnh_validade        DateTime?             @db.Date
+  endereco            String?               @db.VarChar(255)
   cargo               String?               @db.VarChar(100)
   telefone            String?               @db.VarChar(30)
-  email               String?               @db.VarChar(150)
-  data_admissao       DateTime?             @db.Date
-  salario             Decimal?              @db.Decimal(12, 2)
-  ativo               Boolean?              @default(true)
-  observacoes         String?               @db.Text
+  nascimento          DateTime?             @db.Date
+  emergencia_nome     String?               @db.VarChar(150)
+  emergencia_tel      String?               @db.VarChar(30)
+  clt_num             String?               @db.VarChar(50)
+  pis                 String?               @db.VarChar(50)
+  admissao            DateTime?             @db.Date
+  salario             Decimal               @default(0.00) @db.Decimal(14, 2)
+  beneficio           Decimal               @default(0.00) @db.Decimal(14, 2)
+  seguro_valor        Decimal               @default(0.00) @db.Decimal(14, 2)
+  seguro_vig          DateTime?             @db.Date
+  seguro_seguradora   String?               @db.VarChar(150)
+  fotos               Json?
+  arqs                Json?
+  observacao          String?               @db.Text
   criado_em           DateTime              @default(now()) @db.DateTime(0)
   atualizado_em       DateTime              @default(now()) @db.DateTime(0)
   mh3_checklists      mh3_checklists[]
-  mh3_empresas        mh3_empresas?         @relation(fields: [empresa_id], references: [id], onUpdate: Restrict, map: "fk_funcionario_empresa")
   mh3_prejuizos       mh3_prejuizos[]
   mh3_saidas_material mh3_saidas_material[]
 
-  @@index([empresa_id], map: "fk_funcionario_empresa")
   @@index([nome], map: "idx_funcionario_nome")
 }
 

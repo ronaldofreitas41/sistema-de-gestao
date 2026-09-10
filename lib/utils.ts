@@ -1,9 +1,9 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
-import { ApiResponse, Permissoes } from './types';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { ApiResponse, Permissoes } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 export function formatCurrency(value: number) {
@@ -68,7 +68,7 @@ export async function fetcher(url: string): Promise<ApiResponse> {
 }
 
 export function normalizarPermissoes(
-  permissoes: Permissoes | string | null | undefined
+  permissoes: Permissoes | string | null | undefined,
 ): Permissoes {
   if (!permissoes) {
     return {};
@@ -97,7 +97,7 @@ export function normalizarPermissoes(
 }
 
 export function contarPermissoes(
-  permissoes: Permissoes | string | null | undefined
+  permissoes: Permissoes | string | null | undefined,
 ) {
   const permissoesNormalizadas = normalizarPermissoes(permissoes);
 
@@ -110,10 +110,30 @@ export function contarPermissoes(
 }
 
 export function formatarPermissoes(
-  permissoes: Permissoes | string | null | undefined
+  permissoes: Permissoes | string | null | undefined,
 ) {
   const { ativas, total } = contarPermissoes(permissoes);
 
   return `${ativas}/${total}`;
 }
 
+export function formatarTelefone(value: string) {
+  const numeros = value.replace(/\D/g, "").slice(0, 11);
+  if (numeros.length <= 10) {
+    return numeros
+      .replace(/^(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+  return numeros
+    .replace(/^(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2");
+}
+
+export function formatarCPF(value: string) {
+  const numeros = value.replace(/\D/g, "").slice(0, 11);
+
+  return numeros
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}

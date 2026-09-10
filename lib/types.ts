@@ -40,7 +40,7 @@ export interface ContaPagar {
   descricao?: string | null;
   fornecedor?: string | null;
   vencimento?: string | null;
-  valor?: number | string
+  valor?: number | string;
   status?: string | null;
   tipo?: string | null;
 }
@@ -94,7 +94,7 @@ export interface Cliente {
   obra: string;
 }
 
-export interface Ajuda_Motorista{
+export interface Ajuda_Motorista {
   id: string;
   empresa: string;
   motorista: string;
@@ -112,12 +112,12 @@ export interface Ajuda_Motorista{
   despesa_id: string;
 }
 
-export interface ContasBancarias{
+export interface ContasBancarias {
   id: string;
   banco: string;
   nome: string;
   conta: string;
-  tipo:string;
+  tipo: string;
   saldo: number;
   saldo_polpanca: number;
   fluxo: boolean;
@@ -214,4 +214,30 @@ export interface Venda {
   placa_medicao?: string;
   criado_em?: string;
   atualizado_em?: string;
+}
+
+export interface Funcionario {
+  id: number 
+  nome: string;
+  cpf?: string 
+  rg?: string 
+  cnh?: string 
+  cnh_validade?: string 
+  endereco?: string 
+  cargo?: string 
+  telefone?: string 
+  nascimento?: string 
+  emergencia_nome?: string 
+  emergencia_tel?: string 
+  clt_num?: string 
+  pis?: string 
+  admissao?: string 
+  salario: number 
+  beneficio: number 
+  seguro_valor: number 
+  seguro_vig?: string 
+  seguro_seguradora?: string 
+  fotos?: unknown;
+  arqs?: unknown;
+  observacao?: string 
 }
