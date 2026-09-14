@@ -44,10 +44,15 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { Seguro } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function ComponenteSeguros() {
   const [seguros, setSeguros] = useState<Seguro[]>([]);
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editingSeguro, setEditingSeguro] = useState<Seguro | null>(null);
@@ -82,12 +87,22 @@ export function ComponenteSeguros() {
 
   const filteredSeguros = seguros.filter((s) => {
     const term = search.toLowerCase();
-    return (
+    const matchesSearch =
       (s.seguradora?.toLowerCase() || "").includes(term) ||
       (s.apolice?.toLowerCase() || "").includes(term) ||
-      (s.status?.toLowerCase() || "").includes(term)
-    );
+      (s.status?.toLowerCase() || "").includes(term);
+    const inicio = s.data_inicio ? s.data_inicio.slice(0, 10) : "";
+    const matchesDate =
+      (!dateFrom || inicio >= dateFrom) && (!dateTo || inicio <= dateTo);
+
+    return matchesSearch && matchesDate;
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, dateFrom, dateTo, pageSize]);
+
+  const paginatedSeguros = paginate(filteredSeguros, page, pageSize);
 
   const openViewSeguro = (seguro: Seguro) => {
     setSelectedSeguro(seguro);
@@ -204,14 +219,29 @@ export function ComponenteSeguros() {
           {/* Busca */}
           <Card className="bg-card border-border">
             <CardContent className="pt-6">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por seguradora, apólice ou status..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
                 <Input
-                  placeholder="Buscar por seguradora, apólice ou status..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 bg-input border-border"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="sm:w-44 bg-input border-border"
                 />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="sm:w-44 bg-input border-border"
+                />
+                <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
               </div>
             </CardContent>
           </Card>
@@ -238,7 +268,7 @@ export function ComponenteSeguros() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSeguros.map((seguro) => (
+                    {paginatedSeguros.map((seguro) => (
                       <TableRow key={seguro.id} className="border-border">
                         <TableCell className="font-bold text-foreground">
                           {seguro.seguradora || "-"}

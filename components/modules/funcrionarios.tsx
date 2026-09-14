@@ -26,6 +26,7 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { formatCurrency, formatarTelefone, formatarCPF} from "@/lib/utils";
 import type { Funcionario } from "@/lib/types";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 type FuncionarioForm = Omit<Funcionario, "id">;
 
@@ -74,6 +75,10 @@ function formatarDataInput(value?: string | null) {
 export function Funcionarios() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFuncionario, setEditingFuncionario] =
     useState<Funcionario | null>(null);
@@ -126,20 +131,30 @@ export function Funcionarios() {
   const funcionariosFiltrados = useMemo(() => {
     const termo = search.trim().toLowerCase();
 
-    if (!termo) {
-      return funcionarios;
-    }
-
     return funcionarios.filter((funcionario) => {
-      return (
+      const matchesTermo =
+        !termo ||
         funcionario.nome?.toLowerCase().includes(termo) ||
         funcionario.cpf?.toLowerCase().includes(termo) ||
         funcionario.cnh?.toLowerCase().includes(termo) ||
         funcionario.cargo?.toLowerCase().includes(termo) ||
-        funcionario.telefone?.toLowerCase().includes(termo)
-      );
+        funcionario.telefone?.toLowerCase().includes(termo);
+
+      const admissao = funcionario.admissao
+        ? funcionario.admissao.slice(0, 10)
+        : "";
+      const matchesDate =
+        (!dateFrom || admissao >= dateFrom) && (!dateTo || admissao <= dateTo);
+
+      return matchesTermo && matchesDate;
     });
-  }, [funcionarios, search]);
+  }, [funcionarios, search, dateFrom, dateTo]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, dateFrom, dateTo, pageSize]);
+
+  const funcionariosPaginados = paginate(funcionariosFiltrados, page, pageSize);
 
   const totais = useMemo(() => {
     const folha = funcionarios.reduce(
@@ -331,14 +346,29 @@ export function Funcionarios() {
               Novo Funcionário
             </Button>
           </div>
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:max-w-2xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="BUSCAR POR NOME, CPF..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-9 border-border bg-card pl-9 text-xs"
+              />
+            </div>
             <Input
-              placeholder="BUSCAR POR NOME, CPF..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-9 border-border bg-card pl-9 text-xs"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-9 border-border bg-card text-xs sm:w-40"
             />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-9 border-border bg-card text-xs sm:w-40"
+            />
+            <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-lg border border-border border-t-2 border-t-blue-500 bg-card p-4">
@@ -418,7 +448,7 @@ export function Funcionarios() {
               </div>
             )}
             {!loading &&
-              funcionariosFiltrados.map((funcionario) => (
+              funcionariosPaginados.map((funcionario) => (
                 <div
                   key={funcionario.id}
                   className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_100px] items-center gap-2 border-b border-border px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/20"
@@ -467,6 +497,13 @@ export function Funcionarios() {
                 </div>
               ))}
           </div>
+
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            total={funcionariosFiltrados.length}
+            onPageChange={setPage}
+          />
         </main>
       </div>
 

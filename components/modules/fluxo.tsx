@@ -46,6 +46,7 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { formatCurrency } from "@/lib/utils";
 import { ContasBancarias } from "@/lib/types";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function Fluxo() {
   const [contas, setContas] = useState<ContasBancarias[]>([]);
@@ -57,6 +58,8 @@ export function Fluxo() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mesAno, setMesAno] = useState("2026-09");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   async function fetchContas() {
     try {
@@ -98,6 +101,12 @@ export function Fluxo() {
       acc + (Number(c.saldo) || 0) + (Number(c.saldo_polpanca) || 0),
     0,
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+
+  const paginatedContas = paginate(filteredContas, page, pageSize);
 
   const openNewConta = () => {
     setEditingConta(null);
@@ -220,6 +229,16 @@ export function Fluxo() {
                 Contas Bancárias
               </CardTitle>
               <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar conta..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-8 w-44 pl-8 text-xs bg-input border-border"
+                  />
+                </div>
+                <PageSizeSelect pageSize={pageSize} onChange={setPageSize} options={[5, 10, 25, 50]} />
                 <Button
                   onClick={openNewConta}
                   size="sm"
@@ -264,7 +283,7 @@ export function Fluxo() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredContas.map((c) => (
+                    {paginatedContas.map((c) => (
                       <TableRow key={c.id} className="border-border">
                         <TableCell className="font-bold text-foreground uppercase">
                           {c.nome}
@@ -327,6 +346,13 @@ export function Fluxo() {
                   </TableBody>
                 </Table>
               </div>
+
+              <PaginationControls
+                page={page}
+                pageSize={pageSize}
+                total={filteredContas.length}
+                onPageChange={setPage}
+              />
 
               {/* Card Saldo Total */}
               <div className="mt-4 p-3 bg-red-100 rounded-lg border border-red-600 flex items-center justify-between text-xs dark:bg-red-100 dark:border-red-600">

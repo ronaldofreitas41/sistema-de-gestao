@@ -23,10 +23,13 @@ import { Label } from "@/components/ui/label";
 import { Users, Plus, Search, Edit, Trash2, Menu, X, User, MapPin, Phone, Mail, Building } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Cliente } from "@/lib/types";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -69,6 +72,12 @@ export function Clientes() {
       (c.obra?.toLowerCase() || "").includes(term)
     );
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+
+  const paginatedClientes = paginate(filteredClientes, page, pageSize);
 
   const openNewCliente = () => {
     setEditingCliente(null);
@@ -208,6 +217,7 @@ export function Clientes() {
                     className="pl-9 bg-input border-border"
                   />
                 </div>
+                <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
               </div>
             </CardContent>
           </Card>
@@ -234,7 +244,7 @@ export function Clientes() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredClientes.map((cliente) => (
+                    {paginatedClientes.map((cliente) => (
                       <TableRow key={cliente.id} className="border-border">
                         <TableCell className="font-medium text-foreground">
                           {cliente.nome}
@@ -277,6 +287,13 @@ export function Clientes() {
                   </TableBody>
                 </Table>
               </div>
+
+              <PaginationControls
+                page={page}
+                pageSize={pageSize}
+                total={filteredClientes.length}
+                onPageChange={setPage}
+              />
             </CardContent>
           </Card>
         </main>

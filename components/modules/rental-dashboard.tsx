@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDate, getToken } from "@/lib/utils";
 import type { Usuario, ApiResponse, Booking, NavItem } from "@/lib/types";
 import {
@@ -143,9 +143,7 @@ function DashboardHome({
 }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
 
-  useState(() => {
-    if (typeof window === "undefined") return;
-
+  useEffect(() => {
     try {
       const usuarioSalvo = sessionStorage.getItem("mh3_usuario");
 
@@ -155,7 +153,7 @@ function DashboardHome({
     } catch (error) {
       console.error("Erro ao carregar usuário:", error);
     }
-  });
+  }, []);
 
   const nome = usuario?.nome || usuario?.login || "Usuário";
 

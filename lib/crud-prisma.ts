@@ -168,11 +168,8 @@ export async function list(
   try {
     const { searchParams } = new URL(request.url);
     const page = Math.max(Number(searchParams.get("page") ?? 1), 1);
-    const limit = Math.min(
-      Math.max(Number(searchParams.get("limit") ?? 50), 1),
-      200
-    );
-    const skip = (page - 1) * limit;
+
+    const skip = (page - 1) * 10000;
     const search = searchParams.get("search")?.trim();
 
     const delegate = getDelegate(table);
@@ -189,10 +186,11 @@ export async function list(
       where,
       orderBy: { id: "desc" },
       skip,
-      take: limit,
+      take: 10000,
+
     });
 
-    return json({ data: rows, page, limit });
+    return json({ data: rows, page });
   } catch (error) {
     console.error("Prisma list error:", error);
     return json(

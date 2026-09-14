@@ -43,22 +43,40 @@ import {
   Calendar,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Ajuda_Motorista, Despesa } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { Ajuda_Motorista, Despesa, Usuario } from "@/lib/types";
+import { formatCurrency, formatDate, formatPhone } from "@/lib/utils";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function ComponenteAjudaMotorista() {
   const [ajudas, setAjudas] = useState<Ajuda_Motorista[]>([]);
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAjuda, setEditingAjuda] = useState<Ajuda_Motorista | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [usuarioLogado, setUsuarioLogado] = useState<Usuario | null>(null);
+
+  useEffect(() => {
+    try {
+      const usuarioSalvo = sessionStorage.getItem("mh3_usuario");
+
+      if (usuarioSalvo) {
+        setUsuarioLogado(JSON.parse(usuarioSalvo));
+      }
+    } catch (error) {
+      console.error("Erro ao carregar usuário logado:", error);
+    }
+  }, []);
 
   async function fetchAjudas() {
     try {
       const res = await fetch("/api/ajudas-motorista");
       const responseData = await res.json();
-      setAjudas(Array.isArray(responseData) ? responseData : Array.isArray(responseData?.data) ? responseData.data : []);
+      setAjudas(responseData.data || responseData || []);
     } catch (error) {
       console.error("Erro ao carregar ajudas de motorista:", error);
     }
@@ -75,7 +93,7 @@ export function ComponenteAjudaMotorista() {
     valor: "",
     data: "",
     agencia: "",
-    conta_banco: "",
+    conta: "",
     forma_pagamento: "",
     pix: "",
     observacoes: "",
@@ -87,14 +105,24 @@ export function ComponenteAjudaMotorista() {
 
   const filteredAjudas = ajudas.filter((a) => {
     const term = search.toLowerCase();
-    return (
+    const matchesSearch =
       (a.motorista?.toLowerCase() || "").includes(term) ||
       (a.empresa?.toLowerCase() || "").includes(term) ||
       (a.placa?.toLowerCase() || "").includes(term) ||
       (a.pix?.toLowerCase() || "").includes(term) ||
-      (a.telefone?.toLowerCase() || "").includes(term)
-    );
+      (a.telefone?.toLowerCase() || "").includes(term);
+    const dataItem = a.data ? a.data.slice(0, 10) : "";
+    const matchesDate =
+      (!dateFrom || dataItem >= dateFrom) && (!dateTo || dataItem <= dateTo);
+
+    return matchesSearch && matchesDate;
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, dateFrom, dateTo, pageSize]);
+
+  const paginatedAjudas = paginate(filteredAjudas, page, pageSize);
 
   const openNewAjuda = () => {
     setEditingAjuda(null);
@@ -105,13 +133,13 @@ export function ComponenteAjudaMotorista() {
       valor: "",
       data: "",
       agencia: "",
-      conta_banco: "",
+      conta: "",
       forma_pagamento: "PIX",
       pix: "",
       observacoes: "",
       placa: "",
       recorrente: false,
-      confirma_user: "",
+      confirma_user: usuarioLogado?.nome || usuarioLogado?.login || "",
       despesa_id: "",
     });
     setDialogOpen(true);
@@ -126,7 +154,7 @@ export function ComponenteAjudaMotorista() {
       valor: ajuda.valor ? String(ajuda.valor) : "",
       data: ajuda.data ? ajuda.data.split("T")[0] : "",
       agencia: ajuda.agencia || "",
-      conta_banco: ajuda.conta_banco || "",
+      conta: ajuda.conta || "",
       forma_pagamento: ajuda.forma_pagamento || "PIX",
       pix: ajuda.pix || "",
       observacoes: ajuda.observacoes || "",
@@ -253,6 +281,19 @@ export function ComponenteAjudaMotorista() {
                     className="pl-9 bg-input border-border"
                   />
                 </div>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="sm:w-44 bg-input border-border"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="sm:w-44 bg-input border-border"
+                />
+                <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
               </div>
             </CardContent>
           </Card>
@@ -280,7 +321,7 @@ export function ComponenteAjudaMotorista() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAjudas.map((ajuda) => (
+                    {paginatedAjudas.map((ajuda) => (
                       <TableRow key={ajuda.id} className="border-border">
                         <TableCell className="text-xs text-muted-foreground">
                           {formatDate(ajuda.data)}
@@ -336,6 +377,13 @@ export function ComponenteAjudaMotorista() {
                   </TableBody>
                 </Table>
               </div>
+
+              <PaginationControls
+                page={page}
+                pageSize={pageSize}
+                total={filteredAjudas.length}
+                onPageChange={setPage}
+              />
             </CardContent>
           </Card>
         </main>
@@ -400,8 +448,12 @@ export function ComponenteAjudaMotorista() {
                     id="telefone"
                     value={formData.telefone}
                     onChange={(e) =>
-                      setFormData({ ...formData, telefone: e.target.value })
+                      setFormData({
+                        ...formData,
+                        telefone: formatPhone(e.target.value),
+                      })
                     }
+                    placeholder="(00) 00000-0000"
                     className="pl-9 bg-input border-border"
                   />
                 </div>
@@ -476,10 +528,10 @@ export function ComponenteAjudaMotorista() {
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="PIX">PIX</SelectItem>
-                    <SelectItem value="TRANSFERENCIA">Transferência</SelectItem>
-                    <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
-                    <SelectItem value="CARTAO">Cartão</SelectItem>
+                    <SelectItem value="Pix">PIX</SelectItem>
+                    <SelectItem value="Transferência">Transferência</SelectItem>
+                    <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                    <SelectItem value="Cartão">Cartão</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -518,16 +570,16 @@ export function ComponenteAjudaMotorista() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="conta_banco" className="text-foreground">
+                <Label htmlFor="conta" className="text-foreground">
                   Conta Bancária
                 </Label>
                 <div className="relative">
                   <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    id="conta_banco"
-                    value={formData.conta_banco}
+                    id="conta"
+                    value={formData.conta}
                     onChange={(e) =>
-                      setFormData({ ...formData, conta_banco: e.target.value })
+                      setFormData({ ...formData, conta: e.target.value })
                     }
                     className="pl-9 bg-input border-border"
                   />
@@ -543,24 +595,8 @@ export function ComponenteAjudaMotorista() {
                 <Input
                   id="confirma_user"
                   value={formData.confirma_user}
-                  onChange={(e) =>
-                    setFormData({ ...formData, confirma_user: e.target.value })
-                  }
-                  className="bg-input border-border"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="despesa_id" className="text-foreground">
-                  ID Despesa Vinculada
-                </Label>
-                <Input
-                  id="despesa_id"
-                  value={formData.despesa_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, despesa_id: e.target.value })
-                  }
-                  className="bg-input border-border"
+                  readOnly
+                  className="bg-input border-border cursor-not-allowed opacity-70"
                 />
               </div>
             </div>

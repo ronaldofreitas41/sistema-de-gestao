@@ -45,10 +45,15 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { Equipamento } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function Equipamentos() {
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editingEquipamento, setEditingEquipamento] = useState<Equipamento | null>(null);
@@ -95,15 +100,25 @@ export function Equipamentos() {
 
   const filteredEquipamentos = equipamentos.filter((e) => {
     const term = search.toLowerCase();
-    return (
+    const matchesSearch =
       (e.placa?.toLowerCase() || "").includes(term) ||
       (e.frota?.toLowerCase() || "").includes(term) ||
       (e.tipo?.toLowerCase() || "").includes(term) ||
       (e.marca?.toLowerCase() || "").includes(term) ||
       (e.modelo?.toLowerCase() || "").includes(term) ||
-      (e.status?.toLowerCase() || "").includes(term)
-    );
+      (e.status?.toLowerCase() || "").includes(term);
+    const aquisicao = e.data_aquisicao ? e.data_aquisicao.slice(0, 10) : "";
+    const matchesDate =
+      (!dateFrom || aquisicao >= dateFrom) && (!dateTo || aquisicao <= dateTo);
+
+    return matchesSearch && matchesDate;
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, dateFrom, dateTo, pageSize]);
+
+  const paginatedEquipamentos = paginate(filteredEquipamentos, page, pageSize);
 
   const openViewEquipamento = (equipamento: Equipamento) => {
     setSelectedEquipamento(equipamento);
@@ -226,14 +241,29 @@ export function Equipamentos() {
           {/* Busca */}
           <Card className="bg-card border-border">
             <CardContent className="pt-6">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por placa, frota, tipo, marca, modelo ou status..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 bg-input border-border"
+                  />
+                </div>
                 <Input
-                  placeholder="Buscar por placa, frota, tipo, marca, modelo ou status..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 bg-input border-border"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="sm:w-44 bg-input border-border"
                 />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="sm:w-44 bg-input border-border"
+                />
+                <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
               </div>
             </CardContent>
           </Card>
@@ -261,7 +291,7 @@ export function Equipamentos() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredEquipamentos.map((eq) => (
+                    {paginatedEquipamentos.map((eq) => (
                       <TableRow key={eq.id} className="border-border">
                         <TableCell className="font-bold text-foreground">
                           <div>{eq.placa || "-"}</div>
@@ -328,6 +358,13 @@ export function Equipamentos() {
                   </TableBody>
                 </Table>
               </div>
+
+              <PaginationControls
+                page={page}
+                pageSize={pageSize}
+                total={filteredEquipamentos.length}
+                onPageChange={setPage}
+              />
             </CardContent>
           </Card>
         </main>

@@ -102,7 +102,7 @@ export interface Ajuda_Motorista {
   valor: number;
   data: string;
   agencia: string;
-  conta_banco: string;
+  conta: string;
   forma_pagamento: string;
   pix: string;
   observacoes: string | null;
@@ -276,4 +276,23 @@ export interface NotaFiscalEntrada {
   contas_pagar: boolean;
   status: "pendente" | "pago" | "cancelado" | string;
   observacao: string;
+}
+
+export interface Pneu {
+  id: string;
+  numero: string;
+  marca: string;
+  modelo: string;
+  medida: string;
+  dot: string;
+  condicao: string;
+  valor: string;
+  data: string;
+  observacao: string | null;
+  status: string;
+  local: string;
+  reformadora: string | null;
+  data_saida: string | null;
+  previsao_retorno: string | null;
+  saiu_reforma: boolean;
 }

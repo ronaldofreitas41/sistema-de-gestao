@@ -46,10 +46,13 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { Estoque } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function ComponenteEstoque() {
   const [itens, setItens] = useState<Estoque[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Estoque | null>(null);
@@ -111,6 +114,12 @@ export function ComponenteEstoque() {
     (acc, i) => acc + (i.quantidade || 0) * (i.custo_unitario || 0),
     0
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+
+  const paginatedItens = paginate(filteredItens, page, pageSize);
 
   const openViewItem = (item: Estoque) => {
     setSelectedItem(item);
@@ -314,6 +323,8 @@ export function ComponenteEstoque() {
                 />
               </div>
 
+              <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
+
               {/* Tabela estilo MH3 */}
               <div className="overflow-x-auto">
                 <Table>
@@ -355,14 +366,14 @@ export function ComponenteEstoque() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredItens.length === 0 ? (
+                    {paginatedItens.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={11} className="text-center py-6 text-gray-400 text-xs">
                           Nenhum produto cadastrado no estoque.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredItens.map((item) => {
+                      paginatedItens.map((item) => {
                         const isBaixo = item.quantidade <= item.estoque_minimo;
                         const precoVenda =
                           item.custo_unitario * (1 + (item.margem || 0) / 100);
@@ -469,6 +480,13 @@ export function ComponenteEstoque() {
                   </TableBody>
                 </Table>
               </div>
+
+              <PaginationControls
+                page={page}
+                pageSize={pageSize}
+                total={filteredItens.length}
+                onPageChange={setPage}
+              />
             </CardContent>
           </Card>
         </main>

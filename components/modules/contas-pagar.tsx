@@ -30,6 +30,7 @@ import {
 import { Receipt, Plus, Search, Edit, Trash2, FileText, Menu, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Despesa } from "@/lib/types";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 // Funções auxiliares de formatação
 const formatCurrency = (value?: string | number | null) => {
@@ -50,6 +51,10 @@ export function ContasPagar() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -95,8 +100,18 @@ export function ContasPagar() {
     const matchesCategory =
       categoryFilter === "all" || d.categoria === categoryFilter;
 
-    return matchesSearch && matchesCategory;
+    const vencimento = d.data_vencimento ? d.data_vencimento.slice(0, 10) : "";
+    const matchesDate =
+      (!dateFrom || vencimento >= dateFrom) && (!dateTo || vencimento <= dateTo);
+
+    return matchesSearch && matchesCategory && matchesDate;
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, categoryFilter, dateFrom, dateTo, pageSize]);
+
+  const paginatedDespesas = paginate(filteredDespesas, page, pageSize);
 
   const openNewDespesa = () => {
     setEditingDespesa(null);
@@ -263,6 +278,19 @@ export function ContasPagar() {
                 className="pl-9 bg-input border-border"
               />
             </div>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="sm:w-44 bg-input border-border"
+            />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="sm:w-44 bg-input border-border"
+            />
+            <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
           </div>
         </CardContent>
       </Card>
@@ -292,7 +320,7 @@ export function ContasPagar() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDespesas.map((despesa) => (
+                {paginatedDespesas.map((despesa) => (
                   <TableRow key={despesa.id} className="border-border">
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {despesa.num_desp || "-"}
@@ -353,6 +381,13 @@ export function ContasPagar() {
               </TableBody>
             </Table>
           </div>
+
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            total={filteredDespesas.length}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
         </main>

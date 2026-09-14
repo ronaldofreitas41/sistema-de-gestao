@@ -34,10 +34,15 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { NotaFiscalEntrada, ItemNotaFiscal, Despesa } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
+import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function NFEntradaComponent() {
   const [notas, setNotas] = useState<NotaFiscalEntrada[]>([]);
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedNota, setSelectedNota] = useState<NotaFiscalEntrada | null>(null);
@@ -82,13 +87,23 @@ export function NFEntradaComponent() {
 
   const filteredNotas = notas.filter((n) => {
     const term = search.toLowerCase();
-    return (
+    const matchesSearch =
       (n.numero_nf?.toLowerCase() || "").includes(term) ||
       (n.fornecedor?.toLowerCase() || "").includes(term) ||
       (n.cnpj?.toLowerCase() || "").includes(term) ||
-      (n.status?.toLowerCase() || "").includes(term)
-    );
+      (n.status?.toLowerCase() || "").includes(term);
+    const emissao = n.data_emissao ? n.data_emissao.slice(0, 10) : "";
+    const matchesDate =
+      (!dateFrom || emissao >= dateFrom) && (!dateTo || emissao <= dateTo);
+
+    return matchesSearch && matchesDate;
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, dateFrom, dateTo, pageSize]);
+
+  const paginatedNotas = paginate(filteredNotas, page, pageSize);
 
   // Métricas
   const totalNotas = filteredNotas.length;
@@ -288,14 +303,29 @@ export function NFEntradaComponent() {
           {/* Tabela Principal */}
           <Card className="shadow-sm border-gray-200 bg-white dark:bg-card dark:border-border">
             <CardContent className="p-4 space-y-4">
-              <div className="relative max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-500" />
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-500" />
+                  <Input
+                    placeholder="BUSCAR POR Nº NF, FORNECEDOR, CNPJ..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 text-xs uppercase placeholder:text-gray-400 bg-gray-50/50 border-gray-200 dark:bg-input dark:border-border"
+                  />
+                </div>
                 <Input
-                  placeholder="BUSCAR POR Nº NF, FORNECEDOR, CNPJ..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 text-xs uppercase placeholder:text-gray-400 bg-gray-50/50 border-gray-200 dark:bg-input dark:border-border"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="text-xs sm:w-40 bg-gray-50/50 border-gray-200 dark:bg-input dark:border-border"
                 />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="text-xs sm:w-40 bg-gray-50/50 border-gray-200 dark:bg-input dark:border-border"
+                />
+                <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
               </div>
 
               <div className="overflow-x-auto">
@@ -336,7 +366,7 @@ export function NFEntradaComponent() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredNotas.map((nota) => (
+                      paginatedNotas.map((nota) => (
                         <TableRow
                           key={nota.id}
                           className="border-b border-gray-100 hover:bg-gray-50/80 dark:border-border dark:hover:bg-muted/50 text-xs"
@@ -383,6 +413,13 @@ export function NFEntradaComponent() {
                   </TableBody>
                 </Table>
               </div>
+
+              <PaginationControls
+                page={page}
+                pageSize={pageSize}
+                total={filteredNotas.length}
+                onPageChange={setPage}
+              />
             </CardContent>
           </Card>
         </main>
