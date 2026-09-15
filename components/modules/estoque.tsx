@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Estoque } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
+import { deleteRegistro, formatCurrency } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function ComponenteEstoque() {
@@ -59,6 +59,7 @@ export function ComponenteEstoque() {
   const [selectedItem, setSelectedItem] = useState<Estoque | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function fetchEstoque() {
     try {
@@ -173,11 +174,15 @@ export function ComponenteEstoque() {
   };
 
   const handleDelete = async (codigo: string) => {
-    await fetch(`/api/estoque/${codigo}`, {
-      method: "DELETE",
-    });
-    setItens((prev) => prev.filter((i) => i.codigo !== codigo));
-    await fetchEstoque();
+    if (deletingId) return;
+    setDeletingId(codigo);
+    try {
+      await deleteRegistro(`/api/estoque/${codigo}`);
+      setItens((prev) => prev.filter((i) => i.codigo !== codigo));
+      await fetchEstoque();
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleAdjustQuantity = async (item: Estoque, delta: number) => {
@@ -465,10 +470,12 @@ export function ComponenteEstoque() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  disabled={deletingId !== null}
                                   className="h-7 w-7 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-400"
                                   title="Excluir"
                                   onClick={() => handleDelete(item.codigo)}
                                 >
+                                  {deletingId === item.codigo && <span className="absolute bottom-0 left-1 h-0.5 w-5 animate-pulse bg-current" />}
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </div>

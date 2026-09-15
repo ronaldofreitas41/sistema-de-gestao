@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Equipamento } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function Equipamentos() {
@@ -60,6 +60,7 @@ export function Equipamentos() {
   const [selectedEquipamento, setSelectedEquipamento] = useState<Equipamento | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | number | null>(null);
 
   async function fetchEquipamentos() {
     try {
@@ -174,11 +175,15 @@ export function Equipamentos() {
   };
 
   const handleDelete = async (id: string | number) => {
-    await fetch(`/api/equipamentos/${id}`, {
-      method: "DELETE",
-    });
-    setEquipamentos((prev) => prev.filter((e) => e.id !== id));
-    await fetchEquipamentos();
+    if (deletingId !== null) return;
+    setDeletingId(id);
+    try {
+      await deleteRegistro(`/api/equipamentos/${id}`);
+      setEquipamentos((prev) => prev.filter((e) => e.id !== id));
+      await fetchEquipamentos();
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -230,9 +235,7 @@ export function Equipamentos() {
 
           <Button
             onClick={openNewEquipamento}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4 mr-2" />
+            className="bg-primary text-primary-foreground hover:bg-primary/90">
             Novo Equipamento
           </Button>
         </header>
@@ -338,7 +341,7 @@ export function Equipamentos() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-100"
                               onClick={() => openEditEquipamento(eq)}
                             >
                               <Edit className="h-4 w-4" />
@@ -346,9 +349,11 @@ export function Equipamentos() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              className="h-8 w-8 text-destructive hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-100"
+                              disabled={deletingId !== null}
                               onClick={() => handleDelete(eq.id)}
                             >
+                              {deletingId === eq.id && <span className="absolute bottom-0 left-1 h-0.5 w-6 animate-pulse bg-current" />}
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>

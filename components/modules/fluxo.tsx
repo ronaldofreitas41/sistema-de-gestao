@@ -44,7 +44,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { formatCurrency } from "@/lib/utils";
+import { deleteRegistro, formatCurrency } from "@/lib/utils";
 import { ContasBancarias } from "@/lib/types";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
@@ -57,6 +57,7 @@ export function Fluxo() {
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | number | null>(null);
   const [mesAno, setMesAno] = useState("2026-09");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -164,11 +165,15 @@ export function Fluxo() {
   };
 
   const handleDelete = async (id: string | number) => {
-    await fetch(`/api/contas-bancarias/${id}`, {
-      method: "DELETE",
-    });
-    setContas((prev) => prev.filter((c) => c.id !== id));
-    await fetchContas();
+    if (deletingId !== null) return;
+    setDeletingId(id);
+    try {
+      await deleteRegistro(`/api/contas-bancarias/${id}`);
+      setContas((prev) => prev.filter((c) => c.id !== id));
+      await fetchContas();
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -326,7 +331,7 @@ export function Fluxo() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              className="h-7 w-7 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-100"
                               onClick={() => openEditConta(c)}
                             >
                               <Edit className="h-3.5 w-3.5" />
@@ -334,9 +339,10 @@ export function Fluxo() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-red-400 hover:text-red-600"
+                              className="h-7 w-7 text-red-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-100"
                               onClick={() => handleDelete(c.id)}
                             >
+                              {deletingId === c.id && <span className="absolute bottom-0 left-1 h-0.5 w-5 animate-pulse bg-current" />}
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>

@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Seguro } from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function ComponenteSeguros() {
@@ -59,6 +59,7 @@ export function ComponenteSeguros() {
   const [selectedSeguro, setSelectedSeguro] = useState<Seguro | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function fetchSeguros() {
     try {
@@ -152,11 +153,15 @@ export function ComponenteSeguros() {
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/seguros/${id}`, {
-      method: "DELETE",
-    });
-    setSeguros((prev) => prev.filter((s) => s.id !== id));
-    await fetchSeguros();
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await deleteRegistro(`/api/seguros/${id}`);
+      setSeguros((prev) => prev.filter((s) => s.id !== id));
+      await fetchSeguros();
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -208,9 +213,7 @@ export function ComponenteSeguros() {
 
           <Button
             onClick={openNewSeguro}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4 mr-2" />
+            className="bg-primary text-primary-foreground hover:bg-primary/90">
             Novo Seguro
           </Button>
         </header>
@@ -310,7 +313,7 @@ export function ComponenteSeguros() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-100"
                               onClick={() => openEditSeguro(seguro)}
                             >
                               <Edit className="h-4 w-4" />
@@ -318,9 +321,11 @@ export function ComponenteSeguros() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              className="h-8 w-8 text-destructive hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-100"
+                              disabled={deletingId !== null}
                               onClick={() => handleDelete(seguro.id)}
                             >
+                              {deletingId === seguro.id && <span className="absolute bottom-0 left-1 h-0.5 w-6 animate-pulse bg-current" />}
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>

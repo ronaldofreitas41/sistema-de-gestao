@@ -24,7 +24,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { formatCurrency, formatarTelefone, formatarCPF} from "@/lib/utils";
+import { deleteRegistro, formatCurrency, formatarTelefone, formatarCPF} from "@/lib/utils";
 import type { Funcionario } from "@/lib/types";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
@@ -86,6 +86,7 @@ export function Funcionarios() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | string | null>(null);
   const [formData, setFormData] = useState<FuncionarioForm>(
     criarFormularioVazio(),
   );
@@ -260,23 +261,16 @@ export function Funcionarios() {
     }
   }
   async function handleDelete(id: number | string) {
+    if (deletingId !== null) return;
     const confirmar = window.confirm(
       "Deseja realmente excluir este funcionário?",
     );
     if (!confirmar) {
       return;
     }
+    setDeletingId(id);
     try {
-      const response = await fetch(`/api/funcionarios/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          data?.error || "Não foi possível excluir o funcionário.",
-        );
-      }
+      await deleteRegistro(`/api/funcionarios/${id}`);
       setFuncionarios((prev) =>
         prev.filter((funcionario) => String(funcionario.id) !== String(id)),
       );
@@ -285,6 +279,8 @@ export function Funcionarios() {
       alert(
         error instanceof Error ? error.message : "Erro ao excluir funcionário.",
       );
+    } finally {
+      setDeletingId(null);
     }
   }
   return (
@@ -479,6 +475,7 @@ export function Funcionarios() {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      disabled={deletingId !== null}
                       onClick={() => openEdit(funcionario)}
                       title="Editar"
                       className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
@@ -487,10 +484,12 @@ export function Funcionarios() {
                     </button>
                     <button
                       type="button"
+                      disabled={deletingId !== null}
                       onClick={() => handleDelete(funcionario.id)}
                       title="Excluir"
                       className="flex h-7 w-7 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-400 transition-colors hover:bg-red-100 hover:text-red-600 dark:border-red-900 dark:bg-red-950/30"
                     >
+                      {deletingId === funcionario.id && <span className="absolute bottom-0 left-1 h-0.5 w-5 animate-pulse bg-current" />}
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>

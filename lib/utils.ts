@@ -148,3 +148,27 @@ export function formatarCPF(value: string) {
     .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/\.(\d{3})(\d)/, ".$1-$2");
 }
+
+export async function fetchContas() {
+    try {
+      const res = await fetch("/api/contas-bancarias");
+      const responseData = await res.json();
+      return(responseData.data || responseData || []);
+    } catch (error) {
+      console.error("Erro ao carregar contas:", error);
+    }
+  }
+
+export async function deleteRegistro(url: string) {
+  const response = await fetch(url, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error || "Não foi possível excluir o registro.");
+  }
+
+  return response;
+}

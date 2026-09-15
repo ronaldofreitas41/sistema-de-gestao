@@ -30,6 +30,7 @@ import {
 import { Receipt, Plus, Search, Edit, Trash2, FileText, Menu, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Despesa } from "@/lib/types";
+import { deleteRegistro } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 // Funções auxiliares de formatação
@@ -59,6 +60,7 @@ export function ContasPagar() {
   const [editingDespesa, setEditingDespesa] = useState<Despesa | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function fetchDespesas() {
     try {
@@ -195,11 +197,15 @@ export function ContasPagar() {
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/despesas/${id}`, {
-      method: "DELETE",
-    });
-    setDespesas((prev) => prev.filter((d) => d.id !== id));
-    await fetchDespesas();
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await deleteRegistro(`/api/despesas/${id}`);
+      setDespesas((prev) => prev.filter((d) => d.id !== id));
+      await fetchDespesas();
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -361,7 +367,7 @@ export function ContasPagar() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-100"
                           onClick={() => openEditDespesa(despesa)}
                         >
                           <Edit className="h-4 w-4" />
@@ -369,9 +375,11 @@ export function ContasPagar() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-8 w-8 text-destructive hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-100"
+                          disabled={deletingId !== null}
                           onClick={() => handleDelete(despesa.id)}
                         >
+                          {deletingId === despesa.id && <span className="absolute bottom-0 left-1 h-0.5 w-6 animate-pulse bg-current" />}
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

@@ -37,15 +37,18 @@ import {
   X,
   Phone,
   Building,
-  CreditCard,
   DollarSign,
   QrCode,
   Calendar,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Ajuda_Motorista, Despesa, Usuario } from "@/lib/types";
-import { formatCurrency, formatDate, formatPhone } from "@/lib/utils";
-import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { Ajuda_Motorista, ContasBancarias, Despesa, Usuario } from "@/lib/types";
+import { deleteRegistro, fetchContas, formatCurrency, formatDate, formatPhone } from "@/lib/utils";
+import {
+  PageSizeSelect,
+  PaginationControls,
+  paginate,
+} from "@/components/ui/pagination";
 
 export function ComponenteAjudaMotorista() {
   const [ajudas, setAjudas] = useState<Ajuda_Motorista[]>([]);
@@ -59,6 +62,8 @@ export function ComponenteAjudaMotorista() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [usuarioLogado, setUsuarioLogado] = useState<Usuario | null>(null);
+  const [contas, setContas] = useState<ContasBancarias[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -82,9 +87,16 @@ export function ComponenteAjudaMotorista() {
     }
   }
 
+
+
   useEffect(() => {
     fetchAjudas();
+    fetchContas().then(setContas);
   }, []);
+
+  useEffect(() => {
+    console.log("Contas carregadas:", contas);
+  }, [contas]);
 
   const [formData, setFormData] = useState({
     empresa: "",
@@ -94,6 +106,7 @@ export function ComponenteAjudaMotorista() {
     data: "",
     agencia: "",
     conta: "",
+    contaBancaria: "",
     forma_pagamento: "",
     pix: "",
     observacoes: "",
@@ -101,6 +114,7 @@ export function ComponenteAjudaMotorista() {
     recorrente: false,
     confirma_user: "",
     despesa_id: "",
+    conta_banco_id: "",
   });
 
   const filteredAjudas = ajudas.filter((a) => {
@@ -134,6 +148,7 @@ export function ComponenteAjudaMotorista() {
       data: "",
       agencia: "",
       conta: "",
+      contaBancaria: "",
       forma_pagamento: "PIX",
       pix: "",
       observacoes: "",
@@ -141,11 +156,12 @@ export function ComponenteAjudaMotorista() {
       recorrente: false,
       confirma_user: usuarioLogado?.nome || usuarioLogado?.login || "",
       despesa_id: "",
+      conta_banco_id: "",
     });
     setDialogOpen(true);
   };
 
-  const openEditAjuda = (ajuda: Ajuda_Motorista) => {
+  const openEditAjuda = (ajuda: any) => {
     setEditingAjuda(ajuda);
     setFormData({
       empresa: ajuda.empresa || "",
@@ -155,6 +171,7 @@ export function ComponenteAjudaMotorista() {
       data: ajuda.data ? ajuda.data.split("T")[0] : "",
       agencia: ajuda.agencia || "",
       conta: ajuda.conta || "",
+      contaBancaria: ajuda.contaBancaria || ajuda.conta || "",
       forma_pagamento: ajuda.forma_pagamento || "PIX",
       pix: ajuda.pix || "",
       observacoes: ajuda.observacoes || "",
@@ -162,6 +179,7 @@ export function ComponenteAjudaMotorista() {
       recorrente: ajuda.recorrente ?? false,
       confirma_user: ajuda.confirma_user || "",
       despesa_id: ajuda.despesa_id || "",
+      conta_banco_id: ajuda.conta_banco_id || "",
     });
     setDialogOpen(true);
   };
@@ -170,7 +188,33 @@ export function ComponenteAjudaMotorista() {
     const payload = {
       ...formData,
       valor: Number(formData.valor) || 0,
-      data: formData.data ? new Date(formData.data).toISOString() : new Date().toISOString(),
+      data: formData.data
+        ? new Date(formData.data).toISOString()
+        : new Date().toISOString(),
+    };
+
+    const payloadDespesa = {
+      antigo: false,
+      categoria: "Ajuda Motorista",
+      conta_banco: formData.conta || "",
+      conta_banco_id: formData.conta_banco_id || "",
+      data_competencia: formData.data
+        ? new Date(formData.data).toISOString()
+        : new Date().toISOString(),
+      data_pagamento: formData.data
+        ? new Date(formData.data).toISOString()
+        : new Date().toISOString(),
+      data_vencimento: formData.data
+        ? new Date(formData.data).toISOString()
+        : new Date().toISOString(),
+      descricao:
+        "AJUDA DE CUSTO - " + formData.empresa + " - " + formData.motorista,
+      fornecedor: "",
+      num_desp: "DP - AC - " + (ajudas.length + 1),
+      observacoes: formData.observacoes || "",
+      placa: formData.placa || "",
+      status_disp: "pago",
+      valor: formData.valor || "",
     };
 
     if (editingAjuda) {
@@ -183,7 +227,7 @@ export function ComponenteAjudaMotorista() {
       const res = await fetch("/api/despesas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadDespesa),
       });
       const despesa: Despesa = await res.json();
 
@@ -199,11 +243,15 @@ export function ComponenteAjudaMotorista() {
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/ajudas-motorista/${id}`, {
-      method: "DELETE",
-    });
-    setAjudas((prev) => prev.filter((a) => a.id !== id));
-    await fetchAjudas();
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await deleteRegistro(`/api/ajudas-motorista/${id}`);
+      setAjudas((prev) => prev.filter((a) => a.id !== id));
+      await fetchAjudas();
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -311,13 +359,27 @@ export function ComponenteAjudaMotorista() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">Data</TableHead>
-                      <TableHead className="text-muted-foreground">Motorista / Empresa</TableHead>
-                      <TableHead className="text-muted-foreground">Placa / Contato</TableHead>
-                      <TableHead className="text-muted-foreground">Forma Pagto / PIX</TableHead>
-                      <TableHead className="text-muted-foreground">Valor</TableHead>
-                      <TableHead className="text-muted-foreground text-center">Recorrente</TableHead>
-                      <TableHead className="text-muted-foreground text-right">Ações</TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Data
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Motorista / Empresa
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Placa / Contato
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Forma Pagto / PIX
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        Valor
+                      </TableHead>
+                      <TableHead className="text-muted-foreground text-center">
+                        Recorrente
+                      </TableHead>
+                      <TableHead className="text-muted-foreground text-right">
+                        Ações
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -328,15 +390,21 @@ export function ComponenteAjudaMotorista() {
                         </TableCell>
                         <TableCell className="font-medium text-foreground">
                           <div>{ajuda.motorista}</div>
-                          <div className="text-xs text-muted-foreground">{ajuda.empresa}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {ajuda.empresa}
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           <div className="font-mono">{ajuda.placa || "-"}</div>
                           <div>{ajuda.telefone || "-"}</div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          <div className="font-semibold">{ajuda.forma_pagamento}</div>
-                          <div className="font-mono text-muted-foreground/80">{ajuda.pix || "-"}</div>
+                          <div className="font-semibold">
+                            {ajuda.forma_pagamento}
+                          </div>
+                          <div className="font-mono text-muted-foreground/80">
+                            {ajuda.pix || "-"}
+                          </div>
                         </TableCell>
                         <TableCell className="font-medium text-primary">
                           {formatCurrency(Number(ajuda.valor))}
@@ -357,7 +425,7 @@ export function ComponenteAjudaMotorista() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-100"
                               onClick={() => openEditAjuda(ajuda)}
                             >
                               <Edit className="h-4 w-4" />
@@ -365,10 +433,12 @@ export function ComponenteAjudaMotorista() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              className="h-8 w-8 text-destructive hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-100"
+                              disabled={deletingId !== null}
                               onClick={() => handleDelete(ajuda.id)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              {deletingId === ajuda.id && <span className="absolute bottom-0 left-1 h-0.5 w-6 animate-pulse bg-current" />}
+                              <Trash2 className="h-4 w-4 " />
                             </Button>
                           </div>
                         </TableCell>
@@ -554,36 +624,41 @@ export function ComponenteAjudaMotorista() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="agencia" className="text-foreground">
-                  Agência
+                <Label htmlFor="contaBancaria" className="text-foreground">
+                  Conta Bancária / Agência
                 </Label>
-                <Input
-                  id="agencia"
-                  value={formData.agencia}
-                  onChange={(e) =>
-                    setFormData({ ...formData, agencia: e.target.value })
-                  }
-                  className="bg-input border-border"
-                />
-              </div>
+                <Select
+                  value={formData.conta_banco_id}
+                  onValueChange={(value) => {
+                    const contaSelecionada = contas.find(
+                      (contaBancaria) => contaBancaria.id === value,
+                    );
 
-              <div className="space-y-2">
-                <Label htmlFor="conta" className="text-foreground">
-                  Conta Bancária
-                </Label>
-                <div className="relative">
-                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="conta"
-                    value={formData.conta}
-                    onChange={(e) =>
-                      setFormData({ ...formData, conta: e.target.value })
-                    }
-                    className="pl-9 bg-input border-border"
-                  />
-                </div>
+                    setFormData({
+                      ...formData,
+                      contaBancaria: contaSelecionada?.conta || "",
+                      conta: contaSelecionada?.conta || "",
+                      agencia: contaSelecionada?.agencia || "",
+                      conta_banco_id: contaSelecionada?.id || "",
+                    });
+                  }}
+                >
+                  <SelectTrigger id="contaBancaria" className="bg-input border-border">
+                    <SelectValue placeholder="Selecione a conta bancária" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contas.map((contaBancaria) => (
+                      <SelectItem
+                        key={contaBancaria.id}
+                        value={contaBancaria.id}
+                      >
+                        {contaBancaria.nome || contaBancaria.banco} - Agência {contaBancaria.agencia} - Conta {contaBancaria.conta}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -611,7 +686,10 @@ export function ComponenteAjudaMotorista() {
                 }
                 className="h-4 w-4 rounded border-border"
               />
-              <Label htmlFor="recorrente" className="text-foreground cursor-pointer">
+              <Label
+                htmlFor="recorrente"
+                className="text-foreground cursor-pointer"
+              >
                 Pagamento Recorrente
               </Label>
             </div>

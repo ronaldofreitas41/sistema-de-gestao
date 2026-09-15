@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Users, Plus, Search, Edit, Trash2, Menu, X, User, MapPin, Phone, Mail, Building } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Cliente } from "@/lib/types";
+import { deleteRegistro } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function Clientes() {
@@ -34,6 +35,7 @@ export function Clientes() {
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | number | null>(null);
 
   async function fetchClientes() {
     try {
@@ -135,11 +137,15 @@ export function Clientes() {
   };
 
   const handleDelete = async (id: string | number) => {
-    await fetch(`/api/clientes/${id}`, {
-      method: "DELETE",
-    });
-    setClientes((prev) => prev.filter((c) => c.id !== id));
-    await fetchClientes();
+    if (deletingId !== null) return;
+    setDeletingId(id);
+    try {
+      await deleteRegistro(`/api/clientes/${id}`);
+      setClientes((prev) => prev.filter((c) => c.id !== id));
+      await fetchClientes();
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -267,7 +273,7 @@ export function Clientes() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-100"
                               onClick={() => openEditCliente(cliente)}
                             >
                               <Edit className="h-4 w-4" />
@@ -275,9 +281,11 @@ export function Clientes() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              className="h-8 w-8 text-destructive hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-100"
+                              disabled={deletingId !== null}
                               onClick={() => handleDelete(cliente.id)}
                             >
+                              {deletingId === cliente.id && <span className="absolute bottom-0 left-1 h-0.5 w-6 animate-pulse bg-current" />}
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>

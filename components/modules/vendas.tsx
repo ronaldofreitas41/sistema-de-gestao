@@ -31,7 +31,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -93,6 +93,7 @@ export function Vendas() {
   const [selectedVenda, setSelectedVenda] = useState<Venda | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const emptyForm = (): Omit<Venda, "id" | "numero"> => ({
     cliente: "",
@@ -215,8 +216,14 @@ export function Vendas() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir esta venda?")) return;
-    await fetch(`/api/vendas/${id}`, { method: "DELETE" });
-    setVendas((prev) => prev.filter((v) => v.id !== id));
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await deleteRegistro(`/api/vendas/${id}`);
+      setVendas((prev) => prev.filter((v) => v.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleFaturar = async (v: Venda) => {
@@ -467,9 +474,11 @@ export function Vendas() {
 
                       <button
                         onClick={() => handleDelete(v.id)}
+                        disabled={deletingId !== null}
                         className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                         title="Excluir"
                       >
+                        {deletingId === v.id && <span className="absolute bottom-0 left-1 h-0.5 w-5 animate-pulse bg-current" />}
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>

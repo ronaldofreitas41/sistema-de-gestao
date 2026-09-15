@@ -626,7 +626,7 @@ export function NFEntradaComponent() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-rose-600"
+                            className="h-6 w-6 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-100"
                             onClick={() => handleRemoveItem(item.id)}
                           >
                             <Trash2 className="h-3 w-3" />
