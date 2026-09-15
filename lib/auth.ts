@@ -33,3 +33,14 @@ export async function verifyToken(token: string) {
     return null;
   }
 }
+
+export async function requireBearerAuth(request: Request) {
+  const authorization = request.headers.get("authorization");
+  const [scheme, token] = authorization?.split(" ") ?? [];
+
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+
+  return await verifyToken(token);
+}

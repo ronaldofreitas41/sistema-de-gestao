@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, LockKeyhole, UserRound } from "lucide-react";
 
@@ -16,7 +16,7 @@ interface LoginResponse {
   };
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -207,5 +207,19 @@ export default function LoginPage() {
         </p>
       </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+          <Loader2 size={24} className="animate-spin text-primary" />
+        </main>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
