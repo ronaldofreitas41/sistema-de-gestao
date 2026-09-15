@@ -296,3 +296,18 @@ export interface Pneu {
   previsao_retorno: string | null;
   saiu_reforma: boolean;
 }
+
+export interface ChecklistItem {
+  id: string;
+  checklist_id: string;
+  texto: string;
+  created_at?: string;
+}
+
+export interface Checklist {
+  id: string;
+  nome: string;
+  categoria: string;
+  created_at?: string;
+  items?: ChecklistItem[]; // Opcional, útil caso você traga os itens junto com o checklist (Join/Relacionamento)
+}

@@ -65,32 +65,21 @@ model mh3_backups {
 }
 
 model mh3_checklist_itens {
-  id             BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
-  checklist_id   BigInt         @db.UnsignedBigInt
-  descricao      String?        @db.VarChar(255)
-  status         String?        @db.VarChar(50)
-  observacao     String?        @db.Text
-  criado_em      DateTime       @default(now()) @db.DateTime(0)
+  id             String         @id @db.VarChar(50)
+  checklist_id   String         @db.VarChar(50)
+  texto          String         @db.Text
+  created_at     DateTime?      @default(now()) @db.Timestamp(0)
   mh3_checklists mh3_checklists @relation(fields: [checklist_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_checklist_item_checklist")
 
-  @@index([checklist_id], map: "fk_checklist_item_checklist")
+  @@index([checklist_id], map: "fk_checklist")
 }
 
 model mh3_checklists {
-  id                  BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
-  equipamento_id      BigInt?               @db.UnsignedBigInt
-  funcionario_id      BigInt?               @db.UnsignedBigInt
-  tipo                String?               @db.VarChar(100)
-  data                DateTime?             @db.Date
-  status              String?               @db.VarChar(50)
-  observacoes         String?               @db.Text
-  criado_em           DateTime              @default(now()) @db.DateTime(0)
+  id                  String                @id @db.VarChar(50)
+  nome                String                @db.VarChar(100)
+  categoria           String                @db.VarChar(100)
+  created_at          DateTime?             @default(now()) @db.Timestamp(0)
   mh3_checklist_itens mh3_checklist_itens[]
-  mh3_equipamentos    mh3_equipamentos?     @relation(fields: [equipamento_id], references: [id], onUpdate: Restrict, map: "fk_checklist_equip")
-  mh3_funcionarios    mh3_funcionarios?     @relation(fields: [funcionario_id], references: [id], onUpdate: Restrict, map: "fk_checklist_funcionario")
-
-  @@index([equipamento_id], map: "fk_checklist_equip")
-  @@index([funcionario_id], map: "fk_checklist_funcionario")
 }
 
 model mh3_clientes {
@@ -263,9 +252,7 @@ model mh3_empresas {
   mh3_investimentos  mh3_investimentos[]
   mh3_manutencoes    mh3_manutencoes[]
   mh3_medicoes       mh3_medicoes[]
-  mh3_nfs            mh3_nfs[]
   mh3_propostas      mh3_propostas[]
-  mh3_sequencias     mh3_sequencias[]
 }
 
 model mh3_equipamentos {
@@ -312,13 +299,10 @@ model mh3_equipamentos {
   vencimento_licenca_antt DateTime?             @db.DateTime(0)
   cronotacografo_venc     DateTime?             @db.DateTime(0)
   seguro_id               String?               @db.VarChar(45)
-  mh3_checklists          mh3_checklists[]
   mh3_contratos           mh3_contratos[]
   mh3_manutencoes         mh3_manutencoes[]
   mh3_medicoes            mh3_medicoes[]
   mh3_mobilizacoes        mh3_mobilizacoes[]
-  mh3_pneus               mh3_pneus[]
-  mh3_pneus_historico     mh3_pneus_historico[]
   mh3_prejuizos           mh3_prejuizos[]
   mh3_revisoes            mh3_revisoes[]
   mh3_saidas_material     mh3_saidas_material[]
@@ -374,7 +358,6 @@ model mh3_funcionarios {
   observacao          String?               @db.Text
   criado_em           DateTime              @default(now()) @db.DateTime(0)
   atualizado_em       DateTime              @default(now()) @db.DateTime(0)
-  mh3_checklists      mh3_checklists[]
   mh3_prejuizos       mh3_prejuizos[]
   mh3_saidas_material mh3_saidas_material[]
 
@@ -513,82 +496,49 @@ model mh3_mobilizacoes {
 }
 
 model mh3_nf_itens {
-  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  nf_id          BigInt   @db.UnsignedBigInt
-  descricao      String?  @db.VarChar(255)
-  quantidade     Decimal? @default(0.000) @db.Decimal(14, 3)
-  valor_unitario Decimal? @default(0.00) @db.Decimal(14, 2)
-  valor_total    Decimal? @default(0.00) @db.Decimal(14, 2)
-  criado_em      DateTime @default(now()) @db.DateTime(0)
-  mh3_nfs        mh3_nfs  @relation(fields: [nf_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_nf_item_nf")
+  id             String  @id @db.VarChar(50)
+  nota_fiscal_id String  @db.VarChar(50)
+  descicao       String  @db.VarChar(255)
+  quantidade     Int     @default(1)
+  valor          Decimal @default(0.00) @db.Decimal(10, 2)
+  mh3_nfs        mh3_nfs @relation(fields: [nota_fiscal_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "mh3_nf_itens_ibfk_1")
 
-  @@index([nf_id], map: "fk_nf_item_nf")
+  @@index([nota_fiscal_id], map: "nota_fiscal_id")
 }
 
 model mh3_nfs {
-  id                 BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id         BigInt?        @db.UnsignedBigInt
-  numero             String?        @db.VarChar(50)
-  serie              String?        @db.VarChar(20)
-  fornecedor         String?        @db.VarChar(150)
-  cnpj_fornecedor    String?        @db.VarChar(30)
-  chave_nfe          String?        @db.VarChar(60)
-  data_emissao       DateTime?      @db.Date
-  data_entrada       DateTime?      @db.Date
-  valor_total        Decimal?       @default(0.00) @db.Decimal(14, 2)
-  condicao_pagamento String?        @db.VarChar(100)
-  cp                 mh3_nfs_cp?    @default(nao)
-  status             String?        @default("pendente") @db.VarChar(50)
-  observacoes        String?        @db.Text
-  criado_em          DateTime       @default(now()) @db.DateTime(0)
-  atualizado_em      DateTime       @default(now()) @db.DateTime(0)
-  mh3_nf_itens       mh3_nf_itens[]
-  mh3_empresas       mh3_empresas?  @relation(fields: [empresa_id], references: [id], onUpdate: Restrict, map: "fk_nf_empresa")
-
-  @@index([empresa_id], map: "fk_nf_empresa")
-  @@index([chave_nfe], map: "idx_nf_chave")
-  @@index([cp], map: "idx_nf_cp")
-  @@index([numero], map: "idx_nf_numero")
+  id           String         @id @db.VarChar(50)
+  numero_nf    String         @db.VarChar(50)
+  data_emissao DateTime       @db.Date
+  fornecedor   String         @db.VarChar(255)
+  cnpj         String         @db.VarChar(20)
+  valor        Decimal        @default(0.00) @db.Decimal(10, 2)
+  vencimento   DateTime?      @db.Date
+  contas_pagar Boolean        @default(true)
+  status       String         @default("pendente") @db.VarChar(30)
+  observacao   String?        @db.Text
+  created_at   DateTime?      @default(now()) @db.Timestamp(0)
+  mh3_nf_itens mh3_nf_itens[]
 }
 
 model mh3_pneus {
-  id                  BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
-  equipamento_id      BigInt?               @db.UnsignedBigInt
-  codigo              String?               @db.VarChar(50)
-  marca               String?               @db.VarChar(100)
-  modelo              String?               @db.VarChar(100)
-  medida              String?               @db.VarChar(50)
-  numero_serie        String?               @db.VarChar(100)
-  km_instalacao       Decimal?              @db.Decimal(12, 2)
-  km_atual            Decimal?              @db.Decimal(12, 2)
-  posicao             String?               @db.VarChar(50)
-  status              String?               @default("estoque") @db.VarChar(50)
-  valor               Decimal?              @default(0.00) @db.Decimal(14, 2)
-  data_compra         DateTime?             @db.Date
-  observacoes         String?               @db.Text
-  criado_em           DateTime              @default(now()) @db.DateTime(0)
-  atualizado_em       DateTime              @default(now()) @db.DateTime(0)
-  mh3_equipamentos    mh3_equipamentos?     @relation(fields: [equipamento_id], references: [id], onUpdate: Restrict, map: "fk_pneu_equipamento")
-  mh3_pneus_historico mh3_pneus_historico[]
-
-  @@index([equipamento_id], map: "fk_pneu_equipamento")
-}
-
-model mh3_pneus_historico {
-  id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  pneu_id          BigInt            @db.UnsignedBigInt
-  equipamento_id   BigInt?           @db.UnsignedBigInt
-  acao             String?           @db.VarChar(100)
-  posicao_anterior String?           @db.VarChar(50)
-  posicao_nova     String?           @db.VarChar(50)
-  km               Decimal?          @db.Decimal(12, 2)
-  data_evento      DateTime          @default(now()) @db.DateTime(0)
-  observacoes      String?           @db.Text
-  mh3_equipamentos mh3_equipamentos? @relation(fields: [equipamento_id], references: [id], onUpdate: Restrict, map: "fk_pneu_hist_equip")
-  mh3_pneus        mh3_pneus         @relation(fields: [pneu_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_pneu_hist_pneu")
-
-  @@index([equipamento_id], map: "fk_pneu_hist_equip")
-  @@index([pneu_id], map: "fk_pneu_hist_pneu")
+  id               String    @id @db.VarChar(50)
+  numero           String    @db.VarChar(50)
+  marca            String    @db.VarChar(100)
+  modelo           String    @db.VarChar(100)
+  medida           String    @db.VarChar(50)
+  dot              String    @db.VarChar(20)
+  condicao         String    @db.VarChar(50)
+  valor            String?   @db.VarChar(50)
+  data             DateTime  @db.Date
+  observacao       String?   @db.Text
+  status           String    @db.VarChar(50)
+  local            String    @db.VarChar(100)
+  reformadora      String?   @db.VarChar(100)
+  data_saida       DateTime? @db.Date
+  previsao_retorno DateTime? @db.Date
+  saiu_reforma     Boolean   @default(false)
+  created_at       DateTime? @default(now()) @db.Timestamp(0)
 }
 
 model mh3_prazos {
@@ -680,16 +630,6 @@ model mh3_seguros {
   status         String?   @db.VarChar(50)
   observacoes    String?   @db.Text
   criado_em      DateTime  @default(now()) @db.DateTime(0)
-}
-
-model mh3_sequencias {
-  id           BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id   BigInt?       @db.UnsignedBigInt
-  chave        String        @db.VarChar(100)
-  valor        BigInt        @default(0) @db.UnsignedBigInt
-  mh3_empresas mh3_empresas? @relation(fields: [empresa_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_sequencia_empresa")
-
-  @@unique([empresa_id, chave], map: "uk_sequencia_empresa_chave")
 }
 
 model mh3_sessoes {
@@ -801,9 +741,4 @@ model mh3_movimentacoes_bancarias {
   valor       Decimal? @db.Decimal(14, 2)
   motivo      String?  @db.VarChar(45)
   conta_id    BigInt?
-}
-
-enum mh3_nfs_cp {
-  sim
-  nao
 }
