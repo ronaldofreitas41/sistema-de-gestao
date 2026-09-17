@@ -172,3 +172,32 @@ export async function deleteRegistro(url: string) {
 
   return response;
 }
+
+export async function getPlacas(): Promise<string[]> {
+  try {
+    const token = getToken();
+    const res = await fetch("/api/equipamentos?limit=1000", {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    const responseData = await res.json();
+    const equipamentos = responseData.data || responseData || [];
+
+    if (!Array.isArray(equipamentos)) {
+      return [];
+    }
+
+    const placas = equipamentos
+      .map((eq: { placa?: string | null }) => eq.placa?.trim())
+      .filter((placa): placa is string => Boolean(placa && placa.length > 0));
+
+    return Array.from(new Set(placas)).sort();
+  } catch (error) {
+    console.error("Erro ao carregar placas:", error);
+    return [];
+  }
+}

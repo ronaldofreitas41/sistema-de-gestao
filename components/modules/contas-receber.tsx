@@ -30,7 +30,7 @@ import {
 import { Receipt, Plus, Search, Edit, Trash2, FileText, Menu, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Despesa } from "@/lib/types";
-import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
+import { deleteRegistro, formatCurrency, formatDate, getPlacas } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 
 export function ContasReceber() {
@@ -46,6 +46,7 @@ export function ContasReceber() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [placas, setPlacas] = useState<string[]>([]);
 
   async function fetchDespesas() {
     try {
@@ -59,6 +60,7 @@ export function ContasReceber() {
 
   useEffect(() => {
     fetchDespesas();
+    getPlacas().then(setPlacas);
   }, []);
 
   const [formData, setFormData] = useState({
@@ -549,14 +551,24 @@ export function ContasReceber() {
                 <Label htmlFor="placa" className="text-foreground">
                   Placa
                 </Label>
-                <Input
-                  id="placa"
+                <Select
                   value={formData.placa}
-                  onChange={(e) =>
-                    setFormData({ ...formData, placa: e.target.value })
+                  onValueChange={(val) =>
+                    setFormData({ ...formData, placa: val === "nenhuma" ? "" : val })
                   }
-                  className="bg-input border-border"
-                />
+                >
+                  <SelectTrigger id="placa" className="bg-input border-border">
+                    <SelectValue placeholder="Selecione a placa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhuma">Nenhuma</SelectItem>
+                    {placas.map((placa) => (
+                      <SelectItem key={placa} value={placa}>
+                        {placa}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

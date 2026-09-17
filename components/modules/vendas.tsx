@@ -31,7 +31,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
+import { deleteRegistro, formatCurrency, formatDate, getPlacas } from "@/lib/utils";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -94,6 +94,7 @@ export function Vendas() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [placas, setPlacas] = useState<string[]>([]);
 
   const emptyForm = (): Omit<Venda, "id" | "numero"> => ({
     cliente: "",
@@ -130,7 +131,10 @@ export function Vendas() {
     }
   }
 
-  useEffect(() => { fetchVendas(); }, []);
+  useEffect(() => {
+    fetchVendas();
+    getPlacas().then(setPlacas);
+  }, []);
 
   // ── Totais calculados ──
   const totais = useMemo(() => {
@@ -652,12 +656,27 @@ export function Vendas() {
                 <>
                   <div className="space-y-1">
                     <Label>Placa da Medição</Label>
-                    <Input
-                      placeholder="EX: FOW-2I65"
+                    <Select
                       value={formData.placa_medicao || ""}
-                      onChange={(e) => setFormData({ ...formData, placa_medicao: e.target.value })}
-                      className="bg-input border-border font-mono"
-                    />
+                      onValueChange={(val) =>
+                        setFormData({
+                          ...formData,
+                          placa_medicao: val === "nenhuma" ? "" : val,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="bg-input border-border font-mono">
+                        <SelectValue placeholder="Selecione a placa..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nenhuma">Nenhuma</SelectItem>
+                        {placas.map((placa) => (
+                          <SelectItem key={placa} value={placa}>
+                            {placa}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
                     <Label>Sinal</Label>

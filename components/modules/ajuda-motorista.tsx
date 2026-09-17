@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Ajuda_Motorista, ContasBancarias, Despesa, Usuario } from "@/lib/types";
-import { deleteRegistro, fetchContas, formatCurrency, formatDate, formatPhone } from "@/lib/utils";
+import { deleteRegistro, fetchContas, formatCurrency, formatDate, formatPhone, getPlacas } from "@/lib/utils";
 import {
   PageSizeSelect,
   PaginationControls,
@@ -63,6 +63,7 @@ export function ComponenteAjudaMotorista() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [usuarioLogado, setUsuarioLogado] = useState<Usuario | null>(null);
   const [contas, setContas] = useState<ContasBancarias[]>([]);
+  const [placas, setPlacas] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,6 +93,7 @@ export function ComponenteAjudaMotorista() {
   useEffect(() => {
     fetchAjudas();
     fetchContas().then(setContas);
+    getPlacas().then(setPlacas);
   }, []);
 
   useEffect(() => {
@@ -533,14 +535,24 @@ export function ComponenteAjudaMotorista() {
                 <Label htmlFor="placa" className="text-foreground">
                   Placa do Veículo
                 </Label>
-                <Input
-                  id="placa"
+                <Select
                   value={formData.placa}
-                  onChange={(e) =>
-                    setFormData({ ...formData, placa: e.target.value })
+                  onValueChange={(val) =>
+                    setFormData({ ...formData, placa: val === "nenhuma" ? "" : val })
                   }
-                  className="bg-input border-border"
-                />
+                >
+                  <SelectTrigger id="placa" className="bg-input border-border">
+                    <SelectValue placeholder="Selecione a placa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhuma">Nenhuma</SelectItem>
+                    {placas.map((placa) => (
+                      <SelectItem key={placa} value={placa}>
+                        {placa}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

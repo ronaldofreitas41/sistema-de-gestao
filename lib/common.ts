@@ -37,6 +37,7 @@ import {
   Handshake,
   FileText,
   Search,
+  Check,
 } from "lucide-react";
 import { NavItem, Permissoes } from "./types";
 
@@ -193,12 +194,6 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         resource: "auditoria",
         icon: Handshake,
       },
-      {
-        href: "/configuracoes",
-        label: "Configurações",
-        resource: "sistema",
-        icon: Settings2,
-      },
       { href: "/ajuda", label: "Ajuda", resource: "ajuda", icon: CircleHelp },
     ],
   },
@@ -210,6 +205,12 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         label: "Usuarios",
         resource: "configuracoes",
         icon: UsersRound,
+      },
+      {
+        href: "/cheklist",
+        label: "Checklist",
+        resource: "configuracoes",
+        icon: Check,
       },
     ],
   },
@@ -493,7 +494,6 @@ export const bancos = [
   { id: 23, nome: "Banco Next" },
   { id: 24, nome: "Banco Original" },
 ];
-
 
 export const tipos_conta = [
   { id: 1, nome: "Corrente" },
