@@ -311,3 +311,36 @@ export interface Checklist {
   created_at?: string;
   items?: ChecklistItem[]; // Opcional, útil caso você traga os itens junto com o checklist (Join/Relacionamento)
 }
+
+export interface Medicao {
+  id: string;
+  placas: string[];
+  tipoCobranca: string;
+  valor: number;
+  terceiro: boolean;
+  valor_terceiro?: number;
+  vendas_avarias?: Venda[];
+  horas_extras?: number;
+  valor_horas_extras?: number;
+  data_medicao: string;
+  parceiro?: string;
+  observacoes?: string;
+  status: "pendente" | "pago" | "cancelado";
+  periodo: string;
+  conta_recebimento_id?: string;
+  obs_internas?: string;
+  cliente: string;
+}
+
+export interface ContaReceber {
+  id: string;
+  contrato_id?: string | null;
+  cliente?: string | null;
+  competencia?: string | null;
+  valor_total?: number | string | null;
+  status: "pendente" | "pago" | "cancelado" | string;
+  observacoes?: string | null;
+  data_emissao?: string | null;
+  criado_em?: string | null;
+  atualizado_em?: string | null;
+}

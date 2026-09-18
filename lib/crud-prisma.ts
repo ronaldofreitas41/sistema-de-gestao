@@ -30,6 +30,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
   mh3_funcionarios: "mh3_funcionarios",
   mh3_contratos: "mh3_contratos",
   mh3_medicoes: "mh3_medicoes",
+  mh3_contas_receber: "mh3_contas_receber",
   mh3_manutencoes: "mh3_manutencoes",
   mh3_revisoes: "mh3_revisoes",
   mh3_vendas: "mh3_vendas",

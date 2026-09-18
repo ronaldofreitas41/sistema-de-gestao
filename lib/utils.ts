@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { ApiResponse, Permissoes } from "./types";
+import { ApiResponse, Cliente, Permissoes } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -158,6 +158,35 @@ export async function fetchContas() {
       console.error("Erro ao carregar contas:", error);
     }
   }
+
+export async function getNomesClientes(): Promise<string[]> {
+  try {
+    const token = getToken();
+    const response = await fetch("/api/clientes", {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData?.error || "Não foi possível carregar os clientes.");
+    }
+
+    const clientes: Cliente[] = Array.isArray(responseData)
+      ? responseData
+      : responseData.data || [];
+
+    return Array.from(new Set(clientes
+      .map((cliente) => cliente.nome?.trim())
+      .filter((nome): nome is string => Boolean(nome))));
+  } catch (error) {
+    console.error("Erro ao carregar nomes dos clientes:", error);
+    return [];
+  }
+}
 
 export async function deleteRegistro(url: string) {
   const response = await fetch(url, {

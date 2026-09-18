@@ -31,7 +31,13 @@ import {
   FileText,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { deleteRegistro, formatCurrency, formatDate, getPlacas } from "@/lib/utils";
+import {
+  deleteRegistro,
+  formatCurrency,
+  formatDate,
+  getNomesClientes,
+  getPlacas,
+} from "@/lib/utils";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +101,7 @@ export function Vendas() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [placas, setPlacas] = useState<string[]>([]);
+  const [nomesClientes, setNomesClientes] = useState<string[]>([]);
 
   const emptyForm = (): Omit<Venda, "id" | "numero"> => ({
     cliente: "",
@@ -134,6 +141,7 @@ export function Vendas() {
   useEffect(() => {
     fetchVendas();
     getPlacas().then(setPlacas);
+    getNomesClientes().then(setNomesClientes);
   }, []);
 
   // ── Totais calculados ──
@@ -586,12 +594,21 @@ export function Vendas() {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 space-y-1">
                 <Label>Cliente</Label>
-                <Input
-                  placeholder="Nome do cliente"
+                <Select
                   value={formData.cliente}
-                  onChange={(e) => setFormData({ ...formData, cliente: e.target.value })}
-                  className="bg-input border-border"
-                />
+                  onValueChange={(value) => setFormData({ ...formData, cliente: value })}
+                >
+                  <SelectTrigger className="bg-input border-border">
+                    <SelectValue placeholder="Selecione um cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nomesClientes.map((nome) => (
+                      <SelectItem key={nome} value={nome}>
+                        {nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label>Data</Label>

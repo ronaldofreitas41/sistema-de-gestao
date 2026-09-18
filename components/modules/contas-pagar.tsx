@@ -52,6 +52,7 @@ export function ContasPagar() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("pendente");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
@@ -104,16 +105,19 @@ export function ContasPagar() {
     const matchesCategory =
       categoryFilter === "all" || d.categoria === categoryFilter;
 
+    const matchesStatus =
+      statusFilter === "all" || d.status_disp === statusFilter;
+
     const vencimento = d.data_vencimento ? d.data_vencimento.slice(0, 10) : "";
     const matchesDate =
       (!dateFrom || vencimento >= dateFrom) && (!dateTo || vencimento <= dateTo);
 
-    return matchesSearch && matchesCategory && matchesDate;
+    return matchesSearch && matchesCategory && matchesStatus && matchesDate;
   });
 
   useEffect(() => {
     setPage(1);
-  }, [search, categoryFilter, dateFrom, dateTo, pageSize]);
+  }, [search, categoryFilter, statusFilter, dateFrom, dateTo, pageSize]);
 
   const paginatedDespesas = paginate(filteredDespesas, page, pageSize);
 
@@ -298,6 +302,16 @@ export function ContasPagar() {
               onChange={(e) => setDateTo(e.target.value)}
               className="sm:w-44 bg-input border-border"
             />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="sm:w-44 bg-input border-border">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="pendente">Apenas pendentes</SelectItem>
+                  <SelectItem value="pago">Apenas pagas</SelectItem>
+                </SelectContent>
+              </Select>
             <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
           </div>
         </CardContent>
@@ -357,8 +371,8 @@ export function ContasPagar() {
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-semibold ${
                           despesa.status_disp === "pago"
-                            ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300"
+                            ? "bg-green-100 text-green-600 dark:bg-green-100 dark:text-green-600"
+                            : "bg-yellow-100 text-yellow-600 dark:bg-yellow-100 dark:text-yellow-600"
                         }`}
                       >
                         {despesa.status_disp}

@@ -1,7 +1,5 @@
+import { Medicoes } from "@/components/modules/medicoes";
+
 export default function MedicoesPage() {
-  return (
-    <div>
-      Medições
-    </div>
-  );
+  return <Medicoes />;
 }

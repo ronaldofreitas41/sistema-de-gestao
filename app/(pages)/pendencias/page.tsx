@@ -1,7 +1,5 @@
+import { Pendencias } from "@/components/modules/pendencias";
+
 export default function PendenciasPage() {
-  return (
-    <div>
-      Pendências
-    </div>
-  );
+  return <Pendencias />;
 }
