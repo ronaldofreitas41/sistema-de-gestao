@@ -69,9 +69,18 @@ type ManutencaoApi = {
   ob?: string | null;
 };
 
+type Equipamento = {
+  id: string | number;
+  placa?: string | null;
+  tipo?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+};
+
 type FormData = {
   osNum: string;
   finStatus: string;
+  eqId: string;
   eqLbl: string;
   placa: string;
   tipo: string;
@@ -90,6 +99,7 @@ type FormData = {
 const formularioInicial: FormData = {
   osNum: "",
   finStatus: "aberta",
+  eqId: "",
   eqLbl: "",
   placa: "",
   tipo: "",
@@ -120,6 +130,15 @@ function normalizarStatus(status?: string | null) {
   return (status || "pendente").toLowerCase();
 }
 
+function extrairNumeroOs(osNum?: string | null) {
+  const resultado = osNum?.match(/(\d+)\s*$/);
+  return resultado ? Number.parseInt(resultado[1], 10) : 0;
+}
+
+function formatarNumeroOs(numero: number) {
+  return `OS - ${String(numero).padStart(5, "0")}`;
+}
+
 function BadgeStatus({ status }: { status?: string | null }) {
   const valor = normalizarStatus(status);
 
@@ -148,6 +167,7 @@ function BadgeStatus({ status }: { status?: string | null }) {
 
 export function Manutencoes() {
   const [manutencoes, setManutencoes] = useState<ManutencaoApi[]>([]);
+  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
 
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
@@ -160,13 +180,32 @@ export function Manutencoes() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [carregandoEquipamentos, setCarregandoEquipamentos] = useState(false);
+
+  const carregarEquipamentos = useCallback(async () => {
+    setCarregandoEquipamentos(true);
+    try {
+      const response = await fetch("/api/equipamentos");
+      if (!response.ok) throw new Error("Não foi possível carregar os equipamentos.");
+
+      const payload = await response.json();
+      const lista = Array.isArray(payload) ? payload : payload.data;
+
+      setEquipamentos(Array.isArray(lista) ? lista : []);
+    } finally {
+      setCarregandoEquipamentos(false);
+    }
+  }, []);
 
   const carregar = useCallback(async () => {
-    const response = await fetch("/api/manutencoes");
-    const payload = await response.json();
+    const [manutencoesResponse] = await Promise.all([
+      fetch("/api/manutencoes"),
+      carregarEquipamentos(),
+    ]);
+    const payload = await manutencoesResponse.json();
 
     setManutencoes(payload.data || []);
-  }, []);
+  }, [carregarEquipamentos]);
 
   useEffect(() => {
     carregar();
@@ -181,10 +220,19 @@ export function Manutencoes() {
   }
 
 
-  function novaManutencao() {
+  async function novaManutencao() {
+    if (equipamentos.length === 0) {
+      try {
+        await carregarEquipamentos();
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
     setEditing(null);
     setForm({
       ...formularioInicial,
+      osNum: proximoOs,
       en: new Date().toISOString().slice(0, 10),
     });
     setDialogOpen(true);
@@ -193,9 +241,14 @@ export function Manutencoes() {
   function editar(manutencao: ManutencaoApi) {
     setEditing(manutencao);
 
+    const equipamento = equipamentos.find(
+      (item) => String(item.id) === String(manutencao.eqId) || item.placa === manutencao.placa
+    );
+
     setForm({
       osNum: manutencao.osNum || "",
       finStatus: manutencao.finStatus || "aberta",
+      eqId: equipamento ? String(equipamento.id) : manutencao.eqId || "",
       eqLbl: manutencao.eqLbl || "",
       placa: manutencao.placa || "",
       tipo: manutencao.tipo || "",
@@ -212,6 +265,19 @@ export function Manutencoes() {
     });
 
     setDialogOpen(true);
+  }
+
+  function selecionarEquipamento(id: string) {
+    const equipamento = equipamentos.find((item) => String(item.id) === id);
+
+    alterarCampo("eqId", id);
+    alterarCampo("placa", equipamento?.placa || "");
+    alterarCampo(
+      "eqLbl",
+      [equipamento?.tipo, equipamento?.marca, equipamento?.modelo]
+        .filter(Boolean)
+        .join(" ")
+    );
   }
 
   async function salvar() {
@@ -294,6 +360,14 @@ export function Manutencoes() {
       return correspondeBusca && correspondeStatus;
     });
   }, [manutencoes, busca, filtroStatus]);
+
+  const proximoOs = useMemo(() => {
+    const maiorOs = manutencoes.reduce((maior, manutencao) => {
+      return Math.max(maior, extrairNumeroOs(manutencao.osNum));
+    }, 0);
+
+    return formatarNumeroOs(maiorOs + 1);
+  }, [manutencoes]);
 
   const pendentes = filtradas.filter((manutencao) =>
     ["pendente", "aberto", "aberta"].includes(
@@ -597,9 +671,6 @@ export function Manutencoes() {
           <div className="grid gap-4 py-2 sm:grid-cols-2">
             {[
               ["osNum", "Número da O.S."],
-              ["eqLbl", "Equipamento"],
-              ["placa", "Placa"],
-              ["tipo", "Tipo de manutenção"],
               ["resp", "Responsável"],
               ["custo", "Custo"],
               ["km", "KM atual"],
@@ -611,11 +682,60 @@ export function Manutencoes() {
                 <Label>{label}</Label>
                 <Input
                   type={["km", "hr", "pkm", "phr"].includes(campo) ? "number" : "text"}
+                  readOnly={campo === "osNum"}
                   value={form[campo as keyof FormData]}
                   onChange={(event) => alterarCampo(campo as keyof FormData, event.target.value)}
                 />
               </div>
             ))}
+            <div className="space-y-2">
+              <Label>Tipo de manutenção</Label>
+              <Select
+                value={form.tipo}
+                onValueChange={(value) => alterarCampo("tipo", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Preventiva">Preventiva</SelectItem>
+                  <SelectItem value="Revisão">Revisão</SelectItem>
+                  <SelectItem value="Revisão preventiva">Revisão preventiva</SelectItem>
+                  <SelectItem value="Troca de Pneus">Troca de Pneus</SelectItem>
+                  <SelectItem value="Troca de Peças">Troca de Peças</SelectItem>
+                  <SelectItem value="Manutenção">Manutenção</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Equipamento</Label>
+              <Select value={form.eqId} onValueChange={selecionarEquipamento}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o equipamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  {carregandoEquipamentos ? (
+                    <SelectItem value="carregando" disabled>
+                      Carregando equipamentos...
+                    </SelectItem>
+                  ) : equipamentos.filter((equipamento) => equipamento.placa).length > 0 ? (
+                    equipamentos
+                      .filter((equipamento) => equipamento.placa)
+                      .map((equipamento) => (
+                        <SelectItem key={String(equipamento.id)} value={String(equipamento.id)}>
+                          {equipamento.placa} - {[equipamento.tipo, equipamento.marca, equipamento.modelo]
+                            .filter(Boolean)
+                            .join(" ")}
+                        </SelectItem>
+                      ))
+                  ) : (
+                    <SelectItem value="nenhum" disabled>
+                      Nenhum equipamento com placa cadastrado
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Data de entrada</Label>
               <Input type="date" value={form.en} onChange={(event) => alterarCampo("en", event.target.value)} />

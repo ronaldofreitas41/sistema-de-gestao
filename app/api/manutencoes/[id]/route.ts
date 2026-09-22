@@ -35,7 +35,8 @@ export async function GET(request: NextRequest, { params }: Context) {
 export async function PUT(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    return update(TABLE, FIELDS, id, await request.json());
+    const { osNum: _osNum, ...body } = await request.json();
+    return update(TABLE, FIELDS, id, body);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
@@ -44,7 +45,8 @@ export async function PUT(request: NextRequest, { params }: Context) {
 export async function PATCH(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    return update(TABLE, FIELDS, id, await request.json());
+    const { osNum: _osNum, ...body } = await request.json();
+    return update(TABLE, FIELDS, id, body);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
