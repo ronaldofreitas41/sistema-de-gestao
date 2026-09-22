@@ -97,7 +97,6 @@ model mh3_clientes {
   atualizado_em DateTime        @default(now()) @db.DateTime(0)
   obra          String?         @db.VarChar(100)
   mh3_contratos mh3_contratos[]
-  mh3_propostas mh3_propostas[]
 
   @@index([cpf_cnpj], map: "idx_cliente_documento")
 }
@@ -249,8 +248,6 @@ model mh3_empresas {
   mh3_configuracoes  mh3_configuracoes[]
   mh3_contratos      mh3_contratos[]
   mh3_investimentos  mh3_investimentos[]
-  mh3_manutencoes    mh3_manutencoes[]
-  mh3_propostas      mh3_propostas[]
 }
 
 model mh3_equipamentos {
@@ -298,7 +295,6 @@ model mh3_equipamentos {
   cronotacografo_venc     DateTime?             @db.DateTime(0)
   seguro_id               String?               @db.VarChar(45)
   mh3_contratos           mh3_contratos[]
-  mh3_manutencoes         mh3_manutencoes[]
   mh3_mobilizacoes        mh3_mobilizacoes[]
   mh3_prejuizos           mh3_prejuizos[]
   mh3_revisoes            mh3_revisoes[]
@@ -418,35 +414,30 @@ model mh3_log {
 }
 
 model mh3_manutencoes {
-  id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id       BigInt?           @db.UnsignedBigInt
-  equipamento_id   BigInt?           @db.UnsignedBigInt
-  numero_os        String?           @db.VarChar(50)
-  tipo             String?           @db.VarChar(100)
-  descricao        String?           @db.Text
-  data_abertura    DateTime?         @db.Date
-  data_fechamento  DateTime?         @db.Date
-  km               Decimal?          @db.Decimal(12, 2)
-  horimetro        Decimal?          @db.Decimal(12, 2)
-  fornecedor       String?           @db.VarChar(150)
-  valor_pecas      Decimal?          @default(0.00) @db.Decimal(14, 2)
-  valor_mao_obra   Decimal?          @default(0.00) @db.Decimal(14, 2)
-  valor_total      Decimal?          @default(0.00) @db.Decimal(14, 2)
-  status           String?           @default("aberta") @db.VarChar(50)
-  observacoes      String?           @db.Text
-  criado_em        DateTime          @default(now()) @db.DateTime(0)
-  atualizado_em    DateTime          @default(now()) @db.DateTime(0)
-  mh3_empresas     mh3_empresas?     @relation(fields: [empresa_id], references: [id], onUpdate: Restrict, map: "fk_manut_empresa")
-  mh3_equipamentos mh3_equipamentos? @relation(fields: [equipamento_id], references: [id], onUpdate: Restrict, map: "fk_manut_equipamento")
-
-  @@index([empresa_id], map: "fk_manut_empresa")
-  @@index([data_abertura], map: "idx_manut_data")
-  @@index([equipamento_id], map: "idx_manut_equipamento")
-  @@index([status], map: "idx_manut_status")
+  id        String    @id @db.VarChar(50)
+  osNum     String?   @db.VarChar(50)
+  finStatus String?   @db.VarChar(50)
+  eqId      String?   @db.VarChar(50)
+  eqLbl     String?   @db.VarChar(100)
+  placa     String?   @db.VarChar(20)
+  tipo      String?   @db.VarChar(50)
+  en        DateTime? @db.Date
+  sa        DateTime? @db.Date
+  km        Decimal?  @db.Decimal(10, 0)
+  hr        Decimal?  @db.Decimal(10, 0)
+  pkm       Decimal?  @db.Decimal(10, 0)
+  phr       Decimal?  @db.Decimal(10, 0)
+  custo     String?   @db.VarChar(50)
+  status    String?   @db.VarChar(50)
+  resp      String?   @db.VarChar(100)
+  ob        String?   @db.Text
+  lancs     Json?
+  checklist Json?
+  fotos     Json?
 }
 
 model mh3_medicoes {
-  id                   String              @id @db.VarChar(255)
+  id                   BigInt              @id @default(autoincrement())
   placas               Json
   tipo_cobranca        String              @db.VarChar(100)
   valor                Decimal             @db.Decimal(10, 2)
@@ -573,22 +564,47 @@ model mh3_prejuizos {
 }
 
 model mh3_propostas {
-  id            BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
-  empresa_id    BigInt?       @db.UnsignedBigInt
-  cliente_id    BigInt?       @db.UnsignedBigInt
-  numero        String?       @db.VarChar(50)
-  data_proposta DateTime?     @db.Date
-  validade      DateTime?     @db.Date
-  descricao     String?       @db.Text
-  valor         Decimal?      @default(0.00) @db.Decimal(14, 2)
-  status        String?       @default("aberta") @db.VarChar(50)
-  observacoes   String?       @db.Text
-  criado_em     DateTime      @default(now()) @db.DateTime(0)
-  mh3_clientes  mh3_clientes? @relation(fields: [cliente_id], references: [id], onUpdate: Restrict, map: "fk_proposta_cliente")
-  mh3_empresas  mh3_empresas? @relation(fields: [empresa_id], references: [id], onUpdate: Restrict, map: "fk_proposta_empresa")
-
-  @@index([cliente_id], map: "fk_proposta_cliente")
-  @@index([empresa_id], map: "fk_proposta_empresa")
+  id            String    @id @db.VarChar(50)
+  empresaId     String?   @db.VarChar(50)
+  data          DateTime? @db.Date
+  validade      DateTime? @db.Date
+  contratante   String?   @db.VarChar(255)
+  obra          String?   @db.VarChar(255)
+  veiculo       String?   @db.VarChar(255)
+  modelo        String?   @db.VarChar(255)
+  ano           String?   @db.VarChar(10)
+  qtd           Int?      @default(1)
+  cobrancaModo  String?   @db.VarChar(50)
+  turnoFechado  Int?
+  valorFechado  Decimal?  @db.Decimal(15, 2)
+  km            String?   @db.VarChar(50)
+  horimetro     String?   @db.VarChar(50)
+  mostrarKmHr   Boolean?
+  linhas        Json?
+  franquia      String?   @db.VarChar(100)
+  obs           String?   @db.Text
+  mobilTipo     String?   @db.VarChar(50)
+  mobilValor    Decimal?  @db.Decimal(15, 2)
+  duracao       String?   @db.Text
+  tempoLocacao  Int?
+  multaTipo     String?   @db.VarChar(50)
+  fidelidade    Int?
+  multaPct      Decimal?  @db.Decimal(5, 2)
+  resp          String?   @db.Text
+  seguro        String?   @db.Text
+  ciclo         String?   @db.VarChar(255)
+  pagamento     String?   @db.VarChar(255)
+  criadoEm      DateTime? @db.DateTime(0)
+  criadoPor     String?   @db.VarChar(100)
+  numero        String?   @db.VarChar(50)
+  email         String?   @db.VarChar(255)
+  fotos         Json?
+  aprovada      Boolean?
+  ctAssinado    Boolean?
+  equipsExtra   Json?
+  temSeguro     String?   @db.VarChar(50)
+  manutTipo     String?   @db.VarChar(50)
+  incluirTurnos Boolean?
 }
 
 model mh3_revisoes {
@@ -746,6 +762,20 @@ model mh3_movimentacoes_bancarias {
   valor       Decimal? @db.Decimal(14, 2)
   motivo      String?  @db.VarChar(45)
   conta_id    BigInt?
+}
+
+model mh3_parceiros {
+  id          BigInt  @id @default(autoincrement())
+  nome        String  @db.VarChar(45)
+  cnpj        String  @db.VarChar(45)
+  email       String? @db.VarChar(45)
+  telefone    String? @db.VarChar(45)
+  endereco    String? @db.VarChar(45)
+  cidade      String? @db.VarChar(45)
+  estado      String? @db.VarChar(45)
+  cep         String? @db.VarChar(45)
+  observacoes String? @db.VarChar(45)
+  pix         String? @db.VarChar(45)
 }
 
 enum mh3_medicoes_status {

@@ -43,6 +43,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Permissoes, Usuario } from "@/lib/types";
 import { contarPermissoes, deleteRegistro, normalizarPermissoes } from "@/lib/utils";
 import { PermissoesToggles } from "../ui/permissoes-toggles";
+import { permissoesModulosPadrao } from "@/lib/common";
 
 export function Usuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -96,7 +97,7 @@ export function Usuarios() {
     nome: "",
     login: "",
     perfil: "custom",
-    permissoes: {},
+    permissoes: permissoesModulosPadrao,
     senha: "",
   });
 
@@ -116,7 +117,7 @@ export function Usuarios() {
       nome: "",
       login: "",
       perfil: "OPERADOR",
-      permissoes: {},
+      permissoes: permissoesModulosPadrao,
       senha: "",
     });
     setDialogOpen(true);
@@ -129,7 +130,10 @@ export function Usuarios() {
       nome: usuario.nome || "",
       login: usuario.login || "",
       perfil: usuario.perfil || "custom",
-      permissoes: normalizarPermissoes(usuario.permissoes),
+      permissoes: {
+        ...permissoesModulosPadrao,
+        ...normalizarPermissoes(usuario.permissoes),
+      },
       senha: "",
     });
 

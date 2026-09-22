@@ -57,6 +57,7 @@ const TABLE_TO_MODEL: Record<string, string> = {
   mh3_auditoria: "mh3_auditoria",
   mh3_configuracoes: "mh3_configuracoes",
   mh3_sequencias: "mh3_sequencias",
+  mh3_parceiros: "mh3_parceiros",
 };
 
 function getDelegate(table: string): PrismaDelegate {

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { normalizarPermissoes } from "@/lib/utils";
 import { navGroups } from "@/lib/common";
 
 interface Usuario {
@@ -21,6 +22,7 @@ interface Usuario {
   login: string;
   perfil: string;
   empresaId?: number | null;
+  permissoes?: Record<string, boolean> | string | null;
 }
 
 interface SidebarProps {
@@ -32,6 +34,7 @@ interface SidebarProps {
 interface NavItem {
   href: string;
   label: string;
+  resource?: string;
   icon: ComponentType<{ className?: string }>;
 }
 
@@ -122,6 +125,18 @@ export function Sidebar({
 
       return pathname === item.href || pathname.startsWith(`${item.href}/`);
     });
+  }
+
+  function temAcesso(item: NavItem) {
+    if (!item.resource || !usuario?.permissoes) return true;
+
+    const permissoes = normalizarPermissoes(usuario.permissoes);
+
+    if (!Object.prototype.hasOwnProperty.call(permissoes, item.resource)) {
+      return true;
+    }
+
+    return permissoes[item.resource] === true;
   }
 
   async function handleLogout() {
@@ -235,7 +250,13 @@ export function Sidebar({
       {/* Navegação */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4">
         {navGroups.map((group) => {
-          const grupo = group as NavGroup;
+          const grupo = {
+            ...(group as NavGroup),
+            items: (group as NavGroup).items.filter(temAcesso),
+          };
+
+          if (grupo.items.length === 0) return null;
+
           const grupoAtivo = isGroupActive(grupo);
 
           // Quando não houver preferência salva, grupos ativos ficam abertos.

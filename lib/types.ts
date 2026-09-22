@@ -344,3 +344,105 @@ export interface ContaReceber {
   criado_em?: string | null;
   atualizado_em?: string | null;
 }
+
+export interface Parceiro {
+id: string;
+nome: string;
+cnpj: string;
+email: string;
+telefone: string;
+endereco: string;
+cidade: string;
+estado: string;
+cep: string;
+observacoes: string;
+pix: string;  
+}
+
+export interface LinhaTurno {
+  turno: number;
+  vh: number;
+  gar: number;
+  vm: number;
+}
+
+export interface Proposta {
+  id: string;
+  empresaId?: string;
+  data: string;
+  validade: string;
+  contratante: string;
+  obra: string;
+  veiculo: string;
+  modelo: string;
+  ano: string;
+  qtd?: number;
+  cobrancaModo?: string;
+  turnoFechado?: number;
+  valorFechado?: number;
+  km: string | number;
+  horimetro: string | number;
+  mostrarKmHr: boolean;
+  linhas: LinhaTurno[];
+  franquia: string;
+  obs?: string;
+  mobilTipo: string;
+  mobilValor: number;
+  duracao: string;
+  tempoLocacao: number;
+  multaTipo: string;
+  fidelidade?: number;
+  multaPct?: number;
+  resp: string;
+  seguro: string;
+  ciclo: string;
+  pagamento: string;
+  criadoEm: string;
+  criadoPor: string;
+  numero: string;
+  email?: string;
+  fotos?: string[];
+  aprovada?: boolean;
+  ctAssinado?: boolean;
+  equipsExtra?: any[];
+  temSeguro?: string;
+  manutTipo?: string;
+  incluirTurnos?: boolean;
+}
+
+export interface Lancamento {
+    id: string; 
+    desc: string; 
+    qtd: number; 
+    val: number; 
+    tipo: string; 
+    fonte: string; 
+}
+
+export interface Foto {
+    id: string; 
+    src: string; 
+}
+
+export interface Manutencao {
+    id: string; 
+    osNum: string; 
+    finStatus: string; 
+    eqId: string; 
+    eqLbl: string; 
+    placa: string; 
+    tipo: string; 
+    en: string; 
+    sa: string; 
+    km: string; 
+    hr: string; 
+    pkm: string; 
+    phr: string; 
+    custo: string; 
+    status: string; 
+    resp: string; 
+    ob: string; 
+    lancs: Lancamento[]; 
+    checklist: any[]; 
+    fotos: Foto[]; 
+}

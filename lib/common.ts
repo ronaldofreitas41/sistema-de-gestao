@@ -100,31 +100,37 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
       {
         href: "/clientes",
         label: "Clientes",
-        resource: "contas_pagar",
+        resource: "clientes",
         icon: UsersRound,
+      },
+      {
+        href: "/parceiros",
+        label: "Parceiros",
+        resource: "parceiros",
+        icon: Handshake,
       },
       {
         href: "/proposta",
         label: "Proposta",
-        resource: "contas_receber",
+        resource: "propostas",
         icon: Receipt,
       },
       {
         href: "/medicoes",
         label: "Medições",
-        resource: "fluxo",
+        resource: "medicoes",
         icon: ChartLine,
       },
       {
         href: "/ajuda-motoristas",
         label: "Ajuda Motoristas",
-        resource: "relatorios",
+        resource: "ajudas_motoristas",
         icon: CircleQuestionMark,
       },
       {
         href: "/fatura-locacao",
         label: "Fatura Locação",
-        resource: "prejuizos",
+        resource: "fatura_locacao",
         icon: DollarSign,
       },
     ],
@@ -132,49 +138,49 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Frota e Manutenção",
     items: [
-      { href: "/frota", label: "Frota ", resource: "estoque", icon: Truck },
+      { href: "/frota", label: "Frota ", resource: "frota", icon: Truck },
       {
         href: "/manutencao",
         label: "Manutenção",
-        resource: "compras",
+        resource: "manutencao",
         icon: Wrench,
       },
       {
         href: "/venda-avaria",
         label: "Venda/Avaria  ",
-        resource: "compras",
+        resource: "venda_avaria",
         icon: CircleDollarSign,
       },
       {
         href: "/acomp-revisao",
         label: "Acomp. Revisão",
-        resource: "compras",
+        resource: "acomp_revisao",
         icon: Wrench,
       },
       {
         href: "/mobilizacao",
         label: "Mobilização",
-        resource: "compras",
+        resource: "mobilizacao",
         icon: Camera,
       },
-      { href: "/seguro", label: "Seguro", resource: "compras", icon: Lock },
+      { href: "/seguro", label: "Seguro", resource: "seguro", icon: Lock },
     ],
   },
   {
     label: "Estoque e Compras",
     items: [
-      { href: "/estoque", label: "Estoque", resource: "checklist", icon: Box },
-      { href: "/nf-e", label: "Nf-e", resource: "auditoria", icon: LibraryBig },
+      { href: "/estoque", label: "Estoque", resource: "estoque", icon: Box },
+      { href: "/nf-e", label: "Nf-e", resource: "nf_e", icon: LibraryBig },
       {
         href: "/pneus",
         label: "Pneus",
-        resource: "sistema",
+        resource: "pneus",
         icon: LoaderPinwheel,
       },
       {
         href: "/saida-de-material",
         label: "Saida de Material",
-        resource: "ajuda",
+        resource: "saida_material",
         icon: ArchiveRestore,
       },
     ],
@@ -185,13 +191,13 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
       {
         href: "/pendencias",
         label: "Pendencias",
-        resource: "checklist",
+        resource: "pendencias",
         icon: Siren,
       },
       {
         href: "/tratativas",
         label: "Tratativas",
-        resource: "auditoria",
+        resource: "tratativas",
         icon: Handshake,
       },
       { href: "/ajuda", label: "Ajuda", resource: "ajuda", icon: CircleHelp },
@@ -203,18 +209,35 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
       {
         href: "/usuarios",
         label: "Usuarios",
-        resource: "configuracoes",
+        resource: "usuarios",
         icon: UsersRound,
       },
       {
         href: "/cheklist",
         label: "Checklist",
-        resource: "configuracoes",
+        resource: "checklist",
         icon: Check,
       },
     ],
   },
 ];
+
+export const modulosPermissoes = navGroups.flatMap((group) =>
+  group.items
+    .filter((item) => item.resource)
+    .map((item) => ({
+      resource: item.resource as string,
+      label: item.label.trim(),
+    })),
+);
+
+export const permissoesModulosPadrao: Permissoes = Object.fromEntries(
+  modulosPermissoes.flatMap(({ resource }) => [
+    [resource, true],
+    [`${resource}:editar`, false],
+    [`${resource}:excluir`, false],
+  ]),
+);
 
 export const permissoesPadrao: Permissoes = {
   dash: false,

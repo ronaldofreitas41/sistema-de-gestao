@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Calculator, Edit, Menu, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  Calculator,
+  Edit,
+  Menu,
+  Plus,
+  Search,
+  Trash2,
+  X,
+  FileDown,
+} from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +43,7 @@ import {
   deleteRegistro,
   formatCurrency,
   formatDate,
+  gerarPdfMedicao,
   getPlacas,
 } from "@/lib/utils";
 
@@ -44,10 +54,16 @@ type MedicaoApi = Medicao & {
   valor_hora_extra?: string | number | null;
 };
 
+type Parceiro = {
+  id: string | number;
+  nome: string;
+};
+
 type FormData = {
   placas: string;
   tipo_cobranca: string;
   valor: string;
+  quantidade_horas: string;
   terceiro: string;
   valor_terceiro: string;
   horas_extras: string;
@@ -64,6 +80,7 @@ const formularioInicial: FormData = {
   placas: "",
   tipo_cobranca: "",
   valor: "",
+  quantidade_horas: "0",
   terceiro: "nao",
   valor_terceiro: "",
   horas_extras: "0",
@@ -76,6 +93,8 @@ const formularioInicial: FormData = {
   obs_internas: "",
 };
 
+
+
 function placasDoFormulario(placas: string) {
   return placas
     .split(",")
@@ -85,6 +104,7 @@ function placasDoFormulario(placas: string) {
 
 export function Medicoes() {
   const [medicoes, setMedicoes] = useState<MedicaoApi[]>([]);
+  const [parceiros, setParceiros] = useState<Parceiro[]>([]);
   const [placasDisponiveis, setPlacasDisponiveis] = useState<string[]>([]);
   const [placaSelecionada, setPlacaSelecionada] = useState("");
   const [busca, setBusca] = useState("");
@@ -104,10 +124,30 @@ export function Medicoes() {
   useEffect(() => {
     carregar();
     getPlacas().then(setPlacasDisponiveis);
+    fetch("/api/parceiros")
+      .then((response) => response.json())
+      .then((payload) => setParceiros(payload.data || []));
   }, []);
 
   function alterarCampo(campo: keyof FormData, valor: string) {
     setForm((atual) => ({ ...atual, [campo]: valor }));
+  }
+
+  function alterarTipoCobranca(valor: string) {
+    setForm((atual) => ({
+      ...atual,
+      tipo_cobranca: valor,
+      quantidade_horas: valor === "Valor por Hora" ? atual.quantidade_horas : "0",
+    }));
+  }
+
+  function alterarTipoTerceiro(valor: string) {
+    setForm((atual) => ({
+      ...atual,
+      terceiro: valor,
+      parceiro: valor === "sim" ? atual.parceiro : "",
+      valor_terceiro: valor === "sim" ? atual.valor_terceiro : "",
+    }));
   }
 
   function adicionarPlaca() {
@@ -145,6 +185,7 @@ export function Medicoes() {
       placas: medicao.placas?.join(", ") || "",
       tipo_cobranca: medicao.tipo_cobranca || medicao.tipoCobranca || "",
       valor: String(medicao.valor || ""),
+      quantidade_horas: String(medicao.horas_extras || "0"),
       terceiro: medicao.terceiro ? "sim" : "nao",
       valor_terceiro: String(medicao.valor_terceiro || ""),
       horas_extras: String(medicao.horas_extras || "0"),
@@ -163,13 +204,20 @@ export function Medicoes() {
   }
 
   async function salvar() {
+    const valorHora = Number(form.valor) || 0;
+    const quantidadeHoras = Number(form.quantidade_horas) || 0;
     const payload = {
       placas: placasDoFormulario(form.placas),
       tipo_cobranca: form.tipo_cobranca,
-      valor: Number(form.valor) || 0,
+      valor:
+        form.tipo_cobranca === "Valor por Hora"
+          ? valorHora * quantidadeHoras
+          : valorHora,
       terceiro: form.terceiro === "sim",
       valor_terceiro: Number(form.valor_terceiro) || 0,
-      horas_extras: Number(form.horas_extras) || 0,
+      horas_extras: ehValorPorHora
+        ? quantidadeHoras
+        : Number(form.horas_extras) || 0,
       valor_hora_extra: Number(form.valor_hora_extra) || 0,
       data_medicao: new Date(form.data_medicao).toISOString(),
       parceiro: form.parceiro,
@@ -204,6 +252,8 @@ export function Medicoes() {
       .includes(busca.toLowerCase()),
   );
   const placasAdicionadas = placasDoFormulario(form.placas);
+  const ehValorPorHora = form.tipo_cobranca === "Valor por Hora";
+  const ehTerceiro = form.terceiro === "sim";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -306,6 +356,15 @@ export function Medicoes() {
                         <TableCell>{medicao.status}</TableCell>
                         <TableCell className="text-right">
                           <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Gerar PDF da medição"
+                            onClick={() => gerarPdfMedicao(medicao)}
+                          >
+                            <FileDown className="h-4 w-4 text-primary" />
+                          </Button>
+                          <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => editar(medicao)}
@@ -405,7 +464,7 @@ export function Medicoes() {
               <Label>Tipo de cobrança</Label>
               <Select
                 value={form.tipo_cobranca}
-                onValueChange={(value) => alterarCampo("tipo_cobranca", value)}
+                onValueChange={alterarTipoCobranca}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o tipo" />
@@ -418,7 +477,7 @@ export function Medicoes() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Valor</Label>
+              <Label>{ehValorPorHora ? "Valor da hora" : "Valor"}</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -426,11 +485,25 @@ export function Medicoes() {
                 onChange={(e) => alterarCampo("valor", e.target.value)}
               />
             </div>
+            {ehValorPorHora && (
+              <div className="space-y-2">
+                <Label>Quantidade de horas</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.quantidade_horas}
+                  onChange={(e) =>
+                    alterarCampo("quantidade_horas", e.target.value)
+                  }
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>É de terceiro?</Label>
               <Select
                 value={form.terceiro}
-                onValueChange={(value) => alterarCampo("terceiro", value)}
+                onValueChange={alterarTipoTerceiro}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -441,15 +514,19 @@ export function Medicoes() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Valor do terceiro</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={form.valor_terceiro}
-                onChange={(e) => alterarCampo("valor_terceiro", e.target.value)}
-              />
-            </div>
+            {ehTerceiro && (
+              <div className="space-y-2">
+                <Label>Valor do terceiro</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.valor_terceiro}
+                  onChange={(e) =>
+                    alterarCampo("valor_terceiro", e.target.value)
+                  }
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Data da medição</Label>
               <Input
@@ -466,13 +543,26 @@ export function Medicoes() {
                 onChange={(e) => alterarCampo("periodo", e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Parceiro</Label>
-              <Input
-                value={form.parceiro}
-                onChange={(e) => alterarCampo("parceiro", e.target.value)}
-              />
-            </div>
+            {ehTerceiro && (
+              <div className="space-y-2">
+                <Label>Parceiro</Label>
+                <Select
+                  value={form.parceiro}
+                  onValueChange={(value) => alterarCampo("parceiro", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o parceiro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {parceiros.map((parceiro) => (
+                      <SelectItem key={parceiro.id} value={parceiro.nome}>
+                        {parceiro.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2 sm:col-span-2">
               <Label>Observações</Label>
               <Input
