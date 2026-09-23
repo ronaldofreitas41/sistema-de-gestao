@@ -1,7 +1,5 @@
+import { Prejuizos } from "@/components/modules/prejuizos";
+
 export default function PrejuizosPage() {
-  return (
-    <div>
-      Prejuízos
-    </div>
-  );
+  return <Prejuizos />;
 }

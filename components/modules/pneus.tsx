@@ -27,7 +27,7 @@ import {
   Menu,
   X,
   AlertTriangle,
-  CheckCircle2,
+
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro, formatDate } from "@/lib/utils";

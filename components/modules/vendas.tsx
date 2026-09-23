@@ -26,9 +26,8 @@ import {
   Eye,
   Menu,
   X,
-  CheckCircle2,
-  Trash,
   FileText,
+  Trash,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import {

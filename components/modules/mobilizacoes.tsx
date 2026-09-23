@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Menu, Search, X, LoaderPinwheel, FileText, Upload, Camera, RotateCcw, Download, Eye, Edit, Trash2 } from "lucide-react";
+import { Plus, Menu, Search, X, RotateCcw, Download, Eye, Edit, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ActionButtons } from "@/components/ui/action-buttons";
 import { deleteRegistro } from "@/lib/utils";
 
 type FotoGrupo = {
