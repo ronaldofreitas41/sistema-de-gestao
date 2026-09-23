@@ -107,7 +107,7 @@ type EmpresaOption = {
 };
 type EquipamentoOption = {
   id: string | number;
-  placa?: string | null;
+  tipo_equipamento?: string;
   tipo?: string | null;
   marca?: string | null;
   modelo?: string | null;
@@ -146,6 +146,8 @@ export function Propostas() {
   const [pagamentoTipo, setPagamentoTipo] = useState<"tratativas" | "outro">(
     "tratativas",
   );
+  const [clausulaCustomizada, setClausulaCustomizada] = useState(false);
+  const [clausulaTexto, setClausulaTexto] = useState("");
 
   const proximoNumero =
     Math.max(
@@ -217,6 +219,8 @@ export function Propostas() {
     setResponsabilidadeTipo("contratante");
     setSeguroIncluido(false);
     setPagamentoTipo("tratativas");
+    setClausulaCustomizada(false);
+    setClausulaTexto("");
     setFormData({
       ...initialFormData,
       numero: formatarNumeroProposta(proximoNumero),
@@ -283,18 +287,18 @@ export function Propostas() {
     setDialogOpen(true);
   };
 
-  function selecionarEquipamento(id: string) {
-    const equipamento = equipamentos.find((item) => String(item.id) === id);
-    if (!equipamento) return;
+  function formatarData(data: string): string {
+    if (!data) return "";
+    const [ano, mes, dia] = data.split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
 
-    setFormData((atual) => ({
-      ...atual,
-      veiculo: equipamento.placa || "",
-      modelo: [equipamento.marca, equipamento.modelo].filter(Boolean).join(" "),
-      ano: equipamento.ano || "",
-      km: String(equipamento.km_atual ?? "0"),
-      horimetro: String(equipamento.horimetro ?? "0"),
-    }));
+  function parsarData(dataFormatada: string): string {
+    if (!dataFormatada) return "";
+    const partes = dataFormatada.split("/");
+    if (partes.length !== 3) return "";
+    const [dia, mes, ano] = partes;
+    return `${ano}-${mes}-${dia}`;
   }
 
   function alterarLinha(turno: number, campo: "vh" | "gar", valor: string) {
@@ -304,10 +308,10 @@ export function Propostas() {
       linhas: (atual.linhas || []).map((linha) =>
         linha.turno === turno
           ? {
-              ...linha,
-              [campo]: numero,
-              vm: campo === "vh" ? numero * linha.gar : linha.vh * numero,
-            }
+            ...linha,
+            [campo]: numero,
+            vm: campo === "vh" ? numero * linha.gar : linha.vh * numero,
+          }
           : linha,
       ),
     }));
@@ -345,6 +349,7 @@ export function Propostas() {
       ...formData,
       resp: formData.resp,
       seguro: seguroIncluido ? formData.seguro || SEGURO_PADRAO : "",
+      clausula: clausulaCustomizada ? clausulaTexto : undefined,
     };
 
     if (editingProposta) {
@@ -409,9 +414,8 @@ export function Propostas() {
       )}
 
       <div
-        className={`min-h-screen transition-[padding-left] duration-300 ${
-          sidebarCollapsed ? "md:pl-18" : "md:pl-65"
-        }`}
+        className={`min-h-screen transition-[padding-left] duration-300 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"
+          }`}
       >
         <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9">
           <div className="flex min-w-0 items-center gap-3">
@@ -521,10 +525,10 @@ export function Propostas() {
                         <TableCell className="text-xs font-medium text-foreground">
                           {proposta.valorFechado
                             ? `R$ ${Number(
-                                proposta.valorFechado,
-                              ).toLocaleString("pt-BR", {
-                                minimumFractionDigits: 2,
-                              })}`
+                              proposta.valorFechado,
+                            ).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                            })}`
                             : "-"}
                         </TableCell>
                         <TableCell className="text-right">
@@ -582,7 +586,7 @@ export function Propostas() {
 
       {/* Modal / Dialog de Cadastro/Edição */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="w-[calc(100vw-1.5rem)]! max-w-300! max-h-[94vh] overflow-y-auto bg-card border-border p-6 sm:w-[calc(100vw-2rem)]! sm:p-8">
+        <DialogContent className="w-[calc(100vw-1.5rem)]! max-w-300! max-h-[94vh] overflow-y-auto bg-card border-border p-6 sm:w-[calc(100vw-2rem)]! sm:p-8" onMouseDown={(e) => e.detail > 1 && e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle className="text-foreground">
               {editingProposta ? "Editar Proposta" : "Nova Proposta"}
@@ -717,6 +721,7 @@ export function Propostas() {
                         setFormData({ ...formData, data: e.target.value })
                       }
                       className="pl-9 bg-input border-border"
+                      placeholder="DD/MM/AAAA"
                     />
                   </div>
                 </div>
@@ -734,6 +739,7 @@ export function Propostas() {
                         setFormData({ ...formData, validade: e.target.value })
                       }
                       className="pl-9 bg-input border-border"
+                      placeholder="DD/MM/AAAA"
                     />
                   </div>
                 </div>
@@ -741,102 +747,97 @@ export function Propostas() {
             </div>
 
             {/* Equipamento / Veículo */}
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Placa do equipamento</Label>
-                <Select
-                  value={
-                    equipamentos.find((item) => item.placa === formData.veiculo)
-                      ? String(
-                          equipamentos.find(
-                            (item) => item.placa === formData.veiculo,
-                          )?.id,
-                        )
-                      : ""
-                  }
-                  onValueChange={selecionarEquipamento}
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue placeholder="Selecione a placa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {equipamentos
-                      .filter((item) => item.placa)
-                      .map((item) => (
-                        <SelectItem
-                          key={String(item.id)}
-                          value={String(item.id)}
-                        >
-                          {item.placa}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="modelo" className="text-foreground">
-                  Modelo
-                </Label>
-                <Input
-                  id="modelo"
-                  value={formData.modelo}
-                  readOnly
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ano" className="text-foreground">
-                  Ano
-                </Label>
-                <Input
-                  id="ano"
-                  value={formData.ano}
-                  readOnly
-                  className="bg-input border-border"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
-              <Checkbox
-                id="mostrar-km-horimetro"
-                checked={formData.mostrarKmHr}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, mostrarKmHr: checked === true })
-                }
-              />
-              <Label
-                htmlFor="mostrar-km-horimetro"
-                className="cursor-pointer text-sm font-medium"
-              >
-                Mostrar km e horímetro do equipamento na proposta
-              </Label>
-            </div>
-            {formData.mostrarKmHr && (
-              <div className="grid grid-cols-1 gap-5 rounded-lg border border-border bg-muted/20 p-4 md:grid-cols-2">
+            <div className="rounded-xl border border-border bg-muted/20 p-5 sm:p-6 gap-2 space-y-4">
+              <p className="mb-4 text-xs font-bold uppercase tracking-wider text-primary">
+                Informações do Equipamento / Veículo
+              </p>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="km">KM atual do equipamento</Label>
-                  <Input
-                    id="km"
-                    value={formData.km}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="horimetro">
-                    Horímetro atual do equipamento
+                  <Label htmlFor="tipo_equipamento" className="text-foreground">
+                    Tipo de Equipamento
                   </Label>
                   <Input
-                    id="horimetro"
-                    value={formData.horimetro}
-                    readOnly
-                    className="bg-muted"
+                    id="tipo_equipamento"
+                    placeholder="Ex: Caminhão, Empilhadeira, Escavadeira"
+                    value={formData.veiculo || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, veiculo: e.target.value })
+                    }
+                    className="bg-input border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="modelo" className="text-foreground">
+                    Marca / Modelo
+                  </Label>
+                  <Input
+                    id="modelo"
+                    placeholder="Marca e modelo do equipamento"
+                    value={formData.modelo}
+                    onChange={(e) =>
+                      setFormData({ ...formData, modelo: e.target.value })
+                    }
+                    className="bg-input border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ano" className="text-foreground">
+                    Ano
+                  </Label>
+                  <Input
+                    id="ano"
+                    placeholder="AAAA"
+                    value={formData.ano}
+                    onChange={(e) =>
+                      setFormData({ ...formData, ano: e.target.value })
+                    }
+                    className="bg-input border-border"
                   />
                 </div>
               </div>
-            )}
 
+              <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <Checkbox
+                  id="mostrar-km-horimetro"
+                  checked={formData.mostrarKmHr}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, mostrarKmHr: checked === true })
+                  }
+                />
+                <Label
+                  htmlFor="mostrar-km-horimetro"
+                  className="cursor-pointer text-sm font-medium"
+                >
+                  Mostrar km e horímetro do equipamento na proposta
+                </Label>
+              </div>
+
+
+              {formData.mostrarKmHr && (
+                <div className="grid grid-cols-1 gap-5 rounded-lg border border-border bg-muted/20 p-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="km">KM atual do equipamento</Label>
+                    <Input
+                      id="km"
+                      value={formData.km}
+                      readOnly
+                      className="bg-muted"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="horimetro">
+                      Horímetro atual do equipamento
+                    </Label>
+                    <Input
+                      id="horimetro"
+                      value={formData.horimetro}
+                      readOnly
+                      className="bg-muted"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="space-y-5 rounded-xl border border-border bg-muted/20 p-5 sm:p-6">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-primary">
@@ -1159,16 +1160,33 @@ export function Propostas() {
 
             <div className="space-y-6 rounded-xl border border-border bg-muted/20 p-5 sm:space-y-7 sm:p-6">
               <div className="space-y-2">
-                <Label
-                  htmlFor="clausula-prazo"
-                  className="font-semibold text-foreground"
-                >
-                  Cláusula de prazo, fidelidade e rescisão
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label
+                    htmlFor="clausula-prazo"
+                    className="font-semibold text-foreground"
+                  >
+                    Cláusula de prazo, fidelidade e rescisão
+                  </Label>
+                  {clausulaCustomizada && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClausulaCustomizada(false);
+                        setClausulaTexto("");
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Restaurar padrão
+                    </button>
+                  )}
+                </div>
                 <Textarea
                   id="clausula-prazo"
-                  value={clausulaPrazo}
-                  readOnly
+                  value={clausulaCustomizada ? clausulaTexto : clausulaPrazo}
+                  onChange={(e) => {
+                    setClausulaCustomizada(true);
+                    setClausulaTexto(e.target.value);
+                  }}
                   className="min-h-52 resize-y bg-input border-border font-mono text-xs leading-5 sm:min-h-56"
                 />
               </div>

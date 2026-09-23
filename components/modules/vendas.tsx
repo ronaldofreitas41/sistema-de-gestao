@@ -48,6 +48,15 @@ interface VendaItem {
   val: number;
   tipo: string;
   fonte: string;
+  pneu_id?: string;
+}
+
+interface Pneu {
+  id: string;
+  codigo: string;
+  marca: string;
+  medida: string;
+  status?: string;
 }
 
 interface Venda {
@@ -80,11 +89,30 @@ function gerarId() {
 }
 
 function statusLabel(venda: Venda) {
-  if (venda.faturada && venda.em_medicao) return { label: "Liquidada MED", color: "bg-blue-100 text-blue-700 border-blue-200" };
-  if (venda.faturada) return { label: "Faturada", color: "bg-emerald-100 text-emerald-700 border-emerald-200" };
-  if (venda.em_medicao) return { label: "A Faturar", color: "bg-amber-100 text-amber-700 border-amber-200" };
-  if (venda.status === "cancelado") return { label: "Cancelada", color: "bg-red-100 text-red-700 border-red-200" };
-  return { label: "Pendente", color: "bg-gray-100 text-gray-600 border-gray-200" };
+  if (venda.faturada && venda.em_medicao)
+    return {
+      label: "Liquidada MED",
+      color: "bg-blue-100 text-blue-700 border-blue-200",
+    };
+  if (venda.faturada)
+    return {
+      label: "Faturada",
+      color: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    };
+  if (venda.em_medicao)
+    return {
+      label: "A Faturar",
+      color: "bg-amber-100 text-amber-700 border-amber-200",
+    };
+  if (venda.status === "cancelado")
+    return {
+      label: "Cancelada",
+      color: "bg-red-100 text-red-700 border-red-200",
+    };
+  return {
+    label: "Pendente",
+    color: "bg-gray-100 text-gray-600 border-gray-200",
+  };
 }
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
@@ -102,6 +130,10 @@ export function Vendas() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [placas, setPlacas] = useState<string[]>([]);
   const [nomesClientes, setNomesClientes] = useState<string[]>([]);
+  const [pneus, setPneus] = useState<Pneu[]>([]);
+  const [clienteManual, setClienteManual] = useState(true);
+  const [pneuSelecionadoModal, setPneuSelecionadoModal] = useState(false);
+  const [pneuBusca, setPneuBusca] = useState("");
 
   const emptyForm = (): Omit<Venda, "id" | "numero"> => ({
     cliente: "",
@@ -124,8 +156,15 @@ export function Vendas() {
     placa_medicao: "",
   });
 
-  const [formData, setFormData] = useState<Omit<Venda, "id" | "numero">>(emptyForm());
-  const [novoItem, setNovoItem] = useState({ desc: "", qtd: 1, val: 0, tipo: "Produto" });
+  const [formData, setFormData] =
+    useState<Omit<Venda, "id" | "numero">>(emptyForm());
+  const [novoItem, setNovoItem] = useState({
+    desc: "",
+    qtd: 1,
+    val: 0,
+    tipo: "Produto",
+  });
+  const [novoItemPneu, setNovoItemPneu] = useState({ pneu_id: "", qtd: 1 });
 
   // ── Fetch ──
   async function fetchVendas() {
@@ -142,12 +181,27 @@ export function Vendas() {
     fetchVendas();
     getPlacas().then(setPlacas);
     getNomesClientes().then(setNomesClientes);
+    fetchPneus();
   }, []);
+
+  async function fetchPneus() {
+    try {
+      const res = await fetch("/api/pneus");
+      const data = await res.json();
+      setPneus(Array.isArray(data) ? data : data.data || []);
+    } catch (e) {
+      console.error("Erro ao carregar pneus:", e);
+    }
+  }
 
   // ── Totais calculados ──
   const totais = useMemo(() => {
-    const pagas = vendas.filter((v) => v.faturada).reduce((a, v) => a + v.total, 0);
-    const pendentes = vendas.filter((v) => !v.faturada).reduce((a, v) => a + v.total, 0);
+    const pagas = vendas
+      .filter((v) => v.faturada)
+      .reduce((a, v) => a + v.total, 0);
+    const pendentes = vendas
+      .filter((v) => !v.faturada)
+      .reduce((a, v) => a + v.total, 0);
     return { pagas, pendentes, total: vendas.length };
   }, [vendas]);
 
@@ -187,6 +241,27 @@ export function Vendas() {
   function removerItem(id: string) {
     const novosItems = formData.items.filter((i) => i.id !== id);
     recalcularForm(novosItems, formData.desconto);
+  }
+
+  function adicionarPneu() {
+    if (!novoItemPneu.pneu_id) return;
+    const pneuSelecionado = pneus.find((p) => p.id === novoItemPneu.pneu_id);
+    if (!pneuSelecionado) return;
+
+    const desc = `${pneuSelecionado.marca} ${pneuSelecionado.medida} (${pneuSelecionado.codigo})`;
+    const item: VendaItem = {
+      id: gerarId(),
+      desc,
+      qtd: novoItemPneu.qtd,
+      val: 0,
+      tipo: "Pneu",
+      fonte: "pneu",
+      pneu_id: novoItemPneu.pneu_id,
+    };
+    const novosItems = [...formData.items, item];
+    recalcularForm(novosItems, formData.desconto);
+    setNovoItemPneu({ pneu_id: "", qtd: 1 });
+    setPneuSelecionadoModal(false);
   }
 
   // ── CRUD ──
@@ -253,12 +328,18 @@ export function Vendas() {
     <div className="min-h-screen bg-[#f4f6f9] text-foreground dark:bg-background">
       {/* Sidebar */}
       <div className="fixed inset-y-0 left-0 z-40 hidden md:flex">
-        <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
       </div>
 
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMenuOpen(false)}
+          />
           <div className="relative z-10 flex h-full">
             <Sidebar onClose={() => setMenuOpen(false)} />
             <button
@@ -272,8 +353,9 @@ export function Vendas() {
         </div>
       )}
 
-      <div className={`min-h-screen transition-[padding-left] duration-300 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"}`}>
-
+      <div
+        className={`min-h-screen transition-[padding-left] duration-300 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"}`}
+      >
         {/* Topbar */}
         <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3 flex-1 max-w-lg">
@@ -284,15 +366,18 @@ export function Vendas() {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-lg font-bold text-foreground whitespace-nowrap">Venda / Avaria</h1>
+            <h1 className="text-lg font-bold text-foreground whitespace-nowrap">
+              Venda / Avaria
+            </h1>
           </div>
         </header>
 
         <main className="w-full space-y-4 p-4 sm:p-6">
-
           {/* Subtítulo + Botão Nova Venda */}
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">Venda de peças e serviços para cliente final</p>
+            <p className="text-xs text-muted-foreground">
+              Venda de peças e serviços para cliente final
+            </p>
             <Button
               onClick={openNew}
               className="bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-md h-9"
@@ -338,19 +423,35 @@ export function Vendas() {
           {/* Cards de totais */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-card rounded-lg border-t-2 border-t-emerald-500 border border-border p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Receita Vendas</p>
-              <p className="text-2xl font-black text-emerald-600 mt-1">{formatCurrency(totais.pagas)}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Receita Vendas
+              </p>
+              <p className="text-2xl font-black text-emerald-600 mt-1">
+                {formatCurrency(totais.pagas)}
+              </p>
               <p className="text-[10px] text-muted-foreground mt-1">pagas</p>
             </div>
             <div className="bg-card rounded-lg border-t-2 border-t-amber-500 border border-border p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">A Receber</p>
-              <p className="text-2xl font-black text-amber-600 mt-1">{formatCurrency(totais.pendentes)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">pendentes</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                A Receber
+              </p>
+              <p className="text-2xl font-black text-amber-600 mt-1">
+                {formatCurrency(totais.pendentes)}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                pendentes
+              </p>
             </div>
             <div className="bg-card rounded-lg border-t-2 border-t-blue-500 border border-border p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Vendas</p>
-              <p className="text-2xl font-black text-blue-600 mt-1">{totais.total}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">registradas</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Total Vendas
+              </p>
+              <p className="text-2xl font-black text-blue-600 mt-1">
+                {totais.total}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                registradas
+              </p>
             </div>
           </div>
 
@@ -378,25 +479,42 @@ export function Vendas() {
             {filtered.map((v, idx) => {
               const st = statusLabel(v);
               const isMedicao = v.em_medicao;
-              const isFirstMedicao = isMedicao && (idx === 0 || !filtered[idx - 1]?.em_medicao);
+              const isFirstMedicao =
+                isMedicao && (idx === 0 || !filtered[idx - 1]?.em_medicao);
 
               return (
                 <div key={v.id}>
                   {/* Linha separadora para bloco de medição */}
                   {isFirstMedicao && (
                     <div className="px-4 py-1.5 bg-blue-50 dark:bg-blue-950/20 border-y border-blue-100 dark:border-blue-900/30 text-[10px] text-blue-600 font-medium flex items-center gap-1">
-                      ▷ EM MEDIÇÃO — não vão pro Contas a Receber (entram/abatem na medição da placa)
+                      ▷ EM MEDIÇÃO — não vão pro Contas a Receber (entram/abatem
+                      na medição da placa)
                       <span className="text-emerald-600 font-bold ml-2">
-                        +{formatCurrency(filtered.filter(x => x.em_medicao && x.sinal_medicao === "+").reduce((a, x) => a + x.total, 0))}
+                        +
+                        {formatCurrency(
+                          filtered
+                            .filter(
+                              (x) => x.em_medicao && x.sinal_medicao === "+",
+                            )
+                            .reduce((a, x) => a + x.total, 0),
+                        )}
                       </span>
                       <span className="text-red-600 font-bold ml-1">
-                        -{formatCurrency(filtered.filter(x => x.em_medicao && x.sinal_medicao === "-").reduce((a, x) => a + x.total, 0))}
+                        -
+                        {formatCurrency(
+                          filtered
+                            .filter(
+                              (x) => x.em_medicao && x.sinal_medicao === "-",
+                            )
+                            .reduce((a, x) => a + x.total, 0),
+                        )}
                       </span>
                     </div>
                   )}
 
-                  <div className={`grid grid-cols-[90px_1fr_100px_60px_110px_130px_140px_auto] gap-2 px-4 py-3 border-b border-border items-center text-sm hover:bg-muted/20 transition-colors ${isMedicao ? "bg-blue-50/30 dark:bg-blue-950/10" : ""}`}>
-
+                  <div
+                    className={`grid grid-cols-[90px_1fr_100px_60px_110px_130px_140px_auto] gap-2 px-4 py-3 border-b border-border items-center text-sm hover:bg-muted/20 transition-colors ${isMedicao ? "bg-blue-50/30 dark:bg-blue-950/10" : ""}`}
+                  >
                     {/* Número */}
                     <div>
                       <span className="text-[11px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 font-mono">
@@ -418,17 +536,25 @@ export function Vendas() {
 
                     {/* Data */}
                     <div className="text-xs text-muted-foreground">
-                      {v.data ? new Date(v.data + "T00:00:00").toLocaleDateString("pt-BR") : "-"}
+                      {v.data
+                        ? new Date(v.data + "T00:00:00").toLocaleDateString(
+                          "pt-BR",
+                        )
+                        : "-"}
                     </div>
 
                     {/* Itens */}
                     <div className="text-xs text-center">
                       {isMedicao ? (
-                        <span className={`font-bold ${v.sinal_medicao === "+" ? "text-emerald-600" : "text-red-600"}`}>
+                        <span
+                          className={`font-bold ${v.sinal_medicao === "+" ? "text-emerald-600" : "text-red-600"}`}
+                        >
                           {v.sinal_medicao} {v.items?.length ?? 0}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">{v.items?.length ?? 0}</span>
+                        <span className="text-muted-foreground">
+                          {v.items?.length ?? 0}
+                        </span>
                       )}
                     </div>
 
@@ -440,8 +566,13 @@ export function Vendas() {
                     {/* Pagamento */}
                     <div className="text-xs text-muted-foreground truncate">
                       {isMedicao ? (
-                        <span className={`font-medium ${v.sinal_medicao === "+" ? "text-emerald-600" : "text-red-600"}`}>
-                          {v.sinal_medicao === "+" ? "+ Acrescentar" : "– Descontar"} em medição
+                        <span
+                          className={`font-medium ${v.sinal_medicao === "+" ? "text-emerald-600" : "text-red-600"}`}
+                        >
+                          {v.sinal_medicao === "+"
+                            ? "+ Acrescentar"
+                            : "– Descontar"}{" "}
+                          em medição
                         </span>
                       ) : (
                         v.pagamento || "-"
@@ -450,7 +581,9 @@ export function Vendas() {
 
                     {/* Status badge */}
                     <div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.color}`}>
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.color}`}
+                      >
                         • {st.label}
                       </span>
                     </div>
@@ -490,7 +623,9 @@ export function Vendas() {
                         className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                         title="Excluir"
                       >
-                        {deletingId === v.id && <span className="absolute bottom-0 left-1 h-0.5 w-5 animate-pulse bg-current" />}
+                        {deletingId === v.id && (
+                          <span className="absolute bottom-0 left-1 h-0.5 w-5 animate-pulse bg-current" />
+                        )}
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -504,7 +639,7 @@ export function Vendas() {
 
       {/* ── Modal Visualização ──────────────────────────────────────────────── */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="bg-card border-border max-w-2xl max-h-[85vh] overflow-y-auto" onMouseDown={(e) => e.detail > 1 && e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-foreground">
               <FileText className="h-5 w-5 text-primary" />
@@ -517,25 +652,61 @@ export function Vendas() {
             <div className="space-y-4 text-xs">
               {/* Cabeçalho */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-border">
-                <div><span className="text-muted-foreground block">Data</span><strong>{new Date(selectedVenda.data + "T00:00:00").toLocaleDateString("pt-BR")}</strong></div>
-                <div><span className="text-muted-foreground block">Vencimento</span><strong>{selectedVenda.vencimento ? new Date(selectedVenda.vencimento + "T00:00:00").toLocaleDateString("pt-BR") : "-"}</strong></div>
-                <div><span className="text-muted-foreground block">Pagamento</span><strong>{selectedVenda.pagamento || "-"}</strong></div>
-                <div><span className="text-muted-foreground block">Status</span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusLabel(selectedVenda).color}`}>
+                <div>
+                  <span className="text-muted-foreground block">Data</span>
+                  <strong>
+                    {new Date(
+                      selectedVenda.data + "T00:00:00",
+                    ).toLocaleDateString("pt-BR")}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">
+                    Vencimento
+                  </span>
+                  <strong>
+                    {selectedVenda.vencimento
+                      ? new Date(
+                        selectedVenda.vencimento + "T00:00:00",
+                      ).toLocaleDateString("pt-BR")
+                      : "-"}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Pagamento</span>
+                  <strong>{selectedVenda.pagamento || "-"}</strong>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Status</span>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusLabel(selectedVenda).color}`}
+                  >
                     {statusLabel(selectedVenda).label}
                   </span>
                 </div>
                 {selectedVenda.placa_medicao && (
-                  <div><span className="text-muted-foreground block">Placa Medição</span><strong className="font-mono">{selectedVenda.placa_medicao}</strong></div>
+                  <div>
+                    <span className="text-muted-foreground block">
+                      Placa Medição
+                    </span>
+                    <strong className="font-mono">
+                      {selectedVenda.placa_medicao}
+                    </strong>
+                  </div>
                 )}
                 {selectedVenda.contato && (
-                  <div><span className="text-muted-foreground block">Contato</span><strong>{selectedVenda.contato}</strong></div>
+                  <div>
+                    <span className="text-muted-foreground block">Contato</span>
+                    <strong>{selectedVenda.contato}</strong>
+                  </div>
                 )}
               </div>
 
               {/* Itens */}
               <div>
-                <p className="font-bold text-foreground mb-2 border-b pb-1 border-border">Itens da Venda</p>
+                <p className="font-bold text-foreground mb-2 border-b pb-1 border-border">
+                  Itens da Venda
+                </p>
                 <div className="rounded-lg border border-border overflow-hidden">
                   <div className="grid grid-cols-[1fr_60px_80px_80px] gap-2 px-3 py-2 bg-muted/30 text-[10px] font-bold uppercase text-muted-foreground">
                     <div>Descrição</div>
@@ -544,11 +715,22 @@ export function Vendas() {
                     <div className="text-right">Total</div>
                   </div>
                   {selectedVenda.items?.map((item) => (
-                    <div key={item.id} className="grid grid-cols-[1fr_60px_80px_80px] gap-2 px-3 py-2 border-t border-border">
-                      <div className="font-medium text-foreground">{item.desc}</div>
-                      <div className="text-center text-muted-foreground">{item.qtd}</div>
-                      <div className="text-right text-muted-foreground">{formatCurrency(item.val)}</div>
-                      <div className="text-right font-bold text-foreground">{formatCurrency(item.qtd * item.val)}</div>
+                    <div
+                      key={item.id}
+                      className="grid grid-cols-[1fr_60px_80px_80px] gap-2 px-3 py-2 border-t border-border"
+                    >
+                      <div className="font-medium text-foreground">
+                        {item.desc}
+                      </div>
+                      <div className="text-center text-muted-foreground">
+                        {item.qtd}
+                      </div>
+                      <div className="text-right text-muted-foreground">
+                        {formatCurrency(item.val)}
+                      </div>
+                      <div className="text-right font-bold text-foreground">
+                        {formatCurrency(item.qtd * item.val)}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -556,16 +738,29 @@ export function Vendas() {
 
               {/* Totais */}
               <div className="bg-muted/30 rounded-lg border border-border p-3 space-y-1 text-right">
-                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><strong>{formatCurrency(selectedVenda.sub_total)}</strong></div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <strong>{formatCurrency(selectedVenda.sub_total)}</strong>
+                </div>
                 {selectedVenda.desconto > 0 && (
-                  <div className="flex justify-between text-red-600"><span>Desconto</span><strong>- {formatCurrency(selectedVenda.desconto)}</strong></div>
+                  <div className="flex justify-between text-red-600">
+                    <span>Desconto</span>
+                    <strong>- {formatCurrency(selectedVenda.desconto)}</strong>
+                  </div>
                 )}
-                <div className="flex justify-between text-base border-t pt-1 border-border"><span className="font-bold text-foreground">Total</span><strong className="text-emerald-600">{formatCurrency(selectedVenda.total)}</strong></div>
+                <div className="flex justify-between text-base border-t pt-1 border-border">
+                  <span className="font-bold text-foreground">Total</span>
+                  <strong className="text-emerald-600">
+                    {formatCurrency(selectedVenda.total)}
+                  </strong>
+                </div>
               </div>
 
               {selectedVenda.observacoes && (
                 <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                  <span className="text-muted-foreground block font-bold mb-1">Observações</span>
+                  <span className="text-muted-foreground block font-bold mb-1">
+                    Observações
+                  </span>
                   <p className="text-foreground">{selectedVenda.observacoes}</p>
                 </div>
               )}
@@ -573,85 +768,157 @@ export function Vendas() {
           )}
 
           <div className="flex justify-end pt-2">
-            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>Fechar</Button>
+            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+              Fechar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* ── Modal Cadastro / Edição ─────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+  className="
+    w-[calc(100vw-32px)]!
+    max-w-275!
+    sm:w-[calc(100vw-48px)]!
+    md:w-[90vw]!
+    lg:w-[85vw]!
+    xl:w-275!
+    max-h-[90vh]
+    overflow-y-auto
+    overflow-x-hidden
+    bg-card
+    border-border
+    p-6
+  "
+  onMouseDown={(e) => e.detail > 1 && e.stopPropagation()}
+>
           <DialogHeader>
             <DialogTitle className="text-foreground">
               {editingVenda ? `Editar ${editingVenda.numero}` : "Nova Venda"}
             </DialogTitle>
-            <DialogDescription>Preencha os dados da venda e adicione os itens.</DialogDescription>
+            <DialogDescription>
+              Preencha os dados da venda e adicione os itens.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-sm">
-
             {/* Dados gerais */}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 space-y-1">
-                <Label>Cliente</Label>
-                <Select
-                  value={formData.cliente}
-                  onValueChange={(value) => setFormData({ ...formData, cliente: value })}
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue placeholder="Selecione um cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {nomesClientes.map((nome) => (
-                      <SelectItem key={nome} value={nome}>
-                        {nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id="cliente_manual"
+                    checked={clienteManual}
+                    onChange={(e) => setClienteManual(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  <Label
+                    htmlFor="cliente_manual"
+                    className="cursor-pointer font-normal"
+                  >
+                    {clienteManual ? "Digitar manual" : "Selecionar cliente"}
+                  </Label>
+                </div>
+                {clienteManual ? (
+                  <Input
+                    placeholder="NOME DO CLIENTE"
+                    value={formData.cliente}
+                    onChange={(e) =>
+                      setFormData({ ...formData, cliente: e.target.value })
+                    }
+                    className="bg-input border-border"
+                  />
+                ) : (
+                  <Select
+                    value={formData.cliente}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, cliente: value })
+                    }
+                  >
+                    <SelectTrigger className="bg-input border-border">
+                      <SelectValue placeholder="Selecione um cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {nomesClientes.map((nome) => (
+                        <SelectItem key={nome} value={nome}>
+                          {nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-1">
-                <Label>Data</Label>
+                <Label>CPF / CNPJ (PARA DOCUMENTO NÃO FISCAL)</Label>
+                <Input
+                  placeholder="000.000.000-00 OU 00.000.000/0001-00"
+                  value={formData.documento || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, documento: e.target.value })
+                  }
+                  className="bg-input border-border"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>DATA</Label>
                 <Input
                   type="date"
                   value={formData.data}
-                  onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, data: e.target.value })
+                  }
                   className="bg-input border-border"
                 />
               </div>
               <div className="space-y-1">
-                <Label>Vencimento</Label>
+                <Label>CONTATO / WHATSAPP</Label>
                 <Input
-                  type="date"
-                  value={formData.vencimento || ""}
-                  onChange={(e) => setFormData({ ...formData, vencimento: e.target.value })}
+                  placeholder="(31)9XXXX-XXXX"
+                  value={formData.contato || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, contato: e.target.value })
+                  }
                   className="bg-input border-border"
                 />
               </div>
               <div className="space-y-1">
-                <Label>Forma de Pagamento</Label>
+                <Label>FORMA DE PAGAMENTO</Label>
                 <Select
                   value={formData.pagamento || ""}
-                  onValueChange={(val) => setFormData({ ...formData, pagamento: val })}
+                  onValueChange={(val) =>
+                    setFormData({ ...formData, pagamento: val })
+                  }
                 >
                   <SelectTrigger className="bg-input border-border">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="À Vista">À Vista</SelectItem>
+                    <SelectItem value="PIX">PIX</SelectItem>
+                    <SelectItem value="Boleto">Boleto</SelectItem>
+                    <SelectItem value="Cartão">Cartão</SelectItem>
                     <SelectItem value="Prazo 30d">Prazo 30d</SelectItem>
                     <SelectItem value="Prazo 60d">Prazo 60d</SelectItem>
-                    <SelectItem value="➕ Acrescentar em medição">+ Acrescentar em medição</SelectItem>
-                    <SelectItem value="➖ Descontar em medição">- Descontar em medição</SelectItem>
+                    <SelectItem value="+ Acrescentar em medição">
+                      + Acrescentar em medição
+                    </SelectItem>
+                    <SelectItem value="- Descontar em medição">
+                      - Descontar em medição
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Contato</Label>
+                <Label>VENCIMENTO (A PRAZO)</Label>
                 <Input
-                  placeholder="Telefone"
-                  value={formData.contato || ""}
-                  onChange={(e) => setFormData({ ...formData, contato: e.target.value })}
+                  type="date"
+                  value={formData.vencimento || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, vencimento: e.target.value })
+                  }
                   className="bg-input border-border"
                 />
               </div>
@@ -664,10 +931,14 @@ export function Vendas() {
                   type="checkbox"
                   id="em_medicao"
                   checked={formData.em_medicao}
-                  onChange={(e) => setFormData({ ...formData, em_medicao: e.target.checked })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, em_medicao: e.target.checked })
+                  }
                   className="h-4 w-4 accent-primary"
                 />
-                <Label htmlFor="em_medicao" className="cursor-pointer">Em Medição</Label>
+                <Label htmlFor="em_medicao" className="cursor-pointer">
+                  Em Medição
+                </Label>
               </div>
               {formData.em_medicao && (
                 <>
@@ -699,7 +970,9 @@ export function Vendas() {
                     <Label>Sinal</Label>
                     <Select
                       value={formData.sinal_medicao || "+"}
-                      onValueChange={(val) => setFormData({ ...formData, sinal_medicao: val })}
+                      onValueChange={(val) =>
+                        setFormData({ ...formData, sinal_medicao: val })
+                      }
                     >
                       <SelectTrigger className="bg-input border-border">
                         <SelectValue />
@@ -718,14 +991,38 @@ export function Vendas() {
             <div className="space-y-2">
               <Label className="text-sm font-bold">Itens da Venda</Label>
 
+              {/* Tabs para adicionar itens ou pneus */}
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNovoItem({ desc: "", qtd: 1, val: 0, tipo: "Produto" })
+                  }
+                  className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  + Item
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPneuSelecionadoModal(true)}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                >
+                  + Pneu
+                </button>
+              </div>
+
               {/* Adicionar item */}
               <div className="grid grid-cols-[1fr_60px_90px_80px_36px] gap-2 items-end">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Descrição</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    Descrição
+                  </Label>
                   <Input
                     placeholder="Ex: M.O OFICINA"
                     value={novoItem.desc}
-                    onChange={(e) => setNovoItem({ ...novoItem, desc: e.target.value })}
+                    onChange={(e) =>
+                      setNovoItem({ ...novoItem, desc: e.target.value })
+                    }
                     className="bg-input border-border text-xs h-8"
                     onKeyDown={(e) => e.key === "Enter" && adicionarItem()}
                   />
@@ -736,18 +1033,24 @@ export function Vendas() {
                     type="number"
                     min={1}
                     value={novoItem.qtd}
-                    onChange={(e) => setNovoItem({ ...novoItem, qtd: Number(e.target.value) })}
+                    onChange={(e) =>
+                      setNovoItem({ ...novoItem, qtd: Number(e.target.value) })
+                    }
                     className="bg-input border-border text-xs h-8"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Valor Unit.</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    Valor Unit.
+                  </Label>
                   <Input
                     type="number"
                     step="0.01"
                     min={0}
                     value={novoItem.val}
-                    onChange={(e) => setNovoItem({ ...novoItem, val: Number(e.target.value) })}
+                    onChange={(e) =>
+                      setNovoItem({ ...novoItem, val: Number(e.target.value) })
+                    }
                     className="bg-input border-border text-xs h-8"
                   />
                 </div>
@@ -755,7 +1058,9 @@ export function Vendas() {
                   <Label className="text-xs text-muted-foreground">Tipo</Label>
                   <Select
                     value={novoItem.tipo}
-                    onValueChange={(val) => setNovoItem({ ...novoItem, tipo: val })}
+                    onValueChange={(val) =>
+                      setNovoItem({ ...novoItem, tipo: val })
+                    }
                   >
                     <SelectTrigger className="bg-input border-border h-8 text-xs">
                       <SelectValue />
@@ -776,6 +1081,96 @@ export function Vendas() {
                 </button>
               </div>
 
+              {/* Modal Seleção de Pneu */}
+              {pneuSelecionadoModal && (
+                <div className="border border-border rounded-lg p-3 bg-muted/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold">
+                      Selecionar Pneu para Venda
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => setPneuSelecionadoModal(false)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="BUSCAR POR NÚMERO, MARCA DO MEDIDA..."
+                      value={pneuBusca}
+                      onChange={(e) => setPneuBusca(e.target.value)}
+                      className="bg-input border-border text-xs h-8"
+                    />
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto border border-border rounded bg-background">
+                    {pneus
+                      .filter(
+                        (p) =>
+                          p.codigo
+                            ?.toLowerCase()
+                            .includes(pneuBusca.toLowerCase()) ||
+                          p.marca
+                            ?.toLowerCase()
+                            .includes(pneuBusca.toLowerCase()) ||
+                          p.medida
+                            ?.toLowerCase()
+                            .includes(pneuBusca.toLowerCase()),
+                      )
+                      .map((p) => (
+                        <div
+                          key={p.id}
+                          onClick={() =>
+                            setNovoItemPneu({ ...novoItemPneu, pneu_id: p.id })
+                          }
+                          className={`p-2 border-b border-border cursor-pointer hover:bg-muted transition-colors text-xs ${novoItemPneu.pneu_id === p.id
+                              ? "bg-primary/20 font-bold"
+                              : ""
+                            }`}
+                        >
+                          <div className="font-mono">{p.codigo}</div>
+                          <div className="text-muted-foreground">
+                            {p.marca} {p.medida}{" "}
+                            {p.status ? `(${p.status})` : ""}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+
+                  {novoItemPneu.pneu_id && (
+                    <div className="grid grid-cols-[1fr_60px_auto] gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Qtd
+                        </Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={novoItemPneu.qtd}
+                          onChange={(e) =>
+                            setNovoItemPneu({
+                              ...novoItemPneu,
+                              qtd: Number(e.target.value),
+                            })
+                          }
+                          className="bg-input border-border text-xs h-8"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={adicionarPneu}
+                        className="h-8 px-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors text-xs font-bold"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Lista de itens */}
               {formData.items.length > 0 && (
                 <div className="rounded-lg border border-border overflow-hidden">
@@ -787,11 +1182,28 @@ export function Vendas() {
                     <div />
                   </div>
                   {formData.items.map((item) => (
-                    <div key={item.id} className="grid grid-cols-[1fr_50px_80px_80px_32px] gap-2 px-3 py-2 border-t border-border items-center text-xs">
-                      <div className="font-medium text-foreground truncate">{item.desc}</div>
-                      <div className="text-center text-muted-foreground">{item.qtd}</div>
-                      <div className="text-right text-muted-foreground">{formatCurrency(item.val)}</div>
-                      <div className="text-right font-bold">{formatCurrency(item.qtd * item.val)}</div>
+                    <div
+                      key={item.id}
+                      className="grid grid-cols-[1fr_50px_80px_80px_32px] gap-2 px-3 py-2 border-t border-border items-center text-xs"
+                    >
+                      <div className="font-medium text-foreground truncate">
+                        {item.tipo === "Pneu" ? (
+                          <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[10px] font-mono">
+                            {item.desc}
+                          </span>
+                        ) : (
+                          item.desc
+                        )}
+                      </div>
+                      <div className="text-center text-muted-foreground">
+                        {item.qtd}
+                      </div>
+                      <div className="text-right text-muted-foreground">
+                        {formatCurrency(item.val)}
+                      </div>
+                      <div className="text-right font-bold">
+                        {formatCurrency(item.qtd * item.val)}
+                      </div>
                       <button
                         type="button"
                         onClick={() => removerItem(item.id)}
@@ -814,16 +1226,29 @@ export function Vendas() {
                   step="0.01"
                   min={0}
                   value={formData.desconto}
-                  onChange={(e) => recalcularForm(formData.items, Number(e.target.value))}
+                  onChange={(e) =>
+                    recalcularForm(formData.items, Number(e.target.value))
+                  }
                   className="bg-input border-border"
                 />
               </div>
               <div className="bg-muted/30 p-3 rounded-lg border border-border text-xs space-y-1">
-                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><strong>{formatCurrency(formData.sub_total)}</strong></div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <strong>{formatCurrency(formData.sub_total)}</strong>
+                </div>
                 {formData.desconto > 0 && (
-                  <div className="flex justify-between text-red-600"><span>Desconto</span><strong>- {formatCurrency(formData.desconto)}</strong></div>
+                  <div className="flex justify-between text-red-600">
+                    <span>Desconto</span>
+                    <strong>- {formatCurrency(formData.desconto)}</strong>
+                  </div>
                 )}
-                <div className="flex justify-between text-sm border-t pt-1 border-border"><span className="font-bold">Total</span><strong className="text-emerald-600">{formatCurrency(formData.total)}</strong></div>
+                <div className="flex justify-between text-sm border-t pt-1 border-border">
+                  <span className="font-bold">Total</span>
+                  <strong className="text-emerald-600">
+                    {formatCurrency(formData.total)}
+                  </strong>
+                </div>
               </div>
             </div>
 
@@ -833,7 +1258,9 @@ export function Vendas() {
               <textarea
                 rows={2}
                 value={formData.observacoes || ""}
-                onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, observacoes: e.target.value })
+                }
                 className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
                 placeholder="Observações opcionais..."
               />
@@ -841,8 +1268,13 @@ export function Vendas() {
           </div>
 
           <div className="flex justify-end gap-3 mt-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} className="bg-primary text-primary-foreground">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSave}
+              className="bg-primary text-primary-foreground"
+            >
               {editingVenda ? "Salvar alterações" : "Cadastrar Venda"}
             </Button>
           </div>

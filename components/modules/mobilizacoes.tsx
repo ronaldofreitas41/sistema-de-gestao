@@ -30,6 +30,7 @@ type Mobilizacao = {
   local_origem?: string | null;
   local_destino?: string | null;
   km?: string | number | null;
+  horimetro?: string | number | null;
   responsavel?: string | null;
   observacoes?: string | null;
   pneus_por_eixo?: Record<string, any> | null;
@@ -53,6 +54,7 @@ const formularioInicial: MobilizacaoForm = {
   local_origem: "",
   local_destino: "",
   km: "",
+  horimetro: "",
   responsavel: "",
   observacoes: "",
   pneus_por_eixo: {
@@ -207,6 +209,7 @@ export function Mobilizacoes() {
       local_origem: mobilizacao.local_origem,
       local_destino: mobilizacao.local_destino,
       km: mobilizacao.km,
+      horimetro: mobilizacao.horimetro || "",
       responsavel: mobilizacao.responsavel,
       observacoes: mobilizacao.observacoes,
       pneus_por_eixo: mobilizacao.pneus_por_eixo || formularioInicial.pneus_por_eixo,
@@ -311,7 +314,7 @@ export function Mobilizacoes() {
         <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-9">
           {/* Descrição e Filtros */}
           <div className="space-y-4">
-            
+
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -439,7 +442,7 @@ export function Mobilizacoes() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl" onMouseDown={(e) => e.detail > 1 && e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>
               {editando ? "Editar mobilização" : "Nova mobilização"}
@@ -453,7 +456,7 @@ export function Mobilizacoes() {
             {/* Seção 1: Dados básicos */}
             <div className="space-y-4 border-b pb-4">
               <h3 className="font-semibold text-foreground">Dados da Mobilização</h3>
-              
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="tipo">Tipo de Operação *</Label>
@@ -508,21 +511,49 @@ export function Mobilizacoes() {
                   </select>
                 </div>
 
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="equipamento_id">Equipamento *</Label>
-                  <select
-                    id="equipamento_id"
-                    value={String(form.equipamento_id || "")}
-                    onChange={(e) => alterar("equipamento_id", e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Selecionar equipamento...</option>
-                    {equipamentos.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.placa} - {e.marca} {e.modelo}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="tipo_equipamento" className="text-foreground">
+                      Tipo de Equipamento
+                    </Label>
+                    <Input
+                      id="tipo_equipamento"
+                      placeholder="Ex: Caminhão, Empilhadeira, Escavadeira"
+                      value={form.equipamento_id || ""}
+                      onChange={(e) =>
+                        alterar("equipamento_id", e.target.value)
+                      }
+                      className="bg-input border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="modelo" className="text-foreground">
+                      Marca / Modelo
+                    </Label>
+                    <Input
+                      id="modelo"
+                      placeholder="Marca e modelo do equipamento"
+                      value={form.local_origem || ""}
+                      onChange={(e) =>
+                        alterar("local_origem", e.target.value)
+                      }
+                      className="bg-input border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ano" className="text-foreground">
+                      Ano
+                    </Label>
+                    <Input
+                      id="ano"
+                      placeholder="AAAA"
+                      value={form.local_destino || ""}
+                      onChange={(e) =>
+                        alterar("local_destino", e.target.value)
+                      }
+                      className="bg-input border-border"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -530,7 +561,7 @@ export function Mobilizacoes() {
             {/* Seção 2: Locais e KM */}
             <div className="space-y-4 border-b pb-4">
               <h3 className="font-semibold text-foreground">Trajeto</h3>
-              
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="local_origem">Local de Origem</Label>
@@ -565,6 +596,18 @@ export function Mobilizacoes() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="horimetro">Horímetro (h)</Label>
+                  <Input
+                    id="horimetro"
+                    type="number"
+                    step="0.01"
+                    value={form.horimetro || ""}
+                    onChange={(e) => alterar("horimetro", e.target.value)}
+                    placeholder="Ex: 1250.5"
+                  />
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="responsavel">Responsável</Label>
                   <Input
                     id="responsavel"
@@ -579,7 +622,7 @@ export function Mobilizacoes() {
             {/* Seção 3: Pneus por Eixo */}
             <div className="space-y-4 border-b pb-4">
               <h3 className="font-semibold text-foreground">Pneus por Eixo</h3>
-              
+
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
@@ -634,21 +677,8 @@ export function Mobilizacoes() {
             {/* Seção 4: Estepe e Checklist */}
             <div className="space-y-4 border-b pb-4">
               <h3 className="font-semibold text-foreground">Complementos</h3>
-              
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="estepe">Estepe</Label>
-                  <select
-                    id="estepe"
-                    value={form.estepe || "Não"}
-                    onChange={(e) => alterar("estepe", e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option value="Não">Não</option>
-                    <option value="Sim">Sim</option>
-                  </select>
-                </div>
 
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="checklist_id">Modelo de Checklist</Label>
                   <select
@@ -671,7 +701,7 @@ export function Mobilizacoes() {
             {/* Seção 5: Observações e Fotos */}
             <div className="space-y-4">
               <h3 className="font-semibold text-foreground">Informações Adicionais</h3>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="observacoes">Observações</Label>
                 <Textarea
