@@ -1,0 +1,1 @@
+ALTER TABLE `mh3_empresas` ADD COLUMN `logo` LONGTEXT NULL;

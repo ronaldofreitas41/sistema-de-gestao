@@ -401,6 +401,7 @@ export interface Proposta {
   criadoPor: string;
   numero: string;
   email?: string;
+  empresaLogo?: string | null;
   fotos?: string[];
   aprovada?: boolean;
   ctAssinado?: boolean;

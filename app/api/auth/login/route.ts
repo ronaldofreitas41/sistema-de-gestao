@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Login e senha são obrigatórios." }, { status: 400 });
     }
 
-    const usuario = await (prisma as any).mh3Usuarios.findUnique({ where: { login } });
+    const usuario = await prisma.mh3_usuarios.findUnique({ where: { login } });
 
     if (!usuario) {
       return NextResponse.json({ success: false, message: "Login ou senha inválidos." }, { status: 401 });
@@ -23,19 +23,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Usuário está inativo." }, { status: 403 });
     }
 
-    const senhaValida = await bcrypt.compare(senha, String(usuario.senha ?? ""));
+    const senhaArmazenada = String(usuario.senha ?? "");
+    const senhaValida = senhaArmazenada.startsWith("$2")
+      ? await bcrypt.compare(senha, senhaArmazenada)
+      : senha === senhaArmazenada;
+
     if (!senhaValida) {
       return NextResponse.json({ success: false, message: "Login ou senha inválidos." }, { status: 401 });
     }
 
-    await (prisma as any).mh3Usuarios.update({
+    if (!senhaArmazenada.startsWith("$2")) {
+      await prisma.mh3_usuarios.update({
+        where: { login },
+        data: { senha: await bcrypt.hash(senha, 12) },
+      });
+    }
+
+    await prisma.mh3_usuarios.update({
       where: { login },
       data: { ultimo_acesso: new Date() },
     });
 
     const token = await createToken({
       usuarioId: String(usuario.id),
-      empresaId: usuario.empresa_id == null ? null : Number(usuario.empresa_id),
+      empresaId: null,
       login: String(usuario.login),
       nome: String(usuario.nome),
       perfil: String(usuario.perfil ?? "operacional"),
@@ -48,7 +59,7 @@ export async function POST(request: NextRequest) {
       expiresIn: "24h",
       usuario: {
         id: String(usuario.id),
-        empresa_id: usuario.empresa_id,
+        empresa_id: null,
         nome: usuario.nome,
         login: usuario.login,
         perfil: usuario.perfil,

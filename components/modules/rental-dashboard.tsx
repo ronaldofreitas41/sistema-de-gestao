@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import { useEffect, useMemo, useState } from "react";
 import { formatDate, getToken } from "@/lib/utils";
-import type { Usuario, ApiResponse, Booking, NavItem } from "@/lib/types";
+import type { ApiResponse, NavItem, Usuario } from "@/lib/types";
 import {
   Activity,
   ArrowDownRight,
@@ -11,7 +11,6 @@ import {
   Bell,
   CalendarDays,
   CarFront,
-  ChevronDown,
   CircleDollarSign,
   Database,
   FileText,
@@ -23,677 +22,139 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-
 import { Sidebar } from "@/components/layout/sidebar";
 import { navGroups } from "@/lib/common";
 
-const dashboardBookings: Booking[] = [
-  {
-    id: "CTR-2026-084",
-    client: "Mariana Alves",
-    vehicle: "Toyota Corolla · RZT-4H21",
-    date: "Hoje, 14:30",
-    status: "Em andamento",
-  },
-  {
-    id: "CTR-2026-083",
-    client: "Grupo Conecta Ltda.",
-    vehicle: "Fiat Toro · GHF-8A02",
-    date: "Hoje, 16:00",
-    status: "Aguardando retirada",
-  },
-  {
-    id: "CTR-2026-082",
-    client: "Rafael Nogueira",
-    vehicle: "Jeep Compass · BXE-1C91",
-    date: "Amanhã, 09:00",
-    status: "Reservado",
-  },
-];
+type RecordData = Record<string, unknown>;
+type Booking = { id: string; client: string; vehicle: string; date: string; status: string };
 
 async function fetcher(url: string): Promise<ApiResponse> {
   const token = getToken();
-
   const response = await fetch(url, {
-    method: "GET",
     credentials: "include",
-    headers: {
-      Accept: "application/json",
-      ...(token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {}),
-    },
+    headers: { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
-
   const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.error || "Não foi possível carregar os dados.");
-  }
-
+  if (!response.ok) throw new Error(data?.error || "Não foi possível carregar os dados.");
   return data;
 }
 
-function getDisplayValue(value: unknown) {
-  if (value === null || value === undefined || value === "") {
-    return "—";
-  }
-
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
-
-  return String(value);
+function numberValue(value: unknown) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
 }
 
-function MetricCard({
-  label,
-  value,
-  delta,
-  icon: Icon,
-  negative = false,
-}: {
-  label: string;
-  value: string;
-  delta: string;
-  icon: React.ComponentType<{ className?: string }>;
-  negative?: boolean;
-}) {
+function currency(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function shortDate(value: unknown) {
+  if (!value) return "Sem data";
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("pt-BR");
+}
+
+function paid(status: unknown) {
+  return ["pago", "paga", "quitado", "quitada", "concluido", "concluída"].includes(String(status ?? "").toLowerCase());
+}
+
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(date: Date) {
+  return date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+}
+
+function displayValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "—";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+function MetricCard({ label, value, detail, icon: Icon, negative = false }: { label: string; value: string; detail: string; icon: React.ComponentType<{ className?: string }>; negative?: boolean }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <div className="mb-5 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{label}</p>
-
-        <div className="rounded-xl bg-accent p-2.5 text-accent-foreground">
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <p className="text-2xl font-bold tracking-tight text-card-foreground">
-        {value}
-      </p>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-        <span
-          className={`flex items-center gap-1 font-semibold ${
-            negative ? "text-red-600" : "text-primary"
-          }`}
-        >
-          {negative ? (
-            <ArrowDownRight className="h-3.5 w-3.5" />
-          ) : (
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          )}
-
-          {delta}
-        </span>
-
-        <span className="text-muted-foreground">vs. mês anterior</span>
+      <div className="mb-5 flex items-center justify-between"><p className="text-sm text-muted-foreground">{label}</p><div className="rounded-xl bg-accent p-2.5 text-accent-foreground"><Icon className="h-4 w-4" /></div></div>
+      <p className="text-2xl font-bold tracking-tight text-card-foreground">{value}</p>
+      <div className={`mt-2 flex items-center gap-1 text-xs font-semibold ${negative ? "text-red-600" : "text-primary"}`}>
+        {negative ? <ArrowDownRight className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
+        {detail}
       </div>
     </div>
   );
 }
 
-function DashboardHome({
-  onNavigate,
-}: {
-  onNavigate: (label: string) => void;
-}) {
+function DashboardHome({ onNavigate }: { onNavigate: (label: string) => void }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const contas = useSWR<ApiResponse>("/api/contas-receber?page=1&limit=10000", fetcher, { revalidateOnFocus: false });
+  const despesas = useSWR<ApiResponse>("/api/despesas?page=1&limit=10000", fetcher, { revalidateOnFocus: false });
+  const equipamentos = useSWR<ApiResponse>("/api/equipamentos?page=1&limit=10000", fetcher, { revalidateOnFocus: false });
+  const contratos = useSWR<ApiResponse>("/api/contratos?page=1&limit=10000", fetcher, { revalidateOnFocus: false });
+  const clientes = useSWR<ApiResponse>("/api/clientes?page=1&limit=10000", fetcher, { revalidateOnFocus: false });
+  const vendas = useSWR<ApiResponse>("/api/vendas?page=1&limit=10000", fetcher, { revalidateOnFocus: false });
 
   useEffect(() => {
     try {
-      const usuarioSalvo = sessionStorage.getItem("mh3_usuario");
-
-      if (usuarioSalvo) {
-        setUsuario(JSON.parse(usuarioSalvo));
-      }
-    } catch (error) {
-      console.error("Erro ao carregar usuário:", error);
-    }
+      const saved = sessionStorage.getItem("mh3_usuario");
+      if (saved) setUsuario(JSON.parse(saved));
+    } catch (error) { console.error("Erro ao carregar usuário:", error); }
   }, []);
 
-  const nome = usuario?.nome || usuario?.login || "Usuário";
+  const dataRows = (result: { data?: ApiResponse }) => (result.data?.data as RecordData[] | undefined) ?? [];
+  const contaRows = dataRows(contas);
+  const despesaRows = dataRows(despesas);
+  const equipamentoRows = dataRows(equipamentos);
+  const contratoRows = dataRows(contratos);
+  const clienteRows = dataRows(clientes);
+  const vendaRows = dataRows(vendas);
+  const clienteById = new Map(clienteRows.map((row) => [String(row.id), row]));
+  const equipamentoById = new Map(equipamentoRows.map((row) => [String(row.id), row]));
+  const receber = contaRows.filter((row) => !paid(row.status)).reduce((sum, row) => sum + numberValue(row.valor_total), 0);
+  const pagar = despesaRows.filter((row) => !paid(row.status_disp)).reduce((sum, row) => sum + numberValue(row.valor), 0);
+  const disponiveis = equipamentoRows.filter((row) => ["ativo", "disponivel", "disponível", "livre"].includes(String(row.status ?? "").toLowerCase())).length;
+  const disponibilidade = equipamentoRows.length ? `${((disponiveis / equipamentoRows.length) * 100).toFixed(1).replace(".", ",")}%` : "0,0%";
+  const now = new Date();
+  const vendasDoMes = vendaRows.filter((row) => { const date = new Date(String(row.data ?? "")); return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth(); });
+  const receita = vendasDoMes.reduce((sum, row) => sum + numberValue(row.total), 0);
+  const chart = Array.from({ length: 7 }, (_, index) => { const date = new Date(now.getFullYear(), now.getMonth() - 6 + index, 1); const total = vendaRows.filter((row) => monthKey(new Date(String(row.data ?? ""))) === monthKey(date)).reduce((sum, row) => sum + numberValue(row.total), 0); return { label: monthLabel(date), total }; });
+  const maxChart = Math.max(...chart.map((item) => item.total), 1);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const booking = (row: RecordData): Booking => { const client = clienteById.get(String(row.cliente_id)); const equipment = equipamentoById.get(String(row.equipamento_id)); return { id: String(row.numero ?? row.id), client: String(client?.nome ?? row.descricao ?? "Cliente não informado"), vehicle: `${String(equipment?.modelo ?? equipment?.tipo ?? "Equipamento não informado")}${equipment?.placa ? ` · ${equipment.placa}` : ""}`, date: shortDate(row.data_inicio), status: String(row.status ?? "Sem status") }; };
+  const nextBookings = contratoRows.filter((row) => { const date = new Date(String(row.data_inicio ?? "")); return !Number.isNaN(date.getTime()) && date >= today && date <= tomorrow; }).slice(0, 3).map(booking);
+  const recentBookings = contratoRows.slice(0, 5).map(booking);
+  const loading = [contas, despesas, equipamentos, contratos, vendas].some((result) => result.isLoading);
+  const hasError = [contas, despesas, equipamentos, contratos].some((result) => result.error);
+  const name = usuario?.nome || usuario?.login || "Usuário";
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <p className="mb-1 text-sm font-medium text-primary">
-            Resumo da operação
-          </p>
-
-          <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-            Visão geral
-          </h2>
-
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Olá, {nome.split(" ")[0]}. Acompanhe o que está acontecendo na sua
-            locadora.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onNavigate("Contratos")}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" />
-          Novo contrato
-        </button>
-      </div>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="A receber"
-          value="R$ 84.920,00"
-          delta="18,4%"
-          icon={CircleDollarSign}
-        />
-
-        <MetricCard
-          label="A pagar"
-          value="R$ 48.000,00"
-          delta="12,5%"
-          icon={WalletCards}
-          negative
-        />
-
-        <MetricCard
-          label="Veículos disponíveis"
-          value="76,8%"
-          delta="4,2%"
-          icon={CarFront}
-        />
-
-        <MetricCard
-          label="Receita do mês"
-          value="R$ 12.480,00"
-          delta="8,1%"
-          icon={CircleDollarSign}
-        />
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,1fr)]">
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
-          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-            <div>
-              <h3 className="font-semibold text-card-foreground">
-                Receita e contratos
-              </h3>
-
-              <p className="mt-1 text-xs text-muted-foreground">
-                Desempenho dos últimos 7 meses
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="flex w-fit items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground"
-            >
-              Últimos 7 meses
-              <ChevronDown className="h-3 w-3" />
-            </button>
-          </div>
-
-          <div className="flex h-56 items-end gap-2 border-b border-border px-1 sm:gap-5">
-            {[
-              ["Abr", "55%"],
-              ["Mai", "68%"],
-              ["Jun", "59%"],
-              ["Jul", "78%"],
-              ["Ago", "72%"],
-              ["Set", "92%"],
-              ["Out", "84%"],
-            ].map(([month, height], index) => (
-              <div
-                key={month}
-                className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-3"
-              >
-                <div
-                  className={`w-full max-w-10 rounded-t-lg ${
-                    index === 5 ? "bg-primary" : "bg-accent"
-                  }`}
-                  style={{ height }}
-                />
-
-                <span className="pb-3 text-[11px] text-muted-foreground">
-                  {month}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
-          <div className="mb-5 flex items-start justify-between">
-            <div>
-              <h3 className="font-semibold text-card-foreground">
-                Próximas retiradas
-              </h3>
-
-              <p className="mt-1 text-xs text-muted-foreground">
-                Agenda para hoje e amanhã
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onNavigate("Agenda")}
-              className="text-xs font-semibold text-primary"
-            >
-              Ver agenda
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            {dashboardBookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="flex items-center gap-3 rounded-xl p-3 transition hover:bg-accent"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
-                  <CalendarDays className="h-4 w-4" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {booking.client}
-                  </p>
-
-                  <p className="truncate text-xs text-muted-foreground">
-                    {booking.vehicle}
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <p className="text-xs font-semibold">{booking.date}</p>
-
-                  <span className="mt-1 inline-flex rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
-                    {booking.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-border bg-card shadow-sm">
-        <div className="flex flex-col justify-between gap-3 border-b border-border p-5 sm:flex-row sm:items-center md:p-6">
-          <div>
-            <h3 className="font-semibold text-card-foreground">
-              Contratos recentes
-            </h3>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              Últimas movimentações da operação
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onNavigate("Contratos")}
-            className="w-fit text-xs font-semibold text-primary"
-          >
-            Ver todos
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-175 text-left text-sm">
-            <thead className="bg-muted/50 text-xs text-muted-foreground">
-              <tr>
-                {["Contrato", "Cliente", "Veículo", "Data", "Status", ""].map(
-                  (head) => (
-                    <th key={head} className="px-6 py-3 font-medium">
-                      {head}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-
-            <tbody>
-              {dashboardBookings.map((booking) => (
-                <tr
-                  key={booking.id}
-                  className="border-t border-border transition hover:bg-accent/40"
-                >
-                  <td className="px-6 py-4 font-mono text-xs font-semibold">
-                    {booking.id}
-                  </td>
-
-                  <td className="px-6 py-4 font-medium">{booking.client}</td>
-
-                  <td className="px-6 py-4 text-muted-foreground">
-                    {booking.vehicle}
-                  </td>
-
-                  <td className="px-6 py-4 text-muted-foreground">
-                    {booking.date}
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground">
-                      {booking.status}
-                    </span>
-                  </td>
-
-                  <td className="px-6 py-4 text-right">
-                    <MoreHorizontal className="ml-auto h-4 w-4 text-muted-foreground" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="mb-1 text-sm font-medium text-primary">Resumo da operação</p><h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">Visão geral</h2><p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Olá, {name.split(" ")[0]}. Acompanhe o que está acontecendo na sua locadora.</p></div><button type="button" onClick={() => onNavigate("Contratos")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"><Plus className="h-4 w-4" />Novo contrato</button></div>
+      {hasError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">Não foi possível carregar todos os dados do dashboard.</div>}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="A receber" value={contas.data ? currency(receber) : "..."} detail={`${contaRows.length} conta(s) em aberto`} icon={CircleDollarSign} /><MetricCard label="A pagar" value={despesas.data ? currency(pagar) : "..."} detail={`${despesaRows.length} despesa(s) em aberto`} icon={WalletCards} negative /><MetricCard label="Veículos disponíveis" value={equipamentos.data ? disponibilidade : "..."} detail={`${disponiveis} de ${equipamentoRows.length} veículos`} icon={CarFront} /><MetricCard label="Receita do mês" value={vendas.data ? currency(receita) : "..."} detail={`${vendasDoMes.length} venda(s) no mês`} icon={CircleDollarSign} /></section>
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,1fr)]"><div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6"><div className="mb-6"><h3 className="font-semibold text-card-foreground">Receita dos últimos 7 meses</h3><p className="mt-1 text-xs text-muted-foreground">Valores baseados nas vendas registradas</p></div><div className="flex h-56 items-end gap-2 border-b border-border px-1 sm:gap-5">{chart.map((month, index) => <div key={`${month.label}-${index}`} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-3"><div className={`w-full max-w-10 rounded-t-lg ${index === chart.length - 1 ? "bg-primary" : "bg-accent"}`} style={{ height: `${month.total ? Math.max((month.total / maxChart) * 100, 4) : 0}%` }} /><span className="pb-3 text-[11px] text-muted-foreground">{month.label}</span></div>)}</div></div><div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6"><div className="mb-5"><h3 className="font-semibold text-card-foreground">Próximas retiradas</h3><p className="mt-1 text-xs text-muted-foreground">Contratos com início hoje ou amanhã</p></div><div className="flex flex-col gap-1">{loading ? <p className="p-3 text-sm text-muted-foreground">Carregando...</p> : nextBookings.length === 0 ? <p className="p-3 text-sm text-muted-foreground">Nenhuma retirada prevista.</p> : nextBookings.map((item) => <div key={item.id} className="flex items-center gap-3 rounded-xl p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent"><CalendarDays className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.client}</p><p className="truncate text-xs text-muted-foreground">{item.vehicle}</p></div><div className="text-right"><p className="text-xs font-semibold">{item.date}</p><span className="mt-1 inline-flex rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">{item.status}</span></div></div>)}</div></div></section>
+      <section className="rounded-2xl border border-border bg-card shadow-sm"><div className="flex flex-col justify-between gap-3 border-b border-border p-5 sm:flex-row sm:items-center md:p-6"><div><h3 className="font-semibold text-card-foreground">Contratos recentes</h3><p className="mt-1 text-xs text-muted-foreground">Últimos contratos cadastrados</p></div><button type="button" onClick={() => onNavigate("Contratos")} className="w-fit text-xs font-semibold text-primary">Ver todos</button></div><div className="overflow-x-auto"><table className="w-full min-w-175 text-left text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{["Contrato", "Cliente", "Veículo", "Data", "Status", ""].map((head) => <th key={head} className="px-6 py-3 font-medium">{head}</th>)}</tr></thead><tbody>{recentBookings.length === 0 ? <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-muted-foreground">Nenhum contrato cadastrado.</td></tr> : recentBookings.map((item) => <tr key={item.id} className="border-t border-border"><td className="px-6 py-4 font-mono text-xs font-semibold">{item.id}</td><td className="px-6 py-4 font-medium">{item.client}</td><td className="px-6 py-4 text-muted-foreground">{item.vehicle}</td><td className="px-6 py-4 text-muted-foreground">{item.date}</td><td className="px-6 py-4"><span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground">{item.status}</span></td><td className="px-6 py-4 text-right"><MoreHorizontal className="ml-auto h-4 w-4 text-muted-foreground" /></td></tr>)}</tbody></table></div></section>
     </div>
   );
 }
 
 function ModulePage({ item }: { item: NavItem }) {
   const [search, setSearch] = useState("");
-
-  const endpoint = item.resource
-    ? `/api/${item.resource}?page=1&limit=50${
-        search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""
-      }`
-    : null;
-
-  const { data, error, isLoading } = useSWR<ApiResponse>(endpoint, fetcher, {
-    revalidateOnFocus: false,
-  });
-
+  const endpoint = item.resource ? `/api/${item.resource}?page=1&limit=50${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}` : null;
+  const { data, error, isLoading } = useSWR<ApiResponse>(endpoint, fetcher, { revalidateOnFocus: false });
   const rows = Array.isArray(data?.data) ? data.data : [];
-
-  const columns = useMemo(() => {
-    if (!rows.length) return [];
-
-    return Object.keys(rows[0])
-      .filter(
-        (key) =>
-          ![
-            "senha",
-            "created_at",
-            "updated_at",
-            "criado_em",
-            "atualizado_em",
-          ].includes(key),
-      )
-      .slice(0, 8);
-  }, [rows]);
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <p className="mb-1 text-sm font-medium text-primary">
-            MH3 Rental / {item.label}
-          </p>
-
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            {item.label}
-          </h2>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            Gestão completa de {item.label.toLowerCase()} integrada ao banco de
-            dados.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" />
-          Adicionar registro
-        </button>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard
-          label="Registros encontrados"
-          value={isLoading ? "..." : String(rows.length)}
-          delta="Atualizado agora"
-          icon={Database}
-        />
-
-        <MetricCard
-          label="Status da conexão"
-          value={
-            error
-              ? "Atenção"
-              : data?.configured === false
-                ? "Configurar"
-                : "Online"
-          }
-          delta="API Next.js"
-          icon={ShieldCheck}
-          negative={Boolean(error)}
-        />
-
-        <MetricCard
-          label="Última sincronização"
-          value={isLoading ? "..." : "Agora"}
-          delta="Dados protegidos"
-          icon={Activity}
-        />
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-border p-5 md:p-6">
-          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-            <div>
-              <h3 className="font-semibold text-card-foreground">
-                Dados de {item.label}
-              </h3>
-
-              <p className="mt-1 text-xs text-muted-foreground">
-                Registros carregados pela API autenticada do Next.js
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="w-fit rounded-lg border border-border px-3 py-2 text-xs font-medium transition hover:bg-muted"
-            >
-              Exportar
-            </button>
-          </div>
-
-          <div className="relative w-full md:max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar registros..."
-              className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">
-            Carregando dados...
-          </div>
-        ) : error ? (
-          <div className="p-10 text-center">
-            <p className="font-medium text-destructive">
-              Não foi possível carregar os dados.
-            </p>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Verifique se o token Bearer está válido e se a API está
-              funcionando.
-            </p>
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="p-10 text-center">
-            <Database className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-
-            <p className="font-medium text-card-foreground">
-              Nenhum registro encontrado
-            </p>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Quando houver dados no banco, eles aparecerão aqui.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-190 text-left text-sm">
-              <thead className="bg-muted/50 text-xs text-muted-foreground">
-                <tr>
-                  {columns.map((column) => (
-                    <th key={column} className="px-6 py-3 font-medium">
-                      {column.replaceAll("_", " ")}
-                    </th>
-                  ))}
-
-                  <th className="px-6 py-3" />
-                </tr>
-              </thead>
-
-              <tbody>
-                {rows.map((row, index) => (
-                  <tr
-                    key={String(row.id ?? index)}
-                    className="border-t border-border transition hover:bg-accent/40"
-                  >
-                    {columns.map((column) => (
-                      <td
-                        key={column}
-                        className="max-w-60 truncate px-6 py-4 text-muted-foreground"
-                        title={getDisplayValue(row[column])}
-                      >
-                        {column.includes("data") || column.endsWith("_em")
-                          ? formatDate(row[column])
-                          : getDisplayValue(row[column])}
-                      </td>
-                    ))}
-
-                    <td className="px-6 py-4 text-right">
-                      <MoreHorizontal className="ml-auto h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const columns = useMemo(() => rows.length ? Object.keys(rows[0]).filter((key) => !["senha", "created_at", "updated_at", "criado_em", "atualizado_em"].includes(key)).slice(0, 8) : [], [rows]);
+  return <div className="flex flex-col gap-6"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="mb-1 text-sm font-medium text-primary">MH3 Rental / {item.label}</p><h2 className="text-3xl font-bold tracking-tight text-foreground">{item.label}</h2><p className="mt-2 text-sm text-muted-foreground">Gestão completa de {item.label.toLowerCase()} integrada ao banco de dados.</p></div><button type="button" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"><Plus className="h-4 w-4" />Adicionar registro</button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"><MetricCard label="Registros encontrados" value={isLoading ? "..." : String(rows.length)} detail="Consulta atual" icon={Database} /><MetricCard label="Status da conexão" value={error ? "Atenção" : data?.configured === false ? "Configurar" : "Online"} detail="API Next.js" icon={ShieldCheck} negative={Boolean(error)} /><MetricCard label="Última sincronização" value={isLoading ? "..." : "Agora"} detail="Dados protegidos" icon={Activity} /></div><div className="rounded-2xl border border-border bg-card shadow-sm"><div className="flex flex-col gap-4 border-b border-border p-5 md:p-6"><div><h3 className="font-semibold text-card-foreground">Dados de {item.label}</h3><p className="mt-1 text-xs text-muted-foreground">Registros carregados pela API autenticada do Next.js</p></div><div className="relative w-full md:max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar registros..." className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none" /></div></div>{isLoading ? <div className="p-10 text-center text-sm text-muted-foreground">Carregando dados...</div> : error ? <div className="p-10 text-center text-sm text-destructive">Não foi possível carregar os dados.</div> : rows.length === 0 ? <div className="p-10 text-center text-sm text-muted-foreground">Nenhum registro encontrado.</div> : <div className="overflow-x-auto"><table className="w-full min-w-190 text-left text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{columns.map((column) => <th key={column} className="px-6 py-3 font-medium">{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t border-border">{columns.map((column) => <td key={column} className="max-w-60 truncate px-6 py-4 text-muted-foreground">{column.includes("data") || column.endsWith("_em") ? formatDate(row[column]) : displayValue(row[column])}</td>)}</tr>)}</tbody></table></div>}</div></div>;
 }
 
 export function RentalDashboard() {
   const [active, setActive] = useState("Dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   const allItems = navGroups.flatMap((group) => group.items) as NavItem[];
-
-  const activeItem = allItems.find((item) => item.label.trim() === active) || {
-    href: "/",
-    label: "Dashboard",
-    resource: undefined,
-    icon: FileText,
-  };
-
-  const today = new Date().toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="fixed inset-y-0 left-0 z-40 hidden md:flex">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
-        />
-      </div>
-
-      {menuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setMenuOpen(false)}
-          />
-
-          <div className="relative z-10 flex h-full">
-            <Sidebar onClose={() => setMenuOpen(false)} />
-
-            <button
-              type="button"
-              onClick={() => setMenuOpen(false)}
-              aria-label="Fechar menu"
-              className="absolute left-[calc(100%+12px)] top-4 rounded-lg bg-card p-2 text-foreground shadow-sm"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div
-        className={`min-h-screen transition-[padding-left] duration-300 ${
-          sidebarCollapsed ? "md:pl-18" : "md:pl-65"
-        }`}
-      >
-        <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Abrir menu"
-              className="rounded-xl border border-border bg-card p-2 md:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-
-            <div className="min-w-0">
-              <p className="truncate text-xs capitalize text-muted-foreground sm:text-sm">
-                {today}
-              </p>
-
-              <h1 className="truncate text-lg font-bold tracking-tight text-foreground sm:text-2xl">
-                Olá, seja bem-vindo!
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              aria-label="Notificações"
-              className="relative rounded-xl border border-border bg-card p-2.5 transition hover:bg-muted"
-            >
-              <Bell className="h-4 w-4" />
-
-              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" />
-            </button>
-          </div>
-        </header>
-
-        <main className="mx-auto w-full max-w-375 p-4 sm:p-6 lg:p-9">
-          {active === "Dashboard" ? (
-            <DashboardHome onNavigate={setActive} />
-          ) : (
-            <ModulePage item={activeItem} />
-          )}
-        </main>
-      </div>
-    </div>
-  );
+  const activeItem = allItems.find((item) => item.label.trim() === active) || { href: "/", label: "Dashboard", resource: undefined, icon: FileText };
+  const today = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  return <div className="min-h-screen bg-background text-foreground"><div className="fixed inset-y-0 left-0 z-40 hidden md:flex"><Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} /></div>{menuOpen && <div className="fixed inset-0 z-50 flex md:hidden"><div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} /><div className="relative z-10 flex h-full"><Sidebar onClose={() => setMenuOpen(false)} /><button type="button" onClick={() => setMenuOpen(false)} aria-label="Fechar menu" className="absolute left-[calc(100%+12px)] top-4 rounded-lg bg-card p-2"><X className="h-5 w-5" /></button></div></div>}<div className={`min-h-screen transition-[padding-left] duration-300 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"}`}><header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9"><div className="flex min-w-0 items-center gap-3"><button type="button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu" className="rounded-xl border border-border bg-card p-2 md:hidden"><Menu className="h-5 w-5" /></button><div className="min-w-0"><p className="truncate text-xs capitalize text-muted-foreground sm:text-sm">{today}</p><h1 className="truncate text-lg font-bold tracking-tight text-foreground sm:text-2xl">Olá, seja bem-vindo!</h1></div></div><button type="button" aria-label="Notificações" className="relative rounded-xl border border-border bg-card p-2.5"><Bell className="h-4 w-4" /></button></header><main className="mx-auto w-full max-w-375 p-4 sm:p-6 lg:p-9">{active === "Dashboard" ? <DashboardHome onNavigate={setActive} /> : <ModulePage item={activeItem} />}</main></div></div>;
 }
 
 export default RentalDashboard;

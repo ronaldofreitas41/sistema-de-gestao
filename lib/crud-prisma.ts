@@ -24,7 +24,7 @@ const json = (data: unknown, status = 200) => {
 
 const TABLE_TO_MODEL: Record<string, string> = {
   mh3_empresas: "mh3_empresas",
-  mh3_usuarios: "mh3_usuarios",        // @@map("mh3_usuarios") → camelCase
+  mh3_usuarios: "mh3_usuarios",
   mh3_equipamentos: "mh3_equipamentos",
   mh3_clientes: "mh3_clientes",
   mh3_funcionarios: "mh3_funcionarios",
@@ -38,13 +38,12 @@ const TABLE_TO_MODEL: Record<string, string> = {
   mh3_estoque: "mh3_estoque",
   mh3_nfs: "mh3_nfs",
   mh3_nf_itens: "mh3_nf_itens",
-  mh3_despesas: "mh3Despesas",        // @@map("mh3_despesas") → camelCase
+  mh3_despesas: "mh3_despesas",        // @@map("mh3_despesas") → camelCase
   mh3_contas_bancarias: "mh3_contas_bancarias",
   mh3_investimentos: "mh3_investimentos",
   mh3_pneus: "mh3_pneus",
   mh3_pneus_historico: "mh3_pneus_historico",
   mh3_mobilizacoes: "mh3_mobilizacoes",
-  mh3_saidas_material: "mh3_saidas_material",
   mh3_ajudas_motorista: "mh3_ajudas_motorista",
   mh3_checklists: "mh3_checklists",
   mh3_checklist_itens: "mh3_checklist_itens",

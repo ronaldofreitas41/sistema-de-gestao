@@ -1,5 +1,5 @@
+import AcompRevisaoModule from "@/components/modules/acomp-revisao";
+
 export default function AcompRevisaoPage() {
-    return(
-        <AcompRevisaoPage />
-    );
+    return <AcompRevisaoModule />;
 }

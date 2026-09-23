@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getById, remove, update } from "@/lib/crud-prisma";
 
 const TABLE = "mh3_empresas";
-const FIELDS = ["nome", "razao_social", "cnpj", "inscricao_estadual", "telefone", "email", "endereco", "cidade", "estado", "cep", "ativo"];
+const FIELDS = ["nome", "razao_social", "cnpj", "inscricao_estadual", "telefone", "email", "endereco", "cidade", "estado", "cep", "logo", "ativo"];
 
 type Context = { params: Promise<{ id: string }> };
 

@@ -31,7 +31,13 @@ export function generatePropostaPDF(proposta: Proposta) {
     value === undefined || value === null || value === "" ? fallback : String(value);
 
   const drawFirstPageHeader = () => {
-    doc.addImage("/placeholder-logo.png", "PNG", margin, 12, 45, 15.7);
+    const logo = proposta.empresaLogo || "/placeholder-logo.png";
+    const logoFormat = logo.startsWith("data:image/jpeg")
+      ? "JPEG"
+      : logo.startsWith("data:image/webp")
+        ? "WEBP"
+        : "PNG";
+    doc.addImage(logo, logoFormat, margin, 12, 45, 15.7);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(...red);
@@ -146,35 +152,34 @@ export function generatePropostaPDF(proposta: Proposta) {
 
   currentY = addPageIfNeeded(currentY, 55);
   currentY = sectionTitle("Prazo, fidelidade e rescisão", currentY);
-  currentY = paragraph(
-    `Prazo de locação: ${text(proposta.duracao || (proposta.tempoLocacao ? `${proposta.tempoLocacao} mês(es)` : "não informado"))}. ${proposta.fidelidade ? `Fidelidade contratual de ${proposta.fidelidade} meses.` : "As condições de fidelidade serão definidas no contrato."}`,
-    currentY,
-  );
-  currentY = paragraph(
-    proposta.multaTipo || proposta.multaPct
-      ? `Rescisão: ${text(proposta.multaTipo)}${proposta.multaPct ? `, multa de ${proposta.multaPct}%.` : "."}`
-      : "A rescisão seguirá as condições acordadas entre as partes no contrato de locação.",
-    currentY,
-  );
+  const prazo = text(proposta.duracao || (proposta.tempoLocacao ? `${proposta.tempoLocacao} mês(es)` : "12"));
+  const clausula = proposta.multaTipo === "sem_multa"
+    ? `O presente contrato vigorará pelo prazo de ${prazo} meses, contados a partir da data de início da locação, não havendo incidência de multa na hipótese de rescisão antecipada por qualquer das partes.`
+    : proposta.multaTipo === "valores_vigencia"
+      ? `O presente contrato vigorará pelo prazo de ${prazo} meses, contados a partir da data de início da locação. DA RESCISÃO OU DEVOLUÇÃO ANTECIPADA: os valores mensais são devidos integralmente até o termo final da vigência contratual, ainda que a contratante devolva os equipamentos, reduza a quantidade contratada ou encerre a operação antes desse prazo. Permanecem devidas as despesas de desmobilização.`
+      : `1. DO PRAZO: o presente contrato vigorará pelo prazo mínimo de ${prazo} meses, contados a partir da data de início da locação. 2. DA FIDELIDADE: os primeiros ${proposta.fidelidade || 6} meses constituem período de fidelidade integral. 3. DA RESCISÃO: será devida multa compensatória de ${proposta.multaPct || 0}% sobre os aluguéis remanescentes. A mesma regra se aplica à devolução parcial ou redução da quantidade de equipamentos.`;
+  currentY = paragraph(clausula, currentY);
+
+  if (proposta.mostrarKmHr) {
+    currentY = paragraph(`KM atual do equipamento: ${text(proposta.km)}. Horímetro atual: ${text(proposta.horimetro)}.`, currentY);
+  }
 
   currentY = addPageIfNeeded(currentY, 55);
   currentY = sectionTitle("Responsabilidades da contratante", currentY);
   currentY = paragraph(
-    "Efetuar os pagamentos nas datas acordadas, disponibilizar operador devidamente treinado, zelar pela guarda do equipamento e cumprir as condições de operação, manutenção e abastecimento definidas no contrato.",
-    currentY,
-  );
-  currentY = paragraph(
-    "A contratante deverá comunicar imediatamente qualquer ocorrência, defeito ou paralisação do equipamento para que sejam tomadas as providências necessárias.",
+    text(proposta.resp, "Por conta da Contratante."),
     currentY,
   );
 
-  currentY = addPageIfNeeded(currentY, 60);
-  currentY = sectionTitle("Seguro", currentY);
-  currentY = paragraph(text(proposta.seguro || proposta.temSeguro, "As condições de seguro serão apresentadas no contrato."), currentY);
-  currentY = paragraph(
-    "Os riscos não cobertos pela apólice, quando ocorridos, serão de responsabilidade da contratante, conforme as condições contratadas.",
-    currentY,
-  );
+  if (proposta.seguro || proposta.temSeguro) {
+    currentY = addPageIfNeeded(currentY, 60);
+    currentY = sectionTitle("Seguro", currentY);
+    currentY = paragraph(text(proposta.seguro || proposta.temSeguro), currentY);
+    currentY = paragraph(
+      "Os riscos não cobertos pela apólice, quando ocorridos, serão de responsabilidade da contratante, conforme as condições contratadas.",
+      currentY,
+    );
+  }
 
   currentY = addPageIfNeeded(currentY, 60);
   currentY = sectionTitle("Condições de faturamento", currentY);

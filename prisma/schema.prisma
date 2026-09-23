@@ -172,7 +172,7 @@ model mh3_dados {
   @@index([modulo, criado_em], map: "idx_mod_criado")
 }
 
-model mh3Despesas {
+model mh3_despesas {
   id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   descricao        String?   @db.VarChar(255)
   categoria        String?   @db.VarChar(100)
@@ -194,7 +194,6 @@ model mh3Despesas {
   @@index([categoria], map: "idx_despesa_categoria")
   @@index([status_disp], map: "idx_despesa_status")
   @@index([data_vencimento], map: "idx_despesa_vencimento")
-  @@map("mh3_despesas")
 }
 
 model mh3_email_contas {
@@ -242,6 +241,7 @@ model mh3_empresas {
   cidade             String?             @db.VarChar(100)
   estado             String?             @db.VarChar(2)
   cep                String?             @db.VarChar(10)
+  logo               String?             @db.LongText
   ativo              Boolean             @default(true)
   criado_em          DateTime            @default(now()) @db.DateTime(0)
   atualizado_em      DateTime            @default(now()) @db.DateTime(0)
@@ -625,21 +625,6 @@ model mh3_revisoes {
   @@index([equipamento_id], map: "fk_revisao_equipamento")
 }
 
-model mh3_saidas_material {
-  id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  equipamento_id   BigInt?           @db.UnsignedBigInt
-  funcionario_id   BigInt?           @db.UnsignedBigInt
-  data             DateTime          @db.Date
-  motivo           String?           @db.VarChar(255)
-  observacoes      String?           @db.Text
-  criado_em        DateTime          @default(now()) @db.DateTime(0)
-  mh3_equipamentos mh3_equipamentos? @relation(fields: [equipamento_id], references: [id], onUpdate: Restrict, map: "fk_saida_equipamento")
-  mh3_funcionarios mh3_funcionarios? @relation(fields: [funcionario_id], references: [id], onUpdate: Restrict, map: "fk_saida_funcionario")
-
-  @@index([equipamento_id], map: "fk_saida_equipamento")
-  @@index([funcionario_id], map: "fk_saida_funcionario")
-}
-
 model mh3_seguros {
   id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   seguradora     String?   @db.VarChar(150)
@@ -685,21 +670,21 @@ model mh3_tentativas {
 }
 
 model mh3_tratativas {
-  id            BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
-  usuario_id    String?      @db.VarChar(60)
-  titulo        String?      @db.VarChar(255)
-  descricao     String?      @db.Text
-  responsavel   String?      @db.VarChar(150)
-  prazo         DateTime?    @db.Date
-  status        String?      @default("aberta") @db.VarChar(50)
-  criado_em     DateTime     @default(now()) @db.DateTime(0)
-  atualizado_em DateTime     @default(now()) @db.DateTime(0)
-  mh3_usuarios  mh3Usuarios? @relation(fields: [usuario_id], references: [id], map: "fk_tratativa_usuario")
+  id            BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  usuario_id    String?       @db.VarChar(60)
+  titulo        String?       @db.VarChar(255)
+  descricao     String?       @db.Text
+  responsavel   String?       @db.VarChar(150)
+  prazo         DateTime?     @db.Date
+  status        String?       @default("aberta") @db.VarChar(50)
+  criado_em     DateTime      @default(now()) @db.DateTime(0)
+  atualizado_em DateTime      @default(now()) @db.DateTime(0)
+  mh3_usuarios  mh3_usuarios? @relation(fields: [usuario_id], references: [id], map: "fk_tratativa_usuario")
 
   @@index([usuario_id], map: "idx_tratativa_usuario")
 }
 
-model mh3Usuarios {
+model mh3_usuarios {
   id             String           @id @db.VarChar(60)
   nome           String           @db.VarChar(150)
   login          String           @unique(map: "login") @db.VarChar(80)
@@ -711,8 +696,6 @@ model mh3Usuarios {
   criado_em      DateTime?        @default(now()) @db.Timestamp(0)
   codigo_acesso  String?          @default("") @db.VarChar(40)
   mh3_tratativas mh3_tratativas[]
-
-  @@map("mh3_usuarios")
 }
 
 model mh3_venda_itens {
@@ -776,6 +759,21 @@ model mh3_parceiros {
   cep         String? @db.VarChar(45)
   observacoes String? @db.VarChar(45)
   pix         String? @db.VarChar(45)
+}
+
+model mh3_saidas_material {
+  id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  equipamento_id   BigInt?           @db.UnsignedBigInt
+  funcionario_id   BigInt?           @db.UnsignedBigInt
+  data             DateTime          @db.Date
+  motivo           String?           @db.VarChar(255)
+  observacoes      String?           @db.Text
+  criado_em        DateTime          @default(now()) @db.DateTime(0)
+  mh3_equipamentos mh3_equipamentos? @relation(fields: [equipamento_id], references: [id], onUpdate: Restrict, map: "fk_saida_equipamento")
+  mh3_funcionarios mh3_funcionarios? @relation(fields: [funcionario_id], references: [id], onUpdate: Restrict, map: "fk_saida_funcionario")
+
+  @@index([equipamento_id], map: "fk_saida_equipamento")
+  @@index([funcionario_id], map: "fk_saida_funcionario")
 }
 
 enum mh3_medicoes_status {

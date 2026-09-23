@@ -24,7 +24,6 @@ import {
   UsersRound,
   ChartLine,
   CircleQuestionMark,
-  DollarSign,
   Truck,
   Wrench,
   Camera,
@@ -32,12 +31,12 @@ import {
   Box,
   LibraryBig,
   LoaderPinwheel,
-  ArchiveRestore,
   Siren,
   Handshake,
   FileText,
   Search,
   Check,
+  Building2,
 } from "lucide-react";
 import { NavItem, Permissoes } from "./types";
 
@@ -127,12 +126,6 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         resource: "ajudas_motoristas",
         icon: CircleQuestionMark,
       },
-      {
-        href: "/fatura-locacao",
-        label: "Fatura Locação",
-        resource: "fatura_locacao",
-        icon: DollarSign,
-      },
     ],
   },
   {
@@ -177,12 +170,6 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         resource: "pneus",
         icon: LoaderPinwheel,
       },
-      {
-        href: "/saida-de-material",
-        label: "Saida de Material",
-        resource: "saida_material",
-        icon: ArchiveRestore,
-      },
     ],
   },
   {
@@ -211,6 +198,18 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         label: "Usuarios",
         resource: "usuarios",
         icon: UsersRound,
+      },
+      {
+        href: "/empresas",
+        label: "Empresas",
+        resource: "empresas",
+        icon: Building2,
+      },
+      {
+        href: "/permissoes",
+        label: "Permissões",
+        resource: "permissoes",
+        icon: ShieldCheck,
       },
       {
         href: "/cheklist",
@@ -461,10 +460,6 @@ export const nomesPermissoes: Record<string, string> = {
   "prej-criar": "Criar prejuízo",
   "prej-editar": "Editar prejuízo",
   "prej-excluir": "Excluir prejuízo",
-  sm: "Saída de material",
-  "sm-criar": "Criar saída de material",
-  "sm-editar": "Editar saída de material",
-  "sm-excluir": "Excluir saída de material",
   sist: "Sistema",
   "sist-criar": "Criar configuração",
   "sist-editar": "Editar configuração",
@@ -523,3 +518,34 @@ export const tipos_conta = [
   { id: 2, nome: "Poupança" },
   { id: 3, nome: "Investimento" },
 ];
+
+
+export const CLAUSULA_PRAZO_PADRAO = `1. DO PRAZO: O PRESENTE CONTRATO VIGORARÁ PELO PRAZO MÍNIMO DE 12 (DOZE) MESES, CONTADOS A PARTIR DA DATA DE INÍCIO DA LOCAÇÃO.
+2. DA FIDELIDADE: OS PRIMEIROS 6 (SEIS) MESES DE VIGÊNCIA CONSTITUEM PERÍODO DE FIDELIDADE INTEGRAL.
+3. DA RESCISÃO ATÉ O 6º MÊS: CASO A RESCISÃO OCORRA ANTES DE COMPLETADO O 6º MÊS DE VIGÊNCIA, A CONTRATANTE OBRIGA-SE AO PAGAMENTO DOS ALUGUÉIS MENSAIS VINCENDOS ATÉ O ENCERRAMENTO DO PERÍODO DE FIDELIDADE.
+
+A MESMA REGRA SE APLICA À DEVOLUÇÃO PARCIAL OU REDUÇÃO DA QUANTIDADE DE EQUIPAMENTOS, POR EQUIPAMENTO RETIRADO.`;
+
+export const RESPONSABILIDADES_PADRAO = `EFETUAR OS PAGAMENTOS NAS DATAS DE VENCIMENTO ACORDADAS, CONFORME CONDIÇÕES COMERCIAIS ESTABELECIDAS NESTA PROPOSTA.
+OPERADOR DEVIDAMENTE TREINADO E QUALIFICADO PARA TAL OPERAÇÃO.
+ABASTECIMENTO DO VEÍCULO.
+GUARDA DO VEÍCULO/EQUIPAMENTO.
+REALIZAR A LAVAGEM E LUBRIFICAÇÃO A CADA 15 DIAS.
+CUMPRIR PLANO DE MANUTENÇÃO.
+MATERIAL DE DESGASTE (LÂMPADAS, FUSÍVEIS, DISCO/BOBINA TACÓGRAFO, SIRENE DE RÉ, FUROS E CORTE EM PNEUS, DESGASTE PREMATURO DE PNEUS E PEÇAS).
+MATERIAL DE DESGASTE DO IMPLEMENTO.
+SOLICITAR À CONTRATADA A MANUTENÇÃO PREVENTIVA DE ACORDO COM O PLANO DE MANUTENÇÃO E CORRETIVA.
+AVARIAS POR MAU USO E DESGASTE ANORMAL.
+QUALQUER ALTERAÇÃO OU MANUTENÇÃO NO VEÍCULO/EQUIPAMENTO SEM AUTORIZAÇÃO DA CONTRATADA.
+CEDER À CONTRATADA 1 (UM) DIA POR MÊS PARA REALIZAR MANUTENÇÕES SEM DESCONTO EM MEDIÇÃO.
+GUARDA, VIGILÂNCIA E SEGURANÇA DO EQUIPAMENTO 24 HORAS, INCLUSIVE FORA DO HORÁRIO DE OPERAÇÃO, FINAIS DE SEMANA E PARADAS.
+VEDADA A SUBLOCAÇÃO, CESSÃO OU TRANSFERÊNCIA DO EQUIPAMENTO A TERCEIROS OU A OUTRA FRENTE DE SERVIÇO SEM AUTORIZAÇÃO PRÉVIA E ESCRITA DA CONTRATADA.
+A CONTRATADA NÃO POSSUI OBRIGAÇÃO DE FORNECIMENTO DE EQUIPAMENTO RESERVA.
+O EQUIPAMENTO DEVERÁ SER DEVOLVIDO NAS MESMAS CONDIÇÕES EM QUE FOI ENTREGUE, CONFORME TERMO DE ENTREGA E VISTORIA, RESSALVADO O DESGASTE NATURAL DO USO NORMAL.`;
+
+export const SEGURO_PADRAO = `COLISÃO COM TERCEIROS (SIM)
+COBERTURA CONTRA FURTO 80% FIPE, ROUBO, COLISÃO (CASCO) E INCÊNDIO PROVENIENTE DE ACIDENTE (SIM)
+GUINCHO (NÃO) QUANDO O DEFEITO FOR DE RESPONSABILIDADE DA CONTRATADA.
+COBERTURA DE OPERAÇÃO EM LOCAIS DE RISCO, PRÓXIMO À ÁGUA E BARRAGENS (NÃO)
+COBERTURA DE VIDROS (NÃO)
+COBERTURA DOS IMPLEMENTOS (NÃO)`;
