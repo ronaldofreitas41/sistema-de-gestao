@@ -206,12 +206,6 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         icon: Building2,
       },
       {
-        href: "/permissoes",
-        label: "Permissões",
-        resource: "permissoes",
-        icon: ShieldCheck,
-      },
-      {
         href: "/cheklist",
         label: "Checklist",
         resource: "checklist",

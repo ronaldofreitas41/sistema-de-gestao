@@ -478,12 +478,20 @@ model mh3_mobilizacoes {
   contrato_id      BigInt?           @db.UnsignedBigInt
   tipo             String?           @db.VarChar(50)
   data             DateTime?         @db.Date
+  data_chegada     DateTime?         @db.Date
   local_origem     String?           @db.VarChar(255)
   local_destino    String?           @db.VarChar(255)
   km               Decimal?          @db.Decimal(12, 2)
   responsavel      String?           @db.VarChar(150)
   observacoes      String?           @db.Text
+  pneus_por_eixo   Json?
+  estepe           String?           @db.VarChar(255)
+  checklist_id     String?           @db.VarChar(50)
+  fotos            Json?
+  status           String?           @default("ativo") @db.VarChar(50)
+  ciclo            String?           @db.VarChar(50)
   criado_em        DateTime          @default(now()) @db.DateTime(0)
+  atualizado_em    DateTime          @default(now()) @db.DateTime(0)
   mh3_contratos    mh3_contratos?    @relation(fields: [contrato_id], references: [id], onUpdate: Restrict, map: "fk_mobilizacao_contrato")
   mh3_equipamentos mh3_equipamentos? @relation(fields: [equipamento_id], references: [id], onUpdate: Restrict, map: "fk_mobilizacao_equip")
 

@@ -102,10 +102,28 @@ export function Sidebar({
 
   function toggleGroup(groupLabel: string) {
     setOpenGroups((estadoAtual) => {
-      const novoEstado = {
-        ...estadoAtual,
-        [groupLabel]: !estadoAtual[groupLabel],
-      };
+      // Se o grupo já está aberto, apenas fecha
+      if (estadoAtual[groupLabel]) {
+        const novoEstado = {
+          ...estadoAtual,
+          [groupLabel]: false,
+        };
+
+        try {
+          localStorage.setItem("mh3_sidebar_groups", JSON.stringify(novoEstado));
+        } catch (error) {
+          console.error("Erro ao salvar estado dos grupos:", error);
+        }
+
+        return novoEstado;
+      }
+
+      // Se não está aberto, fecha todos e abre apenas este
+      const novoEstado: Record<string, boolean> = {};
+      for (const label in estadoAtual) {
+        novoEstado[label] = false;
+      }
+      novoEstado[groupLabel] = true;
 
       try {
         localStorage.setItem("mh3_sidebar_groups", JSON.stringify(novoEstado));

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { create, list } from "@/lib/crud-prisma";
 
 const TABLE = "mh3_mobilizacoes";
-const FIELDS = ["equipamento_id", "contrato_id", "tipo", "data", "local_origem", "local_destino", "km", "responsavel", "observacoes"];
+const FIELDS = ["equipamento_id", "contrato_id", "tipo", "data", "data_chegada", "local_origem", "local_destino", "km", "responsavel", "observacoes", "pneus_por_eixo", "estepe", "checklist_id", "fotos", "status", "ciclo"];
 const SEARCH_FIELDS = ["tipo", "local_origem", "local_destino", "responsavel"];
 
 export async function GET(request: NextRequest) {
