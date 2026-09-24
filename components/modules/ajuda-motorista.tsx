@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Ajuda_Motorista, ContasBancarias, Despesa, Usuario } from "@/lib/types";
-import { deleteRegistro, fetchContas, formatCurrency, formatDate, formatPhone, getPlacas } from "@/lib/utils";
+import { deleteRegistro, fetchContas, formatCurrency, formatDate, formatPhone, formatarData, getPlacas } from "@/lib/utils";
 import {
   PageSizeSelect,
   PaginationControls,
@@ -584,10 +584,12 @@ export function ComponenteAjudaMotorista() {
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="data"
-                    type="date"
+                    type="text"
+                    maxLength={10}
+                    placeholder="DD/MM/AAAA"
                     value={formData.data}
                     onChange={(e) =>
-                      setFormData({ ...formData, data: e.target.value })
+                      setFormData({ ...formData, data: formatarData(e.target.value) })
                     }
                     className="pl-9 bg-input border-border"
                   />

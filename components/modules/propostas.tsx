@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Proposta } from "@/lib/types";
-import { deleteRegistro } from "@/lib/utils";
+import { deleteRegistro, formatarData } from "@/lib/utils";
 import {
   PageSizeSelect,
   PaginationControls,
@@ -585,7 +585,7 @@ export function Propostas() {
       </div>
 
       {/* Modal / Dialog de Cadastro/Edição */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen} disablePointerDismissal>
         <DialogContent className="w-[calc(100vw-1.5rem)]! max-w-300! max-h-[94vh] overflow-y-auto bg-card border-border p-6 sm:w-[calc(100vw-2rem)]! sm:p-8" onMouseDown={(e) => e.detail > 1 && e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle className="text-foreground">
@@ -715,10 +715,11 @@ export function Propostas() {
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="data"
-                      type="date"
+                      type="text"
+                      maxLength={10}
                       value={formData.data}
                       onChange={(e) =>
-                        setFormData({ ...formData, data: e.target.value })
+                        setFormData({ ...formData, data: formatarData(e.target.value) })
                       }
                       className="pl-9 bg-input border-border"
                       placeholder="DD/MM/AAAA"
@@ -733,10 +734,11 @@ export function Propostas() {
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="validade"
-                      type="date"
+                      type="text"
+                      maxLength={10}
                       value={formData.validade}
                       onChange={(e) =>
-                        setFormData({ ...formData, validade: e.target.value })
+                        setFormData({ ...formData, validade: formatarData(e.target.value) })
                       }
                       className="pl-9 bg-input border-border"
                       placeholder="DD/MM/AAAA"

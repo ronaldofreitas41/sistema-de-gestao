@@ -149,6 +149,32 @@ export function formatarCPF(value: string) {
     .replace(/\.(\d{3})(\d)/, ".$1-$2");
 }
 
+export function formatarCNPJ(value: string) {
+  const numeros = value.replace(/\D/g, "").slice(0, 14);
+
+  return numeros
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+
+export function formatarData(value: string): string {
+  // Remove tudo que não é número
+  const apenasNumeros = value.replace(/\D/g, "");
+  
+  // Limita a 8 dígitos (DDMMAAAA)
+  const limitado = apenasNumeros.slice(0, 8);
+  
+  // Formata como DD/MM/AAAA
+  if (limitado.length >= 5) {
+    return `${limitado.slice(0, 2)}/${limitado.slice(2, 4)}/${limitado.slice(4)}`;
+  } else if (limitado.length >= 3) {
+    return `${limitado.slice(0, 2)}/${limitado.slice(2)}`;
+  }
+  return limitado;
+}
+
 export async function fetchContas() {
     try {
       const res = await fetch("/api/contas-bancarias");

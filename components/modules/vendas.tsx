@@ -34,6 +34,7 @@ import {
   deleteRegistro,
   formatCurrency,
   formatDate,
+  formatarData,
   getNomesClientes,
   getPlacas,
 } from "@/lib/utils";
@@ -864,10 +865,12 @@ export function Vendas() {
               <div className="space-y-1">
                 <Label>DATA</Label>
                 <Input
-                  type="date"
+                  type="text"
+                  maxLength={10}
+                  placeholder="DD/MM/AAAA"
                   value={formData.data}
                   onChange={(e) =>
-                    setFormData({ ...formData, data: e.target.value })
+                    setFormData({ ...formData, data: formatarData(e.target.value) })
                   }
                   className="bg-input border-border"
                 />
@@ -913,10 +916,12 @@ export function Vendas() {
               <div className="space-y-1">
                 <Label>VENCIMENTO (A PRAZO)</Label>
                 <Input
-                  type="date"
+                  type="text"
+                  maxLength={10}
+                  placeholder="DD/MM/AAAA"
                   value={formData.vencimento || ""}
                   onChange={(e) =>
-                    setFormData({ ...formData, vencimento: e.target.value })
+                    setFormData({ ...formData, vencimento: formatarData(e.target.value) })
                   }
                   className="bg-input border-border"
                 />

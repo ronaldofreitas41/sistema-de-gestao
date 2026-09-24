@@ -12,22 +12,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { deleteRegistro } from "@/lib/utils";
-
-type FotoGrupo = {
-  maxFotos: number;
-  fotos: File[];
-};
+import { formatarData } from "@/lib/utils";
 
 type Mobilizacao = {
   id: string | number;
   equipamento_id?: string | number | null;
   contrato_id?: string | number | null;
+  contratante?: string | null;
   tipo?: string | null;
+  tipo_equipamento?: string | null;
   data?: string | null;
   data_chegada?: string | null;
   local_origem?: string | null;
   local_destino?: string | null;
+  marca_modelo?: string | null;
+  ano?: string | null;
   km?: string | number | null;
   horimetro?: string | number | null;
   responsavel?: string | null;
@@ -45,13 +44,21 @@ type Mobilizacao = {
 
 type MobilizacaoForm = Omit<Mobilizacao, "id">;
 
+type FotosPreview = Record<string, string[]>;
+
+
 const formularioInicial: MobilizacaoForm = {
   equipamento_id: "",
   contrato_id: "",
+  contratante: "",
   tipo: "MOBILIZAÇÃO(saída do veículo/equipamento)",
+  tipo_equipamento: "",
   data: "",
+  data_chegada: "",
   local_origem: "",
   local_destino: "",
+  marca_modelo: "",
+  ano: "",
   km: "",
   horimetro: "",
   responsavel: "",
@@ -93,11 +100,10 @@ export function Mobilizacoes() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [excluindo, setExcluindo] = useState<string | number | null>(null);
   const [salvando, setSalvando] = useState(false);
-  const [contratos, setContratos] = useState<any[]>([]);
-  const [equipamentos, setEquipamentos] = useState<any[]>([]);
   const [checklists, setChecklists] = useState<any[]>([]);
   const [anoFiltro, setAnoFiltro] = useState("todos");
   const [mostrarArquivadas, setMostrarArquivadas] = useState(false);
+  const [fotosPreview, setFotosPreview] = useState<FotosPreview>({});
 
   async function carregar() {
     try {
@@ -111,20 +117,8 @@ export function Mobilizacoes() {
 
   async function carregarDados() {
     try {
-      const [contratosRes, equipamentosRes, checklistsRes] = await Promise.all([
-        fetch("/api/contratos"),
-        fetch("/api/equipamentos"),
-        fetch("/api/checklists"),
-      ]);
+      const checklistsRes = await fetch("/api/checklists");
 
-      if (contratosRes.ok) {
-        const data = await contratosRes.json();
-        setContratos(Array.isArray(data) ? data : data.data || []);
-      }
-      if (equipamentosRes.ok) {
-        const data = await equipamentosRes.json();
-        setEquipamentos(Array.isArray(data) ? data : data.data || []);
-      }
       if (checklistsRes.ok) {
         const data = await checklistsRes.json();
         setChecklists(Array.isArray(data) ? data : data.data || []);
@@ -140,13 +134,23 @@ export function Mobilizacoes() {
   }, []);
 
   const filtradas = useMemo(() => {
-    const termo = busca.toLowerCase();
-    return mobilizacoes.filter((m) =>
-      [m.tipo, m.local_origem, m.local_destino, m.responsavel].some(
-        (valor) => String(valor || "").toLowerCase().includes(termo)
-      )
-    );
-  }, [mobilizacoes, busca]);
+    const termo = busca.trim().toLowerCase();
+
+    return mobilizacoes.filter((m) => {
+      const correspondeBusca =
+        !termo ||
+        [m.codigo, m.placa, m.cliente, m.contratante, m.tipo, m.local_origem, m.local_destino, m.responsavel]
+          .some((valor) => String(valor ?? "").toLowerCase().includes(termo));
+
+      const ano = m.data ? String(m.data).slice(0, 4) : "";
+      const correspondeAno = anoFiltro === "todos" || ano === anoFiltro;
+
+      const arquivada = String(m.status ?? "").toLowerCase() === "arquivado";
+      const correspondeStatus = mostrarArquivadas || !arquivada;
+
+      return correspondeBusca && correspondeAno && correspondeStatus;
+    });
+  }, [mobilizacoes, busca, anoFiltro, mostrarArquivadas]);
 
   function alterar(campo: keyof MobilizacaoForm, valor: any) {
     setForm((atual) => ({ ...atual, [campo]: valor }));
@@ -165,24 +169,113 @@ export function Mobilizacoes() {
     }));
   }
 
-  function adicionarFoto(grupo: string, event: React.ChangeEvent<HTMLInputElement>) {
-    const files = event.target.files;
-    if (!files) return;
+  function renderFotosPreview(grupo: string) {
+    const previews = fotosPreview[grupo] || [];
 
-    const fotosArray = Array.from(files);
-    setForm((atual) => ({
-      ...atual,
-      fotos: {
-        ...(atual.fotos || {}),
-        [grupo]: [
-          ...(atual.fotos?.[grupo] || []),
-          ...fotosArray.map((f) => f.name), // Armazenar nomes ou converter para base64
-        ],
-      },
-    }));
+    if (previews.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+        {previews.map((src, index) => (
+          <div
+            key={`${grupo}-${index}-${src}`}
+            className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
+          >
+            <img
+              src={src}
+              alt={`Foto ${index + 1}`}
+              className="h-full w-full object-cover"
+            />
+
+            <button
+              type="button"
+              onClick={() => removerFoto(grupo, index)}
+              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
+              aria-label={`Remover foto ${index + 1}`}
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 text-center text-[10px] text-white">
+              Foto {index + 1}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function adicionarFoto(
+    grupo: string,
+    event: React.ChangeEvent<HTMLInputElement>,
+    limite: number
+  ) {
+    const files = event.target.files;
+
+    if (!files || files.length === 0) return;
+
+    const arquivos = Array.from(files);
+
+    setFotosPreview((atual) => {
+      const existentes = atual[grupo] || [];
+
+      const quantidadeDisponivel = limite - existentes.length;
+
+      if (quantidadeDisponivel <= 0) {
+        return atual;
+      }
+
+      const arquivosSelecionados = arquivos.slice(0, quantidadeDisponivel);
+
+      const novasPreviews = arquivosSelecionados.map((arquivo) =>
+        URL.createObjectURL(arquivo)
+      );
+
+      return {
+        ...atual,
+        [grupo]: [...existentes, ...novasPreviews],
+      };
+    });
+
+    setForm((atual) => {
+      const existentes = atual.fotos?.[grupo] || [];
+
+      const quantidadeDisponivel = limite - existentes.length;
+
+      if (quantidadeDisponivel <= 0) {
+        return atual;
+      }
+
+      const arquivosSelecionados = arquivos.slice(0, quantidadeDisponivel);
+
+      return {
+        ...atual,
+        fotos: {
+          ...(atual.fotos || {}),
+          [grupo]: [
+            ...existentes,
+            ...arquivosSelecionados.map((arquivo) => arquivo.name),
+          ],
+        },
+      };
+    });
+
+    // Permite selecionar novamente o mesmo arquivo
+    event.target.value = "";
   }
 
   function removerFoto(grupo: string, index: number) {
+    setFotosPreview((atual) => {
+      const url = atual[grupo]?.[index];
+      if (url) URL.revokeObjectURL(url);
+      return {
+        ...atual,
+        [grupo]: (atual[grupo] || []).filter((_, i) => i !== index),
+      };
+    });
+
     setForm((atual) => ({
       ...atual,
       fotos: {
@@ -194,41 +287,57 @@ export function Mobilizacoes() {
 
   function novaMobilizacao() {
     setEditando(null);
-    setForm(formularioInicial);
+    setFotosPreview({});
+    setForm({
+      ...formularioInicial,
+      pneus_por_eixo: structuredClone(formularioInicial.pneus_por_eixo),
+      fotos: structuredClone(formularioInicial.fotos),
+    });
     setDialogOpen(true);
   }
 
   function editar(mobilizacao: Mobilizacao) {
     setEditando(mobilizacao);
+    setFotosPreview({});
     setForm({
       equipamento_id: mobilizacao.equipamento_id,
       contrato_id: mobilizacao.contrato_id,
+      contratante: mobilizacao.contratante,
       tipo: mobilizacao.tipo,
+      tipo_equipamento: mobilizacao.tipo_equipamento,
       data: mobilizacao.data,
+      data_chegada: mobilizacao.data_chegada,
       local_origem: mobilizacao.local_origem,
       local_destino: mobilizacao.local_destino,
+      marca_modelo: mobilizacao.marca_modelo,
+      ano: mobilizacao.ano,
       km: mobilizacao.km,
       horimetro: mobilizacao.horimetro || "",
       responsavel: mobilizacao.responsavel,
       observacoes: mobilizacao.observacoes,
-      pneus_por_eixo: mobilizacao.pneus_por_eixo || formularioInicial.pneus_por_eixo,
+      pneus_por_eixo: mobilizacao.pneus_por_eixo
+        ? structuredClone(mobilizacao.pneus_por_eixo)
+        : structuredClone(formularioInicial.pneus_por_eixo),
       estepe: mobilizacao.estepe || "Não",
       checklist_id: mobilizacao.checklist_id,
-      fotos: mobilizacao.fotos || formularioInicial.fotos,
+      fotos: mobilizacao.fotos
+        ? structuredClone(mobilizacao.fotos)
+        : structuredClone(formularioInicial.fotos),
     });
     setDialogOpen(true);
   }
 
   async function salvar() {
-    if (!form.equipamento_id || !form.contrato_id || salvando) return;
+    if (!form.contratante || !form.data || salvando) return;
     setSalvando(true);
     try {
+      const { equipamento_id, contrato_id, ...dadosForm } = form;
       const response = await fetch(
         editando ? `/api/mobilizacoes/${editando.id}` : "/api/mobilizacoes",
         {
           method: editando ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(dadosForm),
         }
       );
       if (!response.ok) throw new Error("Não foi possível salvar a mobilização.");
@@ -240,20 +349,6 @@ export function Mobilizacoes() {
     } finally {
       setSalvando(false);
     }
-  }
-
-  async function excluir(id: string | number) {
-    try {
-      await deleteRegistro(`/api/mobilizacoes/${id}`);
-      await carregar();
-    } catch (error) {
-      console.error("Erro ao excluir:", error);
-    }
-  }
-
-  function downloadPDF(mobilizacao: Mobilizacao) {
-    // Implementar geração de PDF
-    alert("Funcionalidade de download de PDF em desenvolvimento");
   }
 
   return (
@@ -295,11 +390,19 @@ export function Mobilizacoes() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => carregar()}>
               <Download className="mr-2 h-4 w-4" />
               Importar
             </Button>
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setBusca("");
+                setAnoFiltro("todos");
+                setMostrarArquivadas(false);
+              }}
+            >
               <RotateCcw className="mr-2 h-4 w-4" />
               Limpar Tudo
             </Button>
@@ -313,7 +416,16 @@ export function Mobilizacoes() {
         <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-9">
           {/* Descrição e Filtros */}
           <div className="space-y-4">
-
+            <div className="relative max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar por código, placa, cliente..."
+                className="pl-9"
+                aria-label="Buscar mobilizações"
+              />
+            </div>
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -417,6 +529,20 @@ export function Mobilizacoes() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                onClick={async () => {
+                                  if (!window.confirm("Deseja realmente excluir esta mobilização?")) return;
+                                  try {
+                                    setExcluindo(mobilizacao.id);
+                                    await fetch(`/api/mobilizacoes/${mobilizacao.id}`, { method: "DELETE" });
+                                    await carregar();
+                                  } catch (error) {
+                                    console.error("Erro ao excluir:", error);
+                                    alert("Não foi possível excluir a mobilização.");
+                                  } finally {
+                                    setExcluindo(null);
+                                  }
+                                }}
+                                disabled={excluindo === mobilizacao.id}
                                 className="h-8 w-8 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -440,8 +566,14 @@ export function Mobilizacoes() {
         </main>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl" onMouseDown={(e) => e.detail > 1 && e.stopPropagation()}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        disablePointerDismissal
+      >
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto sm:max-w-4xl"
+        >
           <DialogHeader>
             <DialogTitle>
               {editando ? "Editar mobilização" : "Nova mobilização"}
@@ -479,8 +611,9 @@ export function Mobilizacoes() {
                     id="data"
                     type="text"
                     placeholder="DD/MM/AAAA"
+                    maxLength={10}
                     value={form.data || ""}
-                    onChange={(e) => alterar("data", e.target.value)}
+                    onChange={(e) => alterar("data", formatarData(e.target.value))}
                   />
                 </div>
 
@@ -490,8 +623,9 @@ export function Mobilizacoes() {
                     id="data_chegada"
                     type="text"
                     placeholder="DD/MM/AAAA"
+                    maxLength={10}
                     value={form.data_chegada || ""}
-                    onChange={(e) => alterar("data_chegada", e.target.value)}
+                    onChange={(e) => alterar("data_chegada", formatarData(e.target.value))}
                   />
                 </div>
 
@@ -501,12 +635,12 @@ export function Mobilizacoes() {
                     id="contratante"
                     type="text"
                     placeholder="Nome do contratante"
-                    value={String(form.contrato_id || "")}
-                    onChange={(e) => alterar("contrato_id", e.target.value)}
+                    value={form.contratante || ""}
+                    onChange={(e) => alterar("contratante", e.target.value)}
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-5 ">
                   <div className="space-y-2">
                     <Label htmlFor="tipo_equipamento" className="text-foreground">
                       Tipo de Equipamento
@@ -514,13 +648,15 @@ export function Mobilizacoes() {
                     <Input
                       id="tipo_equipamento"
                       placeholder="Ex: Caminhão, Empilhadeira, Escavadeira"
-                      value={form.equipamento_id || ""}
+                      value={form.tipo_equipamento || ""}
                       onChange={(e) =>
-                        alterar("equipamento_id", e.target.value)
+                        alterar("tipo_equipamento", e.target.value)
                       }
                       className="bg-input border-border"
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="modelo" className="text-foreground">
                       Marca / Modelo
@@ -528,9 +664,9 @@ export function Mobilizacoes() {
                     <Input
                       id="modelo"
                       placeholder="Marca e modelo do equipamento"
-                      value={form.local_origem || ""}
+                      value={form.marca_modelo || ""}
                       onChange={(e) =>
-                        alterar("local_origem", e.target.value)
+                        alterar("marca_modelo", e.target.value)
                       }
                       className="bg-input border-border"
                     />
@@ -542,9 +678,10 @@ export function Mobilizacoes() {
                     <Input
                       id="ano"
                       placeholder="AAAA"
-                      value={form.local_destino || ""}
+                      maxLength={4}
+                      value={form.ano || ""}
                       onChange={(e) =>
-                        alterar("local_destino", e.target.value)
+                        alterar("ano", e.target.value.replace(/\D/g, "").slice(0, 4))
                       }
                       className="bg-input border-border"
                     />
@@ -730,7 +867,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("frente", e)}
+                      onChange={(e) => adicionarFoto("frente", e, 1)}
                       className="hidden"
                       id="frente-input"
                     />
@@ -754,7 +891,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("traseira", e)}
+                      onChange={(e) => adicionarFoto("traseira", e, 1)}
                       className="hidden"
                       id="traseira-input"
                     />
@@ -778,7 +915,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("lateral_esquerda", e)}
+                      onChange={(e) => adicionarFoto("lateral_esquerda", e, 1)}
                       className="hidden"
                       id="lateral-esq-input"
                     />
@@ -802,7 +939,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("lateral_direita", e)}
+                      onChange={(e) => adicionarFoto("lateral_direita", e, 1)}
                       className="hidden"
                       id="lateral-dir-input"
                     />
@@ -826,7 +963,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("painel_km", e)}
+                      onChange={(e) => adicionarFoto("painel_km", e, 1)}
                       className="hidden"
                       id="painel-input"
                     />
@@ -850,7 +987,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("implementos", e)}
+                      onChange={(e) => adicionarFoto("implementos", e, 4)}
                       className="hidden"
                       id="implementos-input"
                     />
@@ -874,7 +1011,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("interior_cabine", e)}
+                      onChange={(e) => adicionarFoto("interior_cabine", e, 4)}
                       className="hidden"
                       id="interior-input"
                     />
@@ -898,7 +1035,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("macaco_chave", e)}
+                      onChange={(e) => adicionarFoto("macaco_chave", e, 1)}
                       className="hidden"
                       id="macaco-input"
                     />
@@ -922,7 +1059,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("triangulo_reboque", e)}
+                      onChange={(e) => adicionarFoto("triangulo_reboque", e, 1)}
                       className="hidden"
                       id="triangulo-input"
                     />
@@ -946,7 +1083,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("cabo_forca", e)}
+                      onChange={(e) => adicionarFoto("cabo_forca", e, 1)}
                       className="hidden"
                       id="cabo-input"
                     />
@@ -970,7 +1107,7 @@ export function Mobilizacoes() {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("calco_cones", e)}
+                      onChange={(e) => adicionarFoto("calco_cones", e, 1)}
                       className="hidden"
                       id="calco-input"
                     />
@@ -985,14 +1122,14 @@ export function Mobilizacoes() {
                 <div className="rounded-lg border border-border p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-medium text-sm">📁 Outros acessórios</h4>
-                    <span className="text-xs text-muted-foreground">opcional</span>
+                    <span className="text-xs text-muted-foreground">opcional (Max. 5)</span>
                   </div>
                   <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
                     <input
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("outros_acessorios", e)}
+                      onChange={(e) => adicionarFoto("outros_acessorios", e, 5)}
                       className="hidden"
                       id="outros-input"
                     />
@@ -1007,14 +1144,14 @@ export function Mobilizacoes() {
                 <div className="rounded-lg border border-border p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-medium text-sm">🔴 Avarias / Danos já existentes</h4>
-                    <span className="text-xs text-muted-foreground">opcional</span>
+                    <span className="text-xs text-muted-foreground">opcional(Max. 5)</span>
                   </div>
                   <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
                     <input
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("avarias", e)}
+                      onChange={(e) => adicionarFoto("avarias", e, 5)}
                       className="hidden"
                       id="avarias-input"
                     />
@@ -1029,14 +1166,14 @@ export function Mobilizacoes() {
                 <div className="rounded-lg border border-border p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-medium text-sm">📁 CNH do Motorista</h4>
-                    <span className="text-xs text-muted-foreground">opcional</span>
+                    <span className="text-xs text-muted-foreground">opcional(Max. 5)</span>
                   </div>
                   <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
                     <input
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => adicionarFoto("cnh_motorista", e)}
+                      onChange={(e) => adicionarFoto("cnh_motorista", e, 5)}
                       className="hidden"
                       id="cnh-input"
                     />
@@ -1054,12 +1191,12 @@ export function Mobilizacoes() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={salvar} disabled={salvando || !form.equipamento_id || !form.contrato_id}>
+            <Button onClick={salvar} disabled={salvando || !form.contratante || !form.data}>
               {salvando ? "Salvando..." : "Salvar"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }
