@@ -477,7 +477,8 @@ export function Mobilizacoes() {
                   <Label htmlFor="data">Data de Saída *</Label>
                   <Input
                     id="data"
-                    type="date"
+                    type="text"
+                    placeholder="DD/MM/AAAA"
                     value={form.data || ""}
                     onChange={(e) => alterar("data", e.target.value)}
                   />
@@ -487,27 +488,22 @@ export function Mobilizacoes() {
                   <Label htmlFor="data_chegada">Data de Chegada</Label>
                   <Input
                     id="data_chegada"
-                    type="date"
+                    type="text"
+                    placeholder="DD/MM/AAAA"
                     value={form.data_chegada || ""}
                     onChange={(e) => alterar("data_chegada", e.target.value)}
                   />
                 </div>
 
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="contrato_id">Contrato *</Label>
-                  <select
-                    id="contrato_id"
+                  <Label htmlFor="contratante">Contratante *</Label>
+                  <Input
+                    id="contratante"
+                    type="text"
+                    placeholder="Nome do contratante"
                     value={String(form.contrato_id || "")}
                     onChange={(e) => alterar("contrato_id", e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Selecionar contrato...</option>
-                    {contratos.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.numero} - {c.cliente_id}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
@@ -628,7 +624,7 @@ export function Mobilizacoes() {
                     <tr className="bg-muted">
                       <th className="border border-border px-3 py-2 text-left text-sm font-semibold">Eixo</th>
                       <th className="border border-border px-3 py-2 text-left text-sm font-semibold">Nº Pneus</th>
-                      <th className="border border-border px-3 py-2 text-left text-sm font-semibold">Rebaba</th>
+                      <th className="border border-border px-3 py-2 text-left text-sm font-semibold">Medida</th>
                       <th className="border border-border px-3 py-2 text-left text-sm font-semibold">Retornado</th>
                     </tr>
                   </thead>

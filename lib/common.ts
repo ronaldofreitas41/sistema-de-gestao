@@ -215,6 +215,28 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
+export type MetricaCard = {
+  label: string;
+  valor: number;
+  percentual?: number;
+  tipo: "positivo" | "negativo" | "neutro";
+};
+
+export type RelatorioTab = 
+  | "financeiro" 
+  | "receitas" 
+  | "despesas" 
+  | "frota" 
+  | "clientes" 
+  | "estoque" 
+  | "os" 
+  | "contratos" 
+  | "fluxo-caixa" 
+  | "contas-pagar" 
+  | "contas-receber" 
+  | "resultado-placa" 
+  | "resultado-geral";
+
 export const modulosPermissoes = navGroups.flatMap((group) =>
   group.items
     .filter((item) => item.resource)

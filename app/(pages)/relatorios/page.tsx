@@ -1,7 +1,5 @@
+import { Relatorios } from "@/components/modules/relatorios";
+
 export default function RelatoriosPage() {
-  return (
-    <div>
-      Relatórios
-    </div>
-  );
+  return <Relatorios />;
 }
