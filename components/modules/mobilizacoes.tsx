@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatarData } from "@/lib/utils";
+import { AnexoFotos } from "../ui/anexo-fotos";
+import { gruposFotos } from "@/lib/common";
 
 type Mobilizacao = {
   id: string | number;
@@ -209,46 +211,74 @@ export function Mobilizacoes() {
 
   function adicionarFoto(
     grupo: string,
-    event: React.ChangeEvent<HTMLInputElement>,
-    limite: number
+    event: React.ChangeEvent<HTMLInputElement>
   ) {
     const files = event.target.files;
 
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      return;
+    }
 
     const arquivos = Array.from(files);
+
+    const limites: Record<string, number> = {
+      frente: 1,
+      traseira: 1,
+      lateral_esquerda: 1,
+      lateral_direita: 1,
+      painel_km: 1,
+      implementos: 4,
+      interior_cabine: 4,
+      macaco_chave: 1,
+      triangulo_reboque: 1,
+      cabo_forca: 1,
+      calco_cones: 1,
+      outros_acessorios: 5,
+      avarias: 5,
+      cnh_motorista: 5,
+    };
+
+    const limite = limites[grupo] ?? 1;
 
     setFotosPreview((atual) => {
       const existentes = atual[grupo] || [];
 
-      const quantidadeDisponivel = limite - existentes.length;
+      const quantidadeDisponivel =
+        limite - existentes.length;
 
       if (quantidadeDisponivel <= 0) {
         return atual;
       }
 
-      const arquivosSelecionados = arquivos.slice(0, quantidadeDisponivel);
+      const arquivosSelecionados =
+        arquivos.slice(0, quantidadeDisponivel);
 
-      const novasPreviews = arquivosSelecionados.map((arquivo) =>
-        URL.createObjectURL(arquivo)
-      );
+      const novasPreviews =
+        arquivosSelecionados.map((arquivo) =>
+          URL.createObjectURL(arquivo)
+        );
 
       return {
         ...atual,
-        [grupo]: [...existentes, ...novasPreviews],
+        [grupo]: [
+          ...existentes,
+          ...novasPreviews,
+        ],
       };
     });
 
     setForm((atual) => {
       const existentes = atual.fotos?.[grupo] || [];
 
-      const quantidadeDisponivel = limite - existentes.length;
+      const quantidadeDisponivel =
+        limite - existentes.length;
 
       if (quantidadeDisponivel <= 0) {
         return atual;
       }
 
-      const arquivosSelecionados = arquivos.slice(0, quantidadeDisponivel);
+      const arquivosSelecionados =
+        arquivos.slice(0, quantidadeDisponivel);
 
       return {
         ...atual,
@@ -256,13 +286,14 @@ export function Mobilizacoes() {
           ...(atual.fotos || {}),
           [grupo]: [
             ...existentes,
-            ...arquivosSelecionados.map((arquivo) => arquivo.name),
+            ...arquivosSelecionados.map(
+              (arquivo) => arquivo.name
+            ),
           ],
         },
       };
     });
 
-    // Permite selecionar novamente o mesmo arquivo
     event.target.value = "";
   }
 
@@ -852,337 +883,21 @@ export function Mobilizacoes() {
               <p className="text-xs text-muted-foreground">
                 Só aparece a foto do EIXO que estiver preenchido na tabela de pneus. Implementos e Interior: mín. 4 fotos.
               </p>
-
               <div className="space-y-4">
-                {/* Frente - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Frente</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.frente?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("frente", e, 1)}
-                      className="hidden"
-                      id="frente-input"
-                    />
-                    <label htmlFor="frente-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Traseira - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Traseira</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.traseira?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("traseira", e, 1)}
-                      className="hidden"
-                      id="traseira-input"
-                    />
-                    <label htmlFor="traseira-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Lateral Esquerda - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Lateral Esquerda</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.lateral_esquerda?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("lateral_esquerda", e, 1)}
-                      className="hidden"
-                      id="lateral-esq-input"
-                    />
-                    <label htmlFor="lateral-esq-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Lateral Direita - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Lateral Direita</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.lateral_direita?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("lateral_direita", e, 1)}
-                      className="hidden"
-                      id="lateral-dir-input"
-                    />
-                    <label htmlFor="lateral-dir-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Painel / KM - Horímetro - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Painel / KM - Horímetro</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.painel_km?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("painel_km", e, 1)}
-                      className="hidden"
-                      id="painel-input"
-                    />
-                    <label htmlFor="painel-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Implementos - 0/4 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Implementos</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.implementos?.length || 0)}/4
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("implementos", e, 4)}
-                      className="hidden"
-                      id="implementos-input"
-                    />
-                    <label htmlFor="implementos-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Interior da Cabine - 0/4 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Interior da Cabine</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.interior_cabine?.length || 0)}/4
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("interior_cabine", e, 4)}
-                      className="hidden"
-                      id="interior-input"
-                    />
-                    <label htmlFor="interior-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Macaco / Chave de Roda - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Macaco / Chave de Roda</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.macaco_chave?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("macaco_chave", e, 1)}
-                      className="hidden"
-                      id="macaco-input"
-                    />
-                    <label htmlFor="macaco-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Triângulo / Pino de Reboque - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Triângulo / Pino de Reboque</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.triangulo_reboque?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("triangulo_reboque", e, 1)}
-                      className="hidden"
-                      id="triangulo-input"
-                    />
-                    <label htmlFor="triangulo-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Cabo de Força - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Cabo de Força</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.cabo_forca?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("cabo_forca", e, 1)}
-                      className="hidden"
-                      id="cabo-input"
-                    />
-                    <label htmlFor="cabo-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Calço de Roda / Cones - 0/1 */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🟡 Calço de Roda / Cones</h4>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {(form.fotos?.calco_cones?.length || 0)}/1
-                    </span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("calco_cones", e, 1)}
-                      className="hidden"
-                      id="calco-input"
-                    />
-                    <label htmlFor="calco-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Outros acessórios - opcional */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">📁 Outros acessórios</h4>
-                    <span className="text-xs text-muted-foreground">opcional (Max. 5)</span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("outros_acessorios", e, 5)}
-                      className="hidden"
-                      id="outros-input"
-                    />
-                    <label htmlFor="outros-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Avarias / Danos já existentes - opcional */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">🔴 Avarias / Danos já existentes</h4>
-                    <span className="text-xs text-muted-foreground">opcional(Max. 5)</span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("avarias", e, 5)}
-                      className="hidden"
-                      id="avarias-input"
-                    />
-                    <label htmlFor="avarias-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* CNH do Motorista - opcional */}
-                <div className="rounded-lg border border-border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-sm">📁 CNH do Motorista</h4>
-                    <span className="text-xs text-muted-foreground">opcional(Max. 5)</span>
-                  </div>
-                  <div className="rounded-lg border-2 border-dashed border-border p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => adicionarFoto("cnh_motorista", e, 5)}
-                      className="hidden"
-                      id="cnh-input"
-                    />
-                    <label htmlFor="cnh-input" className="cursor-pointer flex flex-col items-center">
-                      <Plus className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Adicionar foto</span>
-                    </label>
-                  </div>
-                </div>
+                {gruposFotos.map((item:any) => (
+                  <AnexoFotos
+                    key={item.grupo}
+                    id={item.id}
+                    grupo={item.grupo}
+                    titulo={item.titulo}
+                    limite={item.limite}
+                    opcional={item.opcional}
+                    fotos={form.fotos?.[item.grupo] || []}
+                    previews={fotosPreview[item.grupo] || []}
+                    onAdicionar={adicionarFoto}
+                    onRemover={removerFoto}
+                  />
+                ))}
               </div>
             </div>
           </div>
