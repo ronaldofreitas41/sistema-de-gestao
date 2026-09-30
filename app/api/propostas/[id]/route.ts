@@ -43,7 +43,8 @@ const FIELDS = [
   "equipsExtra",
   "temSeguro",
   "manutTipo",
-  "incluirTurnos"
+  "incluirTurnos",
+  "emitente"
 ];
 
 type Context = { params: Promise<{ id: string }> };

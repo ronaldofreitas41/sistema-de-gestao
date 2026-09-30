@@ -49,12 +49,13 @@ import {
   PaginationControls,
   paginate,
 } from "@/components/ui/pagination";
-import { generatePropostaPDF } from "@/lib/pdf/pdfProposta";
+
 import { RESPONSABILIDADES_PADRAO, SEGURO_PADRAO } from "@/lib/common";
+import { generatePropostaPDF } from "@/lib/pdf/pdfProposta";
 
 const initialFormData: Omit<Proposta, "id"> = {
   empresaId: "",
-  data: new Date().toISOString().split("T")[0],
+  data: dataHojeFormatada(),
   validade: "",
   contratante: "",
   obra: "",
@@ -97,12 +98,14 @@ const initialFormData: Omit<Proposta, "id"> = {
   temSeguro: "",
   manutTipo: "",
   incluirTurnos: false,
+  emitente: "",
 };
 
 type EmpresaOption = {
   id: string | number;
   nome: string;
   razao_social?: string | null;
+  email?: string | null;
   logo?: string | null;
 };
 type EquipamentoOption = {
@@ -125,6 +128,21 @@ function formatarNumeroProposta(numero: number) {
   return `PROP - ${String(numero).padStart(5, "0")}`;
 }
 
+function dataHojeFormatada() {
+  const hoje = new Date();
+  const dia = String(hoje.getDate()).padStart(2, "0");
+  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+  return `${dia}/${mes}/${hoje.getFullYear()}`;
+}
+
+function normalizarDataParaApi(data: string) {
+  if (!data) return null;
+  const correspondencia = data.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return correspondencia
+    ? `${correspondencia[3]}-${correspondencia[2]}-${correspondencia[1]}`
+    : data;
+}
+
 export function Propostas() {
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [search, setSearch] = useState("");
@@ -139,6 +157,7 @@ export function Propostas() {
   const [empresas, setEmpresas] = useState<EmpresaOption[]>([]);
   const [equipamentos, setEquipamentos] = useState<EquipamentoOption[]>([]);
   const [informacaoManual, setInformacaoManual] = useState(false);
+
   const [responsabilidadeTipo, setResponsabilidadeTipo] = useState<
     "mh3" | "contratante"
   >("contratante");
@@ -223,6 +242,7 @@ export function Propostas() {
     setClausulaTexto("");
     setFormData({
       ...initialFormData,
+      data: dataHojeFormatada(),
       numero: formatarNumeroProposta(proximoNumero),
     });
     setDialogOpen(true);
@@ -241,6 +261,7 @@ export function Propostas() {
         : "outro",
     );
     setFormData({
+      emitente: proposta.emitente || "",
       empresaId: proposta.empresaId || "",
       data: proposta.data || "",
       validade: proposta.validade || "",
@@ -287,19 +308,6 @@ export function Propostas() {
     setDialogOpen(true);
   };
 
-  function formatarData(data: string): string {
-    if (!data) return "";
-    const [ano, mes, dia] = data.split("-");
-    return `${dia}/${mes}/${ano}`;
-  }
-
-  function parsarData(dataFormatada: string): string {
-    if (!dataFormatada) return "";
-    const partes = dataFormatada.split("/");
-    if (partes.length !== 3) return "";
-    const [dia, mes, ano] = partes;
-    return `${ano}-${mes}-${dia}`;
-  }
 
   function alterarLinha(turno: number, campo: "vh" | "gar", valor: string) {
     const numero = Number(valor) || 0;
@@ -336,8 +344,7 @@ export function Propostas() {
       }));
     });
   }
-
-  const clausulaPrazo =
+ const clausulaPrazo =
     formData.multaTipo === "sem_multa"
       ? `O presente contrato vigorará pelo prazo de ${formData.duracao || "12"} (doze) meses, contados a partir da data de início da locação, não havendo incidência de multa na hipótese de rescisão antecipada por qualquer das partes.`
       : formData.multaTipo === "valores_vigencia"
@@ -347,27 +354,44 @@ export function Propostas() {
   const handleSave = async () => {
     const payload = {
       ...formData,
+      data: normalizarDataParaApi(formData.data),
+      validade: normalizarDataParaApi(formData.validade),
       resp: formData.resp,
       seguro: seguroIncluido ? formData.seguro || SEGURO_PADRAO : "",
       clausula: clausulaCustomizada ? clausulaTexto : undefined,
     };
 
-    if (editingProposta) {
-      await fetch(`/api/propostas/${editingProposta.id}`, {
+    try {
+      const response = editingProposta
+        ? await fetch(`/api/propostas/${editingProposta.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/propostas", {
+        })
+        : await fetch("/api/propostas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-    }
 
-    await fetchPropostas();
-    setDialogOpen(false);
+      if (!response.ok) {
+        const responseData = await response.json().catch(() => null);
+        throw new Error(
+          responseData?.detail?.message ||
+            responseData?.error ||
+            "Não foi possível salvar a proposta.",
+        );
+      }
+
+      await fetchPropostas();
+      setDialogOpen(false);
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar a proposta.",
+      );
+    }
   };
 
   const handleDelete = async (id: string | number) => {
@@ -599,6 +623,8 @@ export function Propostas() {
           </DialogHeader>
 
           <div className="space-y-6 py-4 px-1 sm:space-y-7">
+
+            {/* Empresa Emitente*/}
             <div className="rounded-xl border border-border bg-muted/30 p-5 sm:p-6">
               <p className="mb-4 text-xs font-bold uppercase tracking-wider text-primary">
                 Empresa emitente desta proposta
@@ -607,9 +633,13 @@ export function Propostas() {
                 <Checkbox
                   id="informacao-manual"
                   checked={informacaoManual}
-                  onCheckedChange={(checked) =>
-                    setInformacaoManual(checked === true)
-                  }
+                  onCheckedChange={(checked) => {
+                    const manual = checked === true;
+                    setInformacaoManual(manual);
+                    if (manual) {
+                      setFormData((atual) => ({ ...atual, empresaId: "" }));
+                    }
+                  }}
                 />
                 <Label
                   htmlFor="informacao-manual"
@@ -620,10 +650,18 @@ export function Propostas() {
               </div>
               {!informacaoManual ? (
                 <Select
-                  value={formData.empresaId}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, empresaId: value })
-                  }
+                  value={formData.empresaId ? String(formData.empresaId) : ""}
+                  onValueChange={(value) => {
+                    const empresa = empresas.find(
+                      (item) => String(item.id) === value,
+                    );
+                    setFormData((atual) => ({
+                      ...atual,
+                      empresaId: value,
+                      emitente: empresa?.nome || empresa?.razao_social || "",
+                      email: empresa?.email || "",
+                    }));
+                  }}
                 >
                   <SelectTrigger className="bg-input border-border">
                     <SelectValue placeholder="Selecione a empresa cadastrada" />
@@ -640,57 +678,85 @@ export function Propostas() {
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                <div className="space-y-2">
                   <div className="space-y-2">
-                    <Label htmlFor="contratante" className="text-foreground">
+                    <Label htmlFor="emitente" className="text-foreground">
                       Nome da empresa ou pessoa
                     </Label>
                     <Input
                       id="contratante"
-                      value={formData.contratante}
+                      value={formData.emitente}
                       onChange={(event) =>
                         setFormData({
                           ...formData,
-                          contratante: event.target.value,
+                          emitente: event.target.value,
                         })
                       }
                       placeholder="Nome da empresa ou pessoa"
                       className="bg-input border-border"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="obra" className="text-foreground">
-                      Obra ou cidade
-                    </Label>
-                    <Input
-                      id="obra"
-                      value={formData.obra}
-                      onChange={(event) =>
-                        setFormData({ ...formData, obra: event.target.value })
-                      }
-                      placeholder="Obra ou cidade"
-                      className="bg-input border-border"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-foreground">
-                      E-mail do cliente
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(event) =>
-                        setFormData({ ...formData, email: event.target.value })
-                      }
-                      placeholder="cliente@empresa.com.br"
-                      className="bg-input border-border"
-                    />
-                  </div>
                 </div>
               )}
+              <div className="mt-4 space-y-2">
+                <Label htmlFor="email" className="text-foreground">
+                  E-mail do cliente
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(event) =>
+                    setFormData({ ...formData, email: event.target.value })
+                  }
+                  placeholder="cliente@empresa.com.br"
+                  className="bg-input border-border"
+                />
+              </div>
             </div>
 
+            {/*Empresa Solicitante*/}
+            <div className="rounded-xl border border-border bg-muted/30 p-5 sm:p-6">
+              <p className="mb-4 text-xs font-bold uppercase tracking-wider text-primary">
+                Empresa Solicitante
+              </p>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="contratante" className="text-foreground">
+                    Nome da empresa ou pessoa
+                  </Label>
+                  <Input
+                    id="contratante"
+                    value={formData.contratante}
+                    onChange={(event) =>
+                      setFormData({
+                        ...formData,
+                        contratante: event.target.value,
+                      })
+                    }
+                    placeholder="Nome da empresa ou pessoa"
+                    className="bg-input border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="obra" className="text-foreground">
+                    Obra
+                  </Label>
+                  <Input
+                    id="obra"
+                    type="text"
+                    value={formData.obra}
+                    onChange={(event) =>
+                      setFormData({ ...formData, obra: event.target.value })
+                    }
+                    placeholder="Mina Brucutu"
+                    className="bg-input border-border"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Informações da Proposta */}
             <div className="rounded-xl border border-border bg-muted/20 p-5 sm:p-6">
               <p className="mb-4 text-xs font-bold uppercase tracking-wider text-primary">
                 Informações da proposta
@@ -822,7 +888,9 @@ export function Propostas() {
                     <Input
                       id="km"
                       value={formData.km}
-                      readOnly
+                      onChange={(e) =>
+                        setFormData({ ...formData, km: e.target.value })
+                      }
                       className="bg-muted"
                     />
                   </div>
@@ -833,13 +901,17 @@ export function Propostas() {
                     <Input
                       id="horimetro"
                       value={formData.horimetro}
-                      readOnly
+                      onChange={(e) =>
+                        setFormData({ ...formData, horimetro: e.target.value })
+                      }
                       className="bg-muted"
                     />
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Valores */}
             <div className="space-y-5 rounded-xl border border-border bg-muted/20 p-5 sm:p-6">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-primary">
@@ -966,6 +1038,9 @@ export function Propostas() {
             </div>
 
             <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-5 sm:p-6">
+              <p className="mb-4 text-xs font-bold uppercase tracking-wider text-primary">
+                Franquia
+              </p>
               <Label
                 htmlFor="franquia"
                 className="font-semibold text-foreground"
@@ -982,7 +1057,10 @@ export function Propostas() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-5 sm:p-6">
+              <p className="mb-4 text-xs font-bold uppercase tracking-wider text-primary">
+                Observações
+              </p>
               <Label htmlFor="obs" className="font-semibold text-foreground">
                 Observações
               </Label>

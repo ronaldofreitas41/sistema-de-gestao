@@ -655,3 +655,4 @@ export const gruposFotos = [
     opcional: true,
   },
 ];
+

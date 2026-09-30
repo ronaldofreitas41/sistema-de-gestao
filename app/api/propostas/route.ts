@@ -44,7 +44,8 @@ const FIELDS = [
   "equipsExtra",
   "temSeguro",
   "manutTipo",
-  "incluirTurnos"
+  "incluirTurnos",
+  "emitente"
 ];
 
 function extrairNumeroProposta(numero?: string | null) {

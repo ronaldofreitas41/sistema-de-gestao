@@ -409,6 +409,7 @@ export interface Proposta {
   temSeguro?: string;
   manutTipo?: string;
   incluirTurnos?: boolean;
+  emitente:string;
 }
 
 export interface Lancamento {
@@ -447,3 +448,30 @@ export interface Manutencao {
     checklist: any[]; 
     fotos: Foto[]; 
 }
+
+export type Mobilizacao = {
+  id: string | number;
+  equipamento_id?: string | number | null;
+  contrato_id?: string | number | null;
+  contratante?: string | null;
+  tipo?: string | null;
+  tipo_equipamento?: string | null;
+  data?: string | null;
+  data_chegada?: string | null;
+  local_origem?: string | null;
+  local_destino?: string | null;
+  marca_modelo?: string | null;
+  ano?: string | null;
+  km?: string | number | null;
+  horimetro?: string | number | null;
+  responsavel?: string | null;
+  observacoes?: string | null;
+  pneus_por_eixo?: Record<string, any> | null;
+  estepe?: string | null;
+  checklist_id?: string | null;
+  fotos?: Record<string, string[]> | null;
+  status?: string | null;
+  ciclo?: string | null;
+  cliente?: string | null;
+  codigo?: string | null;
+};

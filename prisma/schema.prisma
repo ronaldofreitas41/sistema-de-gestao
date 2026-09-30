@@ -615,6 +615,7 @@ model mh3_propostas {
   temSeguro     String?   @db.VarChar(50)
   manutTipo     String?   @db.VarChar(50)
   incluirTurnos Boolean?
+  emitente      String?   @db.VarChar(100)
 }
 
 model mh3_revisoes {

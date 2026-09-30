@@ -15,34 +15,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { formatarData } from "@/lib/utils";
 import { AnexoFotos } from "../ui/anexo-fotos";
 import { gruposFotos } from "@/lib/common";
+import { Mobilizacao } from "@/lib/types";
+import { generateMobilizacaoPDF } from "../../lib/pdf/pdfMobilizacao";
 
-type Mobilizacao = {
-  id: string | number;
-  equipamento_id?: string | number | null;
-  contrato_id?: string | number | null;
-  contratante?: string | null;
-  tipo?: string | null;
-  tipo_equipamento?: string | null;
-  data?: string | null;
-  data_chegada?: string | null;
-  local_origem?: string | null;
-  local_destino?: string | null;
-  marca_modelo?: string | null;
-  ano?: string | null;
-  km?: string | number | null;
-  horimetro?: string | number | null;
-  responsavel?: string | null;
-  observacoes?: string | null;
-  pneus_por_eixo?: Record<string, any> | null;
-  estepe?: string | null;
-  checklist_id?: string | null;
-  fotos?: Record<string, string[]> | null;
-  status?: string | null;
-  ciclo?: string | null;
-  placa?: string | null;
-  cliente?: string | null;
-  codigo?: string | null;
-};
+
 
 type MobilizacaoForm = Omit<Mobilizacao, "id">;
 
@@ -106,6 +82,14 @@ export function Mobilizacoes() {
   const [anoFiltro, setAnoFiltro] = useState("todos");
   const [mostrarArquivadas, setMostrarArquivadas] = useState(false);
   const [fotosPreview, setFotosPreview] = useState<FotosPreview>({});
+  const [visualizando, setVisualizando] = useState<Mobilizacao | null>(null);
+  const [visualizacaoOpen, setVisualizacaoOpen] = useState(false);
+
+
+  function visualizar(mobilizacao: Mobilizacao) {
+    setVisualizando(mobilizacao);
+    setVisualizacaoOpen(true);
+  }
 
   async function carregar() {
     try {
@@ -141,7 +125,7 @@ export function Mobilizacoes() {
     return mobilizacoes.filter((m) => {
       const correspondeBusca =
         !termo ||
-        [m.codigo, m.placa, m.cliente, m.contratante, m.tipo, m.local_origem, m.local_destino, m.responsavel]
+        [m.codigo, m.cliente, m.contratante, m.tipo, m.local_origem, m.local_destino, m.responsavel]
           .some((valor) => String(valor ?? "").toLowerCase().includes(termo));
 
       const ano = m.data ? String(m.data).slice(0, 4) : "";
@@ -209,7 +193,7 @@ export function Mobilizacoes() {
     );
   }
 
-  function adicionarFoto(
+  async function adicionarFoto(
     grupo: string,
     event: React.ChangeEvent<HTMLInputElement>
   ) {
@@ -218,8 +202,6 @@ export function Mobilizacoes() {
     if (!files || files.length === 0) {
       return;
     }
-
-    const arquivos = Array.from(files);
 
     const limites: Record<string, number> = {
       frente: 1,
@@ -240,78 +222,86 @@ export function Mobilizacoes() {
 
     const limite = limites[grupo] ?? 1;
 
-    setFotosPreview((atual) => {
-      const existentes = atual[grupo] || [];
+    const existentes = form.fotos?.[grupo] || [];
 
-      const quantidadeDisponivel =
-        limite - existentes.length;
+    const quantidadeDisponivel = limite - existentes.length;
 
-      if (quantidadeDisponivel <= 0) {
-        return atual;
-      }
+    if (quantidadeDisponivel <= 0) {
+      event.target.value = "";
+      return;
+    }
 
-      const arquivosSelecionados =
-        arquivos.slice(0, quantidadeDisponivel);
+    const arquivosSelecionados = Array.from(files).slice(
+      0,
+      quantidadeDisponivel
+    );
 
-      const novasPreviews =
-        arquivosSelecionados.map((arquivo) =>
-          URL.createObjectURL(arquivo)
-        );
+    try {
+      const novasFotos = await Promise.all(
+        arquivosSelecionados.map((arquivo) => {
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
 
-      return {
+            reader.onload = () => {
+              resolve(String(reader.result));
+            };
+
+            reader.onerror = () => {
+              reject(
+                new Error(
+                  `Não foi possível ler a imagem ${arquivo.name}`
+                )
+              );
+            };
+
+            reader.readAsDataURL(arquivo);
+          });
+        })
+      );
+
+      // Atualiza preview
+      setFotosPreview((atual) => ({
         ...atual,
         [grupo]: [
-          ...existentes,
-          ...novasPreviews,
+          ...(atual[grupo] || []),
+          ...novasFotos,
         ],
-      };
-    });
+      }));
 
-    setForm((atual) => {
-      const existentes = atual.fotos?.[grupo] || [];
-
-      const quantidadeDisponivel =
-        limite - existentes.length;
-
-      if (quantidadeDisponivel <= 0) {
-        return atual;
-      }
-
-      const arquivosSelecionados =
-        arquivos.slice(0, quantidadeDisponivel);
-
-      return {
+      // Atualiza formulário
+      setForm((atual) => ({
         ...atual,
         fotos: {
           ...(atual.fotos || {}),
           [grupo]: [
-            ...existentes,
-            ...arquivosSelecionados.map(
-              (arquivo) => arquivo.name
-            ),
+            ...(atual.fotos?.[grupo] || []),
+            ...novasFotos,
           ],
         },
-      };
-    });
+      }));
+    } catch (error) {
+      console.error("Erro ao processar fotos:", error);
+      alert("Não foi possível carregar uma ou mais imagens.");
+    }
 
     event.target.value = "";
   }
 
   function removerFoto(grupo: string, index: number) {
-    setFotosPreview((atual) => {
-      const url = atual[grupo]?.[index];
-      if (url) URL.revokeObjectURL(url);
-      return {
-        ...atual,
-        [grupo]: (atual[grupo] || []).filter((_, i) => i !== index),
-      };
-    });
+    setFotosPreview((atual) => ({
+      ...atual,
+      [grupo]: (atual[grupo] || []).filter(
+        (_, i) => i !== index
+      ),
+    }));
 
     setForm((atual) => ({
       ...atual,
       fotos: {
         ...(atual.fotos || {}),
-        [grupo]: (atual.fotos?.[grupo] || []).filter((_, i) => i !== index),
+        [grupo]: (atual.fotos?.[grupo] || []).filter(
+          (_, i) => i !== index
+        ),
       },
     }));
   }
@@ -452,7 +442,7 @@ export function Mobilizacoes() {
               <Input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por código, placa, cliente..."
+                placeholder="Buscar por código, cliente..."
                 className="pl-9"
                 aria-label="Buscar mobilizações"
               />
@@ -496,7 +486,7 @@ export function Mobilizacoes() {
                     <TableRow className="bg-muted/50">
                       <TableHead className="text-xs font-semibold uppercase">Código</TableHead>
                       <TableHead className="text-xs font-semibold uppercase">Tipo</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase">Placa</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase">Tipo de Equipamento</TableHead>
                       <TableHead className="text-xs font-semibold uppercase">Contratante/Cliente</TableHead>
                       <TableHead className="text-xs font-semibold uppercase">Saída</TableHead>
                       <TableHead className="text-xs font-semibold uppercase">Chegada</TableHead>
@@ -521,14 +511,14 @@ export function Mobilizacoes() {
                             <div className="flex flex-col gap-1">
                               <span className="text-sm">{mobilizacao.tipo ? mobilizacao.tipo.split("(")[0].trim() : "-"}</span>
                               <div className="flex gap-1">
-                                <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200">
+                                <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
                                   Falta desemb.
                                 </Badge>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="font-semibold">{mobilizacao.placa || "-"}</TableCell>
-                          <TableCell className="text-sm">{mobilizacao.cliente || "-"}</TableCell>
+                          <TableCell className="font-semibold">{mobilizacao.tipo_equipamento || "-"}</TableCell>
+                          <TableCell className="text-sm">{mobilizacao.contratante || "-"}</TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
                             {mobilizacao.data ? new Date(mobilizacao.data).toLocaleDateString("pt-BR") : "-"}
                           </TableCell>
@@ -545,7 +535,18 @@ export function Mobilizacoes() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950"
+                                onClick={() => generateMobilizacaoPDF(mobilizacao)}
+                                title="Baixar PDF da mobilização"
+                                aria-label="Baixar PDF da mobilização"
+                                className="h-8 w-8 hover:bg-green-50 hover:text-green-600"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => visualizar(mobilizacao)}
+                                className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -553,7 +554,7 @@ export function Mobilizacoes() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => editar(mobilizacao)}
-                                className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950"
+                                className="h-8 w-8 hover:bg-blue-50 hover:text-yellow-600"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -574,7 +575,7 @@ export function Mobilizacoes() {
                                   }
                                 }}
                                 disabled={excluindo === mobilizacao.id}
-                                className="h-8 w-8 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                                className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -884,7 +885,7 @@ export function Mobilizacoes() {
                 Só aparece a foto do EIXO que estiver preenchido na tabela de pneus. Implementos e Interior: mín. 4 fotos.
               </p>
               <div className="space-y-4">
-                {gruposFotos.map((item:any) => (
+                {gruposFotos.map((item: any) => (
                   <AnexoFotos
                     key={item.grupo}
                     id={item.id}
@@ -910,6 +911,262 @@ export function Mobilizacoes() {
               {salvando ? "Salvando..." : "Salvar"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={visualizacaoOpen}
+        onOpenChange={setVisualizacaoOpen}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              Visualizar mobilização
+            </DialogTitle>
+
+            <DialogDescription>
+              Detalhes da mobilização selecionada.
+            </DialogDescription>
+          </DialogHeader>
+
+          {visualizando && (
+            <div className="space-y-6 py-4">
+
+              {/* Dados básicos */}
+              <div className="space-y-4 border-b pb-4">
+                <h3 className="font-semibold">
+                  Dados da Mobilização
+                </h3>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+
+                  <div>
+                    <Label>Tipo de Operação</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.tipo || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Contratante</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.contratante || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Tipo de Equipamento</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.tipo_equipamento || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Marca / Modelo</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.marca_modelo || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Ano</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.ano || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Responsável</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.responsavel || "-"}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Trajeto */}
+              <div className="space-y-4 border-b pb-4">
+                <h3 className="font-semibold">
+                  Trajeto
+                </h3>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+
+                  <div>
+                    <Label>Local de Origem</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.local_origem || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Local de Destino</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.local_destino || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>KM</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.km ?? "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Horímetro</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.horimetro ?? "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Data de Saída</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.data
+                        ? new Date(visualizando.data).toLocaleDateString("pt-BR")
+                        : "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Data de Chegada</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.data_chegada
+                        ? new Date(visualizando.data_chegada).toLocaleDateString("pt-BR")
+                        : "-"}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Pneus */}
+              <div className="space-y-4 border-b pb-4">
+                <h3 className="font-semibold">
+                  Pneus por Eixo
+                </h3>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-muted">
+                        <th className="border px-3 py-2 text-left text-sm">
+                          Eixo
+                        </th>
+                        <th className="border px-3 py-2 text-left text-sm">
+                          Pneu
+                        </th>
+                        <th className="border px-3 py-2 text-left text-sm">
+                          Medida
+                        </th>
+                        <th className="border px-3 py-2 text-left text-sm">
+                          Retornado
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {Object.entries(
+                        visualizando.pneus_por_eixo || {}
+                      ).map(([eixo, dados]: [string, any]) => (
+                        <tr key={eixo}>
+                          <td className="border px-3 py-2 text-sm font-medium">
+                            {eixo}
+                          </td>
+
+                          <td className="border px-3 py-2 text-sm">
+                            {dados?.pneu || "-"}
+                          </td>
+
+                          <td className="border px-3 py-2 text-sm">
+                            {dados?.rebaba || "-"}
+                          </td>
+
+                          <td className="border px-3 py-2 text-sm">
+                            {dados?.retornado || "Não"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Complementos */}
+              <div className="space-y-4 border-b pb-4">
+                <h3 className="font-semibold">
+                  Complementos
+                </h3>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+
+                  <div>
+                    <Label>Checklist</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.checklist_id || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Estepe</Label>
+                    <div className="mt-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      {visualizando.estepe || "Não"}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div className="space-y-2">
+                <Label>Observações</Label>
+
+                <div className="min-h-20 rounded-md border bg-muted/30 px-3 py-2 text-sm whitespace-pre-wrap">
+                  {visualizando.observacoes || "Nenhuma observação."}
+                </div>
+              </div>
+
+              {/* Fotos */}
+              <div className="space-y-4">
+                <h3 className="font-semibold">
+                  Relatório Fotográfico
+                </h3>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                  {Object.entries(
+                    visualizando.fotos || {}
+                  ).flatMap(([grupo, fotos]: [string, any]) =>
+                    (Array.isArray(fotos) ? fotos : []).map(
+                      (foto: string, index: number) => (
+                        <div
+                          key={`${grupo}-${index}`}
+                          className="overflow-hidden rounded-lg border bg-muted"
+                        >
+                          <img
+                            src={foto}
+                            alt={`Foto ${index + 1}`}
+                            className="aspect-square h-full w-full object-cover"
+                          />
+                        </div>
+                      )
+                    )
+                  )}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          <div className="flex justify-end border-t pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setVisualizacaoOpen(false)}
+            >
+              Fechar
+            </Button>
+          </div>
+
         </DialogContent>
       </Dialog>
     </div >

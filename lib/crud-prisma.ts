@@ -91,6 +91,10 @@ function getFieldMetadata(table: string, fieldName: string): any | undefined {
 function normalizeValue(table: string, fieldName: string, value: unknown): unknown {
   if (value === undefined || value === null) return value;
 
+  if (value === "" && getFieldMetadata(table, fieldName)?.type === "DateTime") {
+    return null;
+  }
+
   const field = getFieldMetadata(table, fieldName);
 
   if (!field) return value;
