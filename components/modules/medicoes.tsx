@@ -355,15 +355,41 @@ export function Medicoes() {
                         </TableCell>
                         <TableCell>{medicao.status}</TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            title="Gerar PDF da medição"
-                            onClick={() => gerarPdfMedicao(medicao)}
-                          >
-                            <FileDown className="h-4 w-4 text-primary" />
-                          </Button>
+                          {medicao.terceiro && Number(medicao.valor_terceiro || 0) > 0 ? (
+                            <div className="inline-flex items-center">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                title="PDF do cliente"
+                                aria-label="Gerar PDF do cliente"
+                                onClick={() => gerarPdfMedicao(medicao, "cliente")}
+                              >
+                                <FileDown className="h-4 w-4 text-primary" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                title="PDF do terceiro"
+                                aria-label="Gerar PDF do terceiro"
+                                onClick={() => gerarPdfMedicao(medicao, "terceiro")}
+                              >
+                                <FileDown className="h-4 w-4 text-amber-600" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Gerar PDF da medição"
+                              aria-label="Gerar PDF da medição"
+                              onClick={() => gerarPdfMedicao(medicao, "cliente")}
+                            >
+                              <FileDown className="h-4 w-4 text-primary" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

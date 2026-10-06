@@ -449,6 +449,29 @@ export interface Manutencao {
     fotos: Foto[]; 
 }
 
+export type ManutencaoApi = {
+  id: string;
+  osNum?: string | null;
+  finStatus?: string | null;
+  eqId?: string | null;
+  eqLbl?: string | null;
+  placa?: string | null;
+  tipo?: string | null;
+  en?: string | null;
+  sa?: string | null;
+  km?: string | number | null;
+  hr?: string | number | null;
+  pkm?: string | number | null;
+  phr?: string | number | null;
+  custo?: string | null;
+  status?: string | null;
+  resp?: string | null;
+  ob?: string | null;
+  lancs?: unknown;
+  checklist?: unknown;
+  fotos?: unknown;
+};
+
 export type Mobilizacao = {
   id: string | number;
   equipamento_id?: string | number | null;
@@ -475,3 +498,4 @@ export type Mobilizacao = {
   cliente?: string | null;
   codigo?: string | null;
 };
+

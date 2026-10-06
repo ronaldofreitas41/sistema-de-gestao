@@ -282,7 +282,10 @@ function formatarPeriodoPdf(periodo?: string | null): string {
   return `${ano}-${mes}-01 a ${ano}-${mes}-${String(ultimoDia).padStart(2, "0")}`;
 }
 
-export function gerarPdfMedicao(medicao: any) {
+export function gerarPdfMedicao(
+  medicao: any,
+  tipoDocumento: "cliente" | "terceiro" = "cliente",
+) {
   const placas = medicao.placas?.join(", ") || "-";
   const parceiro = medicao.parceiro || "-";
   const periodo = formatarPeriodoPdf(medicao.periodo);
@@ -296,33 +299,28 @@ export function gerarPdfMedicao(medicao: any) {
 
   const totalHorasExtras = horasExtras * valorHoraExtra;
 
-  // Valor líquido calculado a partir dos campos disponíveis no formulário.
-  const valorLiquido =
-    valorLocacao -
-    (medicao.terceiro ? valorTerceiro : 0) +
-    totalHorasExtras;
+  const valorCliente =
+    valorLocacao - (medicao.terceiro ? valorTerceiro : 0) + totalHorasExtras;
+  const documentoTerceiro = tipoDocumento === "terceiro";
+  const valorLiquido = documentoTerceiro ? valorTerceiro : valorCliente;
 
   const dataEmissao = new Date().toLocaleDateString("pt-BR");
 
-  const linhas: string[] = [
-    `
+  const linhas: string[] = documentoTerceiro
+    ? [`
+      <tr>
+        <td>Serviço de terceiro</td>
+        <td class="valor">${formatarValorPdf(valorTerceiro)}</td>
+      </tr>
+    `]
+    : [`
       <tr>
         <td>Locação do equipamento</td>
-        <td class="valor">${formatarValorPdf(valorLocacao)}</td>
+        <td class="valor">${formatarValorPdf(valorLocacao - (medicao.terceiro ? valorTerceiro : 0))}</td>
       </tr>
-    `,
-  ];
+    `];
 
-  if (medicao.terceiro && valorTerceiro > 0) {
-    linhas.push(`
-      <tr>
-        <td>Repasse / valor de terceiro</td>
-        <td class="valor">- ${formatarValorPdf(valorTerceiro)}</td>
-      </tr>
-    `);
-  }
-
-  if (horasExtras > 0 && valorHoraExtra > 0) {
+  if (!documentoTerceiro && horasExtras > 0 && valorHoraExtra > 0) {
     linhas.push(`
       <tr>
         <td>
@@ -338,7 +336,7 @@ export function gerarPdfMedicao(medicao: any) {
     <html lang="pt-BR">
       <head>
         <meta charset="UTF-8" />
-        <title>Medicao-${escaparHtml(medicao.periodo || medicao.id)}</title>
+        <title>${documentoTerceiro ? "Terceiro-" : ""}Medicao-${escaparHtml(medicao.periodo || medicao.id)}</title>
 
         <style>
           @page {
@@ -519,8 +517,8 @@ export function gerarPdfMedicao(medicao: any) {
             <img class="logo" src="/placeholder-logo.png" alt="MH3" />
 
             <div class="titulo">
-              <h1>MEDIÇÃO</h1>
-              <p>LOCAÇÃO DE EQUIPAMENTO</p>
+              <h1>${documentoTerceiro ? "MEDIÇÃO DE TERCEIRO" : "MEDIÇÃO"}</h1>
+              <p>${documentoTerceiro ? "REPASSE DE TERCEIRO" : "LOCAÇÃO DE EQUIPAMENTO"}</p>
             </div>
           </header>
 
@@ -552,7 +550,7 @@ export function gerarPdfMedicao(medicao: any) {
             </section>
 
             <section class="secao">
-              <h2 class="secao-titulo">Valor a pagar</h2>
+              <h2 class="secao-titulo">${documentoTerceiro ? "Valor do terceiro" : "Valor a pagar"}</h2>
 
               <table>
                 <thead>
@@ -566,7 +564,7 @@ export function gerarPdfMedicao(medicao: any) {
                   ${linhas.join("")}
 
                   <tr class="total">
-                    <td>VALOR LÍQUIDO A PAGAR</td>
+                    <td>${documentoTerceiro ? "VALOR DO TERCEIRO" : "VALOR LÍQUIDO A PAGAR"}</td>
                     <td class="valor">
                       ${formatarValorPdf(valorLiquido)}
                     </td>
