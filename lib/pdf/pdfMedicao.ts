@@ -16,6 +16,13 @@ function formatarValorPdf(valor: unknown): string {
 
 function formatarPeriodoPdf(periodo?: string | null): string {
   if (!periodo) return "-";
+
+  const intervalo = periodo.match(/^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i);
+  if (intervalo) {
+    const formatarData = (data: string) => data.split("-").reverse().join("/");
+    return `${formatarData(intervalo[1])} a ${formatarData(intervalo[2])}`;
+  }
+
   const [ano, mes] = periodo.split("-");
   if (!ano || !mes) return periodo;
   const ultimoDia = new Date(Number(ano), Number(mes), 0).getDate();
@@ -42,10 +49,16 @@ export function gerarPdfMedicao(
   const tipoCobrancaLabel = tipoCobranca === "Valor Direito"
     ? "Valor Direto"
     : tipoCobranca || "-";
+  const intervaloPeriodo = String(medicao.periodo || "").match(
+    /^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i,
+  );
   const [anoPeriodo, mesPeriodo] = String(medicao.periodo || "").split("-").map(Number);
-  const diasNoMes = anoPeriodo && mesPeriodo
-    ? new Date(anoPeriodo, mesPeriodo, 0).getDate()
+  const diasIntervalo = intervaloPeriodo
+    ? Math.floor((Date.parse(`${intervaloPeriodo[2]}T00:00:00Z`) - Date.parse(`${intervaloPeriodo[1]}T00:00:00Z`)) / 86_400_000) + 1
     : 0;
+  const diasNoMes = Number(medicao.dias_mes) || diasIntervalo || (anoPeriodo && mesPeriodo
+    ? new Date(anoPeriodo, mesPeriodo, 0).getDate()
+    : 0);
   const dadosCobranca = `
     <div><strong>Método de cobrança:</strong> ${escaparHtml(tipoCobrancaLabel)}</div>
     ${valorPorHora ? `

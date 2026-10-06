@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 
 type PlacaInputProps = {
@@ -11,6 +11,7 @@ type PlacaInputProps = {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  showManualInput?: boolean;
 };
 
 export function PlacaInput({
@@ -21,29 +22,36 @@ export function PlacaInput({
   placeholder = "Selecione ou digite a placa",
   className,
   disabled,
+  showManualInput = true,
 }: PlacaInputProps) {
-  const datalistId = `${id}-placas`;
+  const placaSelecionada = options.includes(value) ? value : undefined;
 
   return (
-    <>
-      <Input
-        id={id}
-        type="text"
-        list={datalistId}
-        value={value}
-        onChange={(event: ChangeEvent<HTMLInputElement>) =>
-          onValueChange(event.target.value.toUpperCase())
-        }
-        placeholder={placeholder}
-        className={className}
-        disabled={disabled}
-        autoComplete="off"
-      />
-      <datalist id={datalistId}>
-        {Array.from(new Set(options.filter(Boolean))).map((placa) => (
-          <option key={placa} value={placa} />
-        ))}
-      </datalist>
-    </>
+    <div className="w-full space-y-2">
+      <Select value={placaSelecionada} onValueChange={onValueChange}>
+        <SelectTrigger id={`${id}-cadastrada`} className={className} disabled={disabled}>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent position="popper" side="bottom" align="start" sideOffset={4}>
+          {options.length ? options.map((placa) => (
+            <SelectItem key={placa} value={placa}>{placa}</SelectItem>
+          )) : (
+            <SelectItem value="sem-placas" disabled>Nenhuma placa cadastrada</SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+      {showManualInput && (
+        <Input
+          id={id}
+          type="text"
+          value={value}
+          onChange={(event) => onValueChange(event.target.value.toUpperCase())}
+          placeholder="Ou digite a placa manualmente"
+          className={className}
+          disabled={disabled}
+          autoComplete="off"
+        />
+      )}
+    </div>
   );
 }

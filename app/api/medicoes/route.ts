@@ -7,6 +7,7 @@ const FIELDS = [
   "id",
   "placas",
   "tipo_cobranca",
+  "dias_mes",
   "valor",
   "terceiro",
   "valor_terceiro",
@@ -22,6 +23,19 @@ const FIELDS = [
   "cliente_id",
 ];
 
+function contarDiasPeriodo(periodo: string): number | null {
+  const intervalo = periodo.match(/^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i);
+  if (intervalo) {
+    const inicio = new Date(`${intervalo[1]}T00:00:00Z`);
+    const fim = new Date(`${intervalo[2]}T00:00:00Z`);
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime()) || fim < inicio) return null;
+    return Math.floor((fim.getTime() - inicio.getTime()) / 86_400_000) + 1;
+  }
+
+  const mes = periodo.match(/^(\d{4})-(\d{2})$/);
+  return mes ? new Date(Number(mes[1]), Number(mes[2]), 0).getDate() : null;
+}
+
 export async function GET(request: NextRequest) {
   return list(TABLE, request, FIELDS);
 }
@@ -34,6 +48,12 @@ export async function POST(request: NextRequest) {
     const valorTerceiro = Number(body.valor_terceiro) || 0;
     const dataMedicao = new Date(body.data_medicao);
     const id = body.id || crypto.randomUUID();
+    const periodo = String(body.periodo || dataMedicao.toISOString().slice(0, 7));
+    const competencia = periodo.match(/^(\d{4}-\d{2})/)?.[1]
+      || dataMedicao.toISOString().slice(0, 7);
+    const diasMes = body.tipo_cobranca === "Valor Mensal"
+      ? Number(body.dias_mes) || contarDiasPeriodo(periodo)
+      : null;
 
     const resultado = await prisma.$transaction(async (tx) => {
       const medicao = await tx.mh3_medicoes.create({
@@ -41,6 +61,7 @@ export async function POST(request: NextRequest) {
           id,
           placas: body.placas || [],
           tipo_cobranca: body.tipo_cobranca,
+          dias_mes: diasMes,
           valor,
           terceiro,
           valor_terceiro: valorTerceiro,
@@ -49,7 +70,7 @@ export async function POST(request: NextRequest) {
           parceiro: body.parceiro || null,
           observacoes: body.observacoes || null,
           status: body.status || "pendente",
-          periodo: body.periodo || dataMedicao.toISOString().slice(0, 7),
+          periodo,
           valor_hora_extra: Number(body.valor_hora_extra) || 0,
           conta_recebimento_id: body.conta_recebimento_id || null,
           obs_internas: body.obs_internas || null,
@@ -61,7 +82,7 @@ export async function POST(request: NextRequest) {
         data: {
           id: crypto.randomUUID(),
           cliente: body.parceiro || "Medição",
-          competencia: body.periodo || dataMedicao.toISOString().slice(0, 7),
+          competencia,
           valor_total: valor - (terceiro ? valorTerceiro : 0),
           status: "pendente",
           observacoes: `Lançamento automático da medição ${id}.`,

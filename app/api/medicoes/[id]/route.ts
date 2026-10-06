@@ -5,6 +5,7 @@ const TABLE = "mh3_medicoes";
 const FIELDS = [
   "placas",
   "tipo_cobranca",
+  "dias_mes",
   "valor",
   "terceiro",
   "valor_terceiro",

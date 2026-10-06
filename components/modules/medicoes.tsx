@@ -50,6 +50,7 @@ import {
 
 type MedicaoApi = Medicao & {
   tipo_cobranca?: string | null;
+  dias_mes?: string | number | null;
   valor_terceiro?: string | number | null;
   horas_extras?: string | number | null;
   valor_hora_extra?: string | number | null;
@@ -73,9 +74,64 @@ type FormData = {
   parceiro: string;
   observacoes: string;
   status: string;
-  periodo: string;
+  periodo_inicio: string;
+  periodo_fim: string;
+  dias_mes: string;
   obs_internas: string;
 };
+
+function dataInputLocal(data: Date) {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+function intervaloMesAtual() {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth();
+  return {
+    inicio: dataInputLocal(new Date(ano, mes, 1)),
+    fim: dataInputLocal(new Date(ano, mes + 1, 0)),
+  };
+}
+
+function separarPeriodo(periodo?: string | null) {
+  if (!periodo) return { inicio: "", fim: "" };
+  const intervalo = periodo.match(/^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i);
+  if (intervalo) return { inicio: intervalo[1], fim: intervalo[2] };
+
+  const mes = periodo.match(/^(\d{4})-(\d{2})$/);
+  if (mes) {
+    const ano = Number(mes[1]);
+    const numeroMes = Number(mes[2]);
+    return {
+      inicio: `${mes[1]}-${mes[2]}-01`,
+      fim: dataInputLocal(new Date(ano, numeroMes, 0)),
+    };
+  }
+
+  const data = periodo.match(/^(\d{4}-\d{2}-\d{2})$/)?.[1] || "";
+  return { inicio: data, fim: data };
+}
+
+function contarDiasPeriodo(inicio: string, fim: string) {
+  if (!inicio || !fim) return "";
+  const dataInicio = new Date(`${inicio}T00:00:00`);
+  const dataFim = new Date(`${fim}T00:00:00`);
+  if (Number.isNaN(dataInicio.getTime()) || Number.isNaN(dataFim.getTime()) || dataFim < dataInicio) return "";
+  return String(Math.floor((dataFim.getTime() - dataInicio.getTime()) / 86_400_000) + 1);
+}
+
+function formatarPeriodoExibicao(periodo?: string | null) {
+  const { inicio, fim } = separarPeriodo(periodo);
+  const formatar = (data: string) => data ? data.split("-").reverse().join("/") : "";
+  if (!inicio) return periodo || "-";
+  return `${formatar(inicio)} a ${formatar(fim)}`;
+}
+
+const periodoInicial = intervaloMesAtual();
 
 const formularioInicial: FormData = {
   placas: "",
@@ -90,7 +146,9 @@ const formularioInicial: FormData = {
   parceiro: "",
   observacoes: "",
   status: "pendente",
-  periodo: new Date().toISOString().slice(0, 7),
+  periodo_inicio: periodoInicial.inicio,
+  periodo_fim: periodoInicial.fim,
+  dias_mes: "",
   obs_internas: "",
 };
 
@@ -139,7 +197,22 @@ export function Medicoes() {
       ...atual,
       tipo_cobranca: valor,
       quantidade_horas: valor === "Valor por Hora" ? atual.quantidade_horas : "0",
+      dias_mes: valor === "Valor Mensal"
+        ? contarDiasPeriodo(atual.periodo_inicio, atual.periodo_fim)
+        : "",
     }));
+  }
+
+  function alterarDataPeriodo(campo: "periodo_inicio" | "periodo_fim", valor: string) {
+    setForm((atual) => {
+      const periodoAtualizado = { ...atual, [campo]: valor };
+      return {
+        ...periodoAtualizado,
+        dias_mes: atual.tipo_cobranca === "Valor Mensal"
+          ? contarDiasPeriodo(periodoAtualizado.periodo_inicio, periodoAtualizado.periodo_fim)
+          : "",
+      };
+    });
   }
 
   function alterarTipoTerceiro(valor: string) {
@@ -152,11 +225,12 @@ export function Medicoes() {
   }
 
   function adicionarPlaca() {
-    if (!placaSelecionada) return;
+    const placa = placaSelecionada.trim().toUpperCase();
+    if (!placa) return;
     const placas = placasDoFormulario(form.placas);
-    if (placas.includes(placaSelecionada)) return;
+    if (placas.some((atual) => atual.toUpperCase() === placa)) return;
 
-    alterarCampo("placas", [...placas, placaSelecionada].join(", "));
+    alterarCampo("placas", [...placas, placa].join(", "));
     setPlacaSelecionada("");
   }
 
@@ -171,10 +245,13 @@ export function Medicoes() {
 
   function novaMedicao() {
     setEditing(null);
+    const intervalo = intervaloMesAtual();
     setForm({
       ...formularioInicial,
       data_medicao: new Date().toISOString().slice(0, 10),
-      periodo: new Date().toISOString().slice(0, 7),
+      periodo_inicio: intervalo.inicio,
+      periodo_fim: intervalo.fim,
+      dias_mes: "",
     });
     setPlacaSelecionada("");
     setDialogOpen(true);
@@ -182,9 +259,11 @@ export function Medicoes() {
 
   function editar(medicao: MedicaoApi) {
     setEditing(medicao);
+    const intervalo = separarPeriodo(medicao.periodo);
+    const tipoCobranca = medicao.tipo_cobranca || medicao.tipoCobranca || "";
     setForm({
       placas: medicao.placas?.join(", ") || "",
-      tipo_cobranca: medicao.tipo_cobranca || medicao.tipoCobranca || "",
+      tipo_cobranca: tipoCobranca,
       valor: String(medicao.valor || ""),
       quantidade_horas: String(medicao.horas_extras || "0"),
       terceiro: medicao.terceiro ? "sim" : "nao",
@@ -197,7 +276,11 @@ export function Medicoes() {
       parceiro: medicao.parceiro || "",
       observacoes: medicao.observacoes || "",
       status: medicao.status || "pendente",
-      periodo: medicao.periodo || "",
+      periodo_inicio: intervalo.inicio,
+      periodo_fim: intervalo.fim,
+      dias_mes: tipoCobranca === "Valor Mensal"
+        ? String(medicao.dias_mes ?? contarDiasPeriodo(intervalo.inicio, intervalo.fim))
+        : "",
       obs_internas: medicao.obs_internas || "",
     });
     setPlacaSelecionada("");
@@ -205,6 +288,12 @@ export function Medicoes() {
   }
 
   async function salvar() {
+    const diasPeriodo = contarDiasPeriodo(form.periodo_inicio, form.periodo_fim);
+    if (!diasPeriodo) {
+      alert("Informe um intervalo válido para o período da medição.");
+      return;
+    }
+
     const valorHora = Number(form.valor) || 0;
     const quantidadeHoras = Number(form.quantidade_horas) || 0;
     const payload = {
@@ -216,6 +305,9 @@ export function Medicoes() {
           : valorHora,
       terceiro: form.terceiro === "sim",
       valor_terceiro: Number(form.valor_terceiro) || 0,
+      dias_mes: form.tipo_cobranca === "Valor Mensal"
+        ? Number(form.dias_mes || diasPeriodo) || null
+        : null,
       horas_extras: ehValorPorHora
         ? quantidadeHoras
         : Number(form.horas_extras) || 0,
@@ -224,7 +316,9 @@ export function Medicoes() {
       parceiro: form.parceiro,
       observacoes: form.observacoes,
       status: form.status,
-      periodo: form.periodo,
+      periodo: form.periodo_inicio && form.periodo_fim
+        ? `${form.periodo_inicio} a ${form.periodo_fim}`
+        : "",
       obs_internas: form.obs_internas,
     };
 
@@ -343,7 +437,7 @@ export function Medicoes() {
                   <TableBody>
                     {filtradas.map((medicao) => (
                       <TableRow key={medicao.id}>
-                        <TableCell>{medicao.periodo || "-"}</TableCell>
+                        <TableCell>{formatarPeriodoExibicao(medicao.periodo)}</TableCell>
                         <TableCell>
                           {medicao.placas?.join(", ") || "-"}
                         </TableCell>
@@ -431,24 +525,33 @@ export function Medicoes() {
           <div className="grid gap-4 py-2 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label>Placas</Label>
-              <div className="flex gap-2">
+              <div className="space-y-2">
+                <div className="flex gap-2">
                 <PlacaInput
-                  id="placa-medicao"
+                  id="placa-cadastrada-medicao"
                   value={placaSelecionada}
                   options={placasDisponiveis.filter((placa) => !placasAdicionadas.includes(placa))}
                   onValueChange={setPlacaSelecionada}
-                  placeholder="Selecione ou digite uma placa"
+                  placeholder="Buscar placa cadastrada"
+                  showManualInput={false}
                 />
-                <Button
-                  type="button"
-                  size="icon"
-                  onClick={adicionarPlaca}
-                  disabled={!placaSelecionada}
-                  aria-label="Adicionar placa"
-                  title="Adicionar placa"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={adicionarPlaca}
+                    disabled={!placaSelecionada}
+                    aria-label="Adicionar placa"
+                    title="Adicionar placa"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Input
+                  value={placaSelecionada}
+                  onChange={(event) => setPlacaSelecionada(event.target.value.toUpperCase())}
+                  placeholder="Ou digite uma placa manualmente"
+                  aria-label="Digitar placa manualmente"
+                />
               </div>
               <div className="flex min-h-10 flex-wrap gap-2 rounded-md border border-border bg-slate-50 p-2">
                 {placasAdicionadas.length === 0 && (
@@ -550,32 +653,56 @@ export function Medicoes() {
                 onChange={(e) => alterarCampo("data_medicao", e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Período</Label>
-              <Input
-                type="month"
-                value={form.periodo}
-                onChange={(e) => alterarCampo("periodo", e.target.value)}
-              />
-            </div>
-            {ehTerceiro && (
+            <div className="grid grid-cols-2 gap-3 sm:col-span-2">
               <div className="space-y-2">
+                <Label>Período — De</Label>
+                <Input
+                  type="date"
+                  value={form.periodo_inicio}
+                  onChange={(event) => alterarDataPeriodo("periodo_inicio", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Período — Até</Label>
+                <Input
+                  type="date"
+                  value={form.periodo_fim}
+                  onChange={(event) => alterarDataPeriodo("periodo_fim", event.target.value)}
+                />
+              </div>
+            </div>
+            {form.tipo_cobranca === "Valor Mensal" && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Dias no mês</Label>
+                <Input type="number" value={form.dias_mes} readOnly />
+              </div>
+            )}
+            {ehTerceiro && (
+              <div className="space-y-2 sm:col-span-2">
                 <Label>Parceiro</Label>
-                <Select
-                  value={form.parceiro}
-                  onValueChange={(value) => alterarCampo("parceiro", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o parceiro" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {parceiros.map((parceiro) => (
-                      <SelectItem key={parceiro.id} value={parceiro.nome}>
-                        {parceiro.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Select
+                    value={parceiros.some((parceiro) => parceiro.nome === form.parceiro) ? form.parceiro : ""}
+                    onValueChange={(value) => alterarCampo("parceiro", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar parceiro cadastrado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {parceiros.map((parceiro) => (
+                        <SelectItem key={parceiro.id} value={parceiro.nome}>
+                          {parceiro.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={form.parceiro}
+                    onChange={(event) => alterarCampo("parceiro", event.target.value)}
+                    placeholder="Ou digite o parceiro manualmente"
+                    aria-label="Digitar parceiro manualmente"
+                  />
+                </div>
               </div>
             )}
             <div className="space-y-2 sm:col-span-2">

@@ -438,6 +438,7 @@ model mh3_medicoes {
   id                   BigInt              @id @default(autoincrement())
   placas               Json
   tipo_cobranca        String              @db.VarChar(100)
+  dias_mes             Int?                @db.UnsignedInt
   valor                Decimal             @db.Decimal(10, 2)
   terceiro             Boolean
   valor_terceiro       Decimal?            @db.Decimal(10, 2)
