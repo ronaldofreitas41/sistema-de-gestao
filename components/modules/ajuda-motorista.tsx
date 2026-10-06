@@ -42,6 +42,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { PlacaInput } from "@/components/ui/placa-input";
 import { Ajuda_Motorista, ContasBancarias, Despesa, Usuario } from "@/lib/types";
 import { deleteRegistro, fetchContas, formatCurrency, formatDate, formatPhone, formatarData, getPlacas } from "@/lib/utils";
 import {
@@ -535,24 +536,14 @@ export function ComponenteAjudaMotorista() {
                 <Label htmlFor="placa" className="text-foreground">
                   Placa do Veículo
                 </Label>
-                <Select
+                <PlacaInput
+                  id="placa"
                   value={formData.placa}
-                  onValueChange={(val) =>
-                    setFormData({ ...formData, placa: val === "nenhuma" ? "" : val })
-                  }
-                >
-                  <SelectTrigger id="placa" className="bg-input border-border">
-                    <SelectValue placeholder="Selecione a placa..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nenhuma">Nenhuma</SelectItem>
-                    {placas.map((placa) => (
-                      <SelectItem key={placa} value={placa}>
-                        {placa}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={placas}
+                  onValueChange={(placa) => setFormData({ ...formData, placa })}
+                  placeholder="Selecione ou digite a placa..."
+                  className="bg-input border-border"
+                />
               </div>
             </div>
 

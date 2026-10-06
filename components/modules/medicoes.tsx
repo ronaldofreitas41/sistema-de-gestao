@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
+import { PlacaInput } from "@/components/ui/placa-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -39,11 +40,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Medicao } from "@/lib/types";
+import { gerarPdfMedicao } from "@/lib/pdf/pdfMedicao";
 import {
   deleteRegistro,
   formatCurrency,
   formatDate,
-  gerarPdfMedicao,
   getPlacas,
 } from "@/lib/utils";
 
@@ -431,25 +432,13 @@ export function Medicoes() {
             <div className="space-y-2 sm:col-span-2">
               <Label>Placas</Label>
               <div className="flex gap-2">
-                <Select
+                <PlacaInput
+                  id="placa-medicao"
                   value={placaSelecionada}
+                  options={placasDisponiveis.filter((placa) => !placasAdicionadas.includes(placa))}
                   onValueChange={setPlacaSelecionada}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Selecione uma placa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {placasDisponiveis.map((placa) => (
-                      <SelectItem
-                        key={placa}
-                        value={placa}
-                        disabled={placasAdicionadas.includes(placa)}
-                      >
-                        {placa}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Selecione ou digite uma placa"
+                />
                 <Button
                   type="button"
                   size="icon"

@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (terceiro) {
-        await tx.mh3Despesas.create({
+        await tx.mh3_despesas.create({
           data: {
             descricao: `Medição ${id}`,
             categoria: "Medição de terceiro",

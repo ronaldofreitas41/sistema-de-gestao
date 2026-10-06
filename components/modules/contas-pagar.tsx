@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Receipt, Plus, Search, Edit, Trash2, FileText, Menu, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { PlacaInput } from "@/components/ui/placa-input";
 import { Despesa } from "@/lib/types";
 import { deleteRegistro, getPlacas } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
@@ -580,24 +581,14 @@ export function ContasPagar() {
                 <Label htmlFor="placa" className="text-foreground">
                   Placa
                 </Label>
-                <Select
+                <PlacaInput
+                  id="placa"
                   value={formData.placa}
-                  onValueChange={(val) =>
-                    setFormData({ ...formData, placa: val === "nenhuma" ? "" : val })
-                  }
-                >
-                  <SelectTrigger id="placa" className="bg-input border-border">
-                    <SelectValue placeholder="Selecione a placa..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nenhuma">Nenhuma</SelectItem>
-                    {placas.map((placa) => (
-                      <SelectItem key={placa} value={placa}>
-                        {placa}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={placas}
+                  onValueChange={(placa) => setFormData({ ...formData, placa })}
+                  placeholder="Selecione ou digite a placa..."
+                  className="bg-input border-border"
+                />
               </div>
             </div>
           </div>

@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PlacaInput } from "@/components/ui/placa-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -856,24 +857,22 @@ export function Manutencoes() {
               <div role="tabpanel" className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Veículo/equipamento</Label>
-                  <Select value={form.eqId} onValueChange={selecionarEquipamento}>
-                    <SelectTrigger className="h-10 bg-muted/20">
-                      <SelectValue placeholder="Selecionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {carregandoEquipamentos ? (
-                        <SelectItem value="carregando" disabled>Carregando equipamentos...</SelectItem>
-                      ) : equipamentos.filter((equipamento) => equipamento.placa).length > 0 ? (
-                        equipamentos.filter((equipamento) => equipamento.placa).map((equipamento) => (
-                          <SelectItem key={String(equipamento.id)} value={String(equipamento.id)}>
-                            {equipamento.placa} — {[equipamento.tipo, equipamento.marca, equipamento.modelo].filter(Boolean).join(" ")}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="nenhum" disabled>Nenhum equipamento com placa cadastrado</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <PlacaInput
+                    id="equipamento-os"
+                    value={equipamentos.find((equipamento) => String(equipamento.id) === form.eqId)?.placa || form.placa || ""}
+                    options={equipamentos.map((equipamento) => equipamento.placa || "")}
+                    onValueChange={(placa) => {
+                      const equipamento = equipamentos.find((item) => item.placa?.toUpperCase() === placa.trim().toUpperCase());
+                      if (equipamento) {
+                        selecionarEquipamento(String(equipamento.id));
+                      } else {
+                        setForm((atual) => ({ ...atual, eqId: "", eqLbl: "", placa }));
+                      }
+                    }}
+                    placeholder={carregandoEquipamentos ? "Carregando placas..." : "Selecione ou digite a placa"}
+                    className="h-10 bg-muted/20"
+                    disabled={carregandoEquipamentos}
+                  />
                 </div>
 
                 <div className="space-y-1.5">

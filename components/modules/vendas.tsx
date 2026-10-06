@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { PlacaInput } from "@/components/ui/placa-input";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -948,27 +949,14 @@ export function Vendas() {
                 <>
                   <div className="space-y-1">
                     <Label>Placa da Medição</Label>
-                    <Select
+                    <PlacaInput
+                      id="placa-medicao"
                       value={formData.placa_medicao || ""}
-                      onValueChange={(val) =>
-                        setFormData({
-                          ...formData,
-                          placa_medicao: val === "nenhuma" ? "" : val,
-                        })
-                      }
-                    >
-                      <SelectTrigger className="bg-input border-border font-mono">
-                        <SelectValue placeholder="Selecione a placa..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="nenhuma">Nenhuma</SelectItem>
-                        {placas.map((placa) => (
-                          <SelectItem key={placa} value={placa}>
-                            {placa}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={placas}
+                      onValueChange={(placa_medicao) => setFormData({ ...formData, placa_medicao })}
+                      placeholder="Selecione ou digite a placa..."
+                      className="bg-input border-border font-mono"
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Sinal</Label>

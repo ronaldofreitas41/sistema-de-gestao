@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { Sidebar } from "@/components/layout/sidebar";
+import { PlacaInput } from "@/components/ui/placa-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -27,13 +28,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 type Equipamento = {
   id: string | number;
@@ -68,6 +62,7 @@ type Revisao = {
 
 type FormData = {
   equipamentoId: string;
+  placaManual: string;
   dataContato: string;
   contato: string;
   telefone: string;
@@ -83,6 +78,7 @@ type FormData = {
 
 const formularioInicial: FormData = {
   equipamentoId: "",
+  placaManual: "",
   dataContato: new Date().toISOString().slice(0, 10),
   contato: "",
   telefone: "",
@@ -120,8 +116,8 @@ function lerObservacoes(
   }
 }
 
-function nomeEquipamento(equipamento?: Equipamento) {
-  if (!equipamento) return "Equipamento não identificado";
+function nomeEquipamento(equipamento?: Equipamento, placaManual?: string) {
+  if (!equipamento) return placaManual || "Equipamento não identificado";
   return [
     equipamento.placa,
     equipamento.tipo,
@@ -208,7 +204,7 @@ export default function AcompRevisaoPage() {
   }
 
   function preencherEquipamento(id: string) {
-    alterar("equipamentoId", id);
+    setForm((atual) => ({ ...atual, equipamentoId: id, placaManual: "" }));
     const ultima = ultimaPreventiva(id);
     const registro = revisoes.find(
       (item) => String(item.equipamento_id) === id,
@@ -219,6 +215,7 @@ export default function AcompRevisaoPage() {
       setForm((atual) => ({
         ...atual,
         equipamentoId: id,
+        placaManual: "",
         ultimaRevisaoKm: String(ultima.km || ""),
         ultimaRevisaoHr: String(ultima.hr || ""),
         observacoes: `Última OS preventiva: ${ultima.osNum || "não informada"}`,
@@ -229,6 +226,7 @@ export default function AcompRevisaoPage() {
       setForm((atual) => ({
         ...atual,
         equipamentoId: id,
+        placaManual: "",
         dataContato:
           registro.data_realizacao?.slice(0, 10) || atual.dataContato,
         ultimaRevisaoKm: String(registro.km_atual || ""),
@@ -260,6 +258,7 @@ export default function AcompRevisaoPage() {
     setForm({
       ...formularioInicial,
       equipamentoId: String(revisao.equipamento_id || ""),
+      placaManual: dados.placaManual || "",
       dataContato:
         revisao.data_realizacao?.slice(0, 10) || formularioInicial.dataContato,
       ultimaRevisaoKm: String(revisao.km_atual || ""),
@@ -277,11 +276,14 @@ export default function AcompRevisaoPage() {
   }
 
   async function salvar() {
-    if (!form.equipamentoId || salvando) return;
+    if ((!form.equipamentoId && !form.placaManual.trim()) || salvando) return;
     setSalvando(true);
     const calculo = calcularSituacao(form);
     const dados = {
-      ultimaOs: ultimaPreventiva(form.equipamentoId)?.osNum || "",
+      ultimaOs: form.equipamentoId
+        ? ultimaPreventiva(form.equipamentoId)?.osNum || ""
+        : "",
+      placaManual: form.equipamentoId ? "" : form.placaManual.trim(),
       intervaloKm: form.intervaloKm,
       intervaloHr: form.intervaloHr,
       kmAtual: form.kmAtual,
@@ -292,7 +294,7 @@ export default function AcompRevisaoPage() {
       observacoes: form.observacoes,
     };
     const payload = {
-      equipamento_id: form.equipamentoId,
+      equipamento_id: form.equipamentoId || null,
       tipo: "Acompanhamento de revisão",
       km_atual: form.ultimaRevisaoKm || null,
       km_proxima: calculo.kmLimite || null,
@@ -349,7 +351,7 @@ export default function AcompRevisaoPage() {
       })
       .filter(
         ({ equipamento, dados }) =>
-          nomeEquipamento(equipamento)
+          nomeEquipamento(equipamento, dados.placaManual)
             .toLowerCase()
             .includes(busca.toLowerCase()) ||
           String(dados.contato || "")
@@ -503,7 +505,7 @@ export default function AcompRevisaoPage() {
                     <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border">
                       <div>
                         <CardTitle className="text-base">
-                          {nomeEquipamento(equipamento)}
+                          {nomeEquipamento(equipamento, dados.placaManual)}
                         </CardTitle>
                         <p className="mt-1 text-xs text-muted-foreground">
                           Última OS preventiva:{" "}
@@ -606,23 +608,30 @@ export default function AcompRevisaoPage() {
           <div className="grid gap-4 py-2 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label>Equipamento</Label>
-              <Select
-                value={form.equipamentoId}
-                onValueChange={preencherEquipamento}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a placa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {equipamentos
-                    .filter((item) => item.placa)
-                    .map((item) => (
-                      <SelectItem key={String(item.id)} value={String(item.id)}>
-                        {nomeEquipamento(item)}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <PlacaInput
+                id="placa-acompanhamento"
+                value={equipamentos.find((item) => String(item.id) === form.equipamentoId)?.placa || form.placaManual}
+                options={equipamentos.map((item) => item.placa || "")}
+                onValueChange={(placa) => {
+                  const equipamento = equipamentos.find(
+                    (item) => item.placa?.toUpperCase() === placa.trim().toUpperCase(),
+                  );
+                  if (equipamento) {
+                    preencherEquipamento(String(equipamento.id));
+                  } else {
+                    setForm((atual) => ({
+                      ...atual,
+                      equipamentoId: "",
+                      placaManual: placa,
+                      ultimaRevisaoKm: atual.equipamentoId ? "" : atual.ultimaRevisaoKm,
+                      ultimaRevisaoHr: atual.equipamentoId ? "" : atual.ultimaRevisaoHr,
+                      intervaloKm: atual.equipamentoId ? "" : atual.intervaloKm,
+                      intervaloHr: atual.equipamentoId ? "" : atual.intervaloHr,
+                    }));
+                  }
+                }}
+                placeholder="Selecione ou digite a placa"
+              />
             </div>
             <div className="space-y-2">
               <Label>Data do contato</Label>
@@ -788,7 +797,7 @@ export default function AcompRevisaoPage() {
             <Button
               type="button"
               onClick={salvar}
-              disabled={salvando || !form.equipamentoId}
+              disabled={salvando || (!form.equipamentoId && !form.placaManual.trim())}
             >
               {salvando ? "Salvando..." : "Salvar acompanhamento"}
             </Button>
