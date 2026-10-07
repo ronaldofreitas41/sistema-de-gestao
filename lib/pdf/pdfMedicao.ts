@@ -42,7 +42,21 @@ export function gerarPdfMedicao(
     );
   const placasMedicao = obterPlacasMedicao(medicao.placas);
   const placas = placasMedicao.map((placa) => placa.placa).join(", ") || "-";
+  const ehTerceiro = medicao.terceiro === true;
+  const empresa = ehTerceiro && medicao.empresa ? medicao.empresa : null;
+  const logoEmpresa = typeof empresa?.logo === "string" && empresa.logo.startsWith("data:image/")
+    ? empresa.logo
+    : null;
+  const nomeEmpresa = empresa?.razao_social || empresa?.nome || "MH3 RENTAL LTDA";
+  const cnpjEmpresa = empresa ? empresa.cnpj || "-" : "26.881.195/0001-10";
+  const enderecoEmpresa = empresa
+    ? [empresa.endereco, [empresa.cidade, empresa.estado].filter(Boolean).join("/")].filter(Boolean).join(" · ")
+    : "Rodovia BR 381, km 361 – João Monlevade/MG";
+  const contatoEmpresa = empresa
+    ? [empresa.telefone, empresa.email].filter(Boolean).join(" · ")
+    : "(31) 99977-6105 · Noninho · comercial@mh3rental.com.br";
   const parceiro = medicao.parceiro || "-";
+  const cliente = medicao.cliente || "-";
   const periodo = formatarPeriodoPdf(medicao.periodo);
   const vendas = Array.isArray(medicao.vendas) ? medicao.vendas : [];
   const valorAjusteVendas = vendas.reduce(
@@ -74,6 +88,11 @@ export function gerarPdfMedicao(
   const diasNoMes = Number(medicao.dias_mes) || diasIntervalo || (anoPeriodo && mesPeriodo
     ? new Date(anoPeriodo, mesPeriodo, 0).getDate()
     : 0);
+  const diasTrabalhadosPorPlaca = placasDetalhadas
+    ? placasMedicao
+      .map((placa) => `${Number(placa.dias_trabalhados) || 0} dia(s)`)
+      .join("; ")
+    : "";
   const dadosCobranca = `
     <div><strong>Método de cobrança:</strong> ${escaparHtml(tipoCobrancaLabel)}</div>
     ${valorPorHora ? `
@@ -82,6 +101,9 @@ export function gerarPdfMedicao(
     ` : ""}
     ${tipoCobranca === "Valor Mensal" && diasNoMes ? `
       <div><strong>Dias no mês:</strong> ${diasNoMes}</div>
+    ` : ""}
+    ${tipoCobranca === "Valor Mensal" && diasTrabalhadosPorPlaca ? `
+      <div><strong>Dias trabalhados:</strong> ${diasTrabalhadosPorPlaca}</div>
     ` : ""}
   `;
 
@@ -101,7 +123,7 @@ export function gerarPdfMedicao(
     : placasDetalhadas
       ? placasMedicao.map((placa) => {
           const descricao = tipoCobranca === "Valor Mensal"
-            ? `Placa ${escaparHtml(placa.placa)} — ${formatarValorPdf(placa.valor)} ÷ 30 × ${diasNoMes} dia(s)`
+            ? `Placa ${escaparHtml(placa.placa)} — ${formatarValorPdf(placa.valor)} ÷ ${diasNoMes} × ${placa.dias_trabalhados ?? 0} dia(s) trabalhado(s)`
             : valorPorHora
               ? `Placa ${escaparHtml(placa.placa)} — ${quantidadeHoras}h × ${formatarValorPdf(placa.valor)}/h`
               : `Placa ${escaparHtml(placa.placa)} — valor direto`;
@@ -154,6 +176,8 @@ export function gerarPdfMedicao(
           body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111827; background: #fff; font-size: 12px; }
           .pagina { min-height: 297mm; display: flex; flex-direction: column; padding: 22mm 13mm 0; }
           .topo { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 17px; border-bottom: 4px solid #d71920; }
+          .logo { max-width: 180px; max-height: 70px; object-fit: contain; }
+          .logo-fallback { max-width: 180px; color: #c90000; font-size: 18px; font-weight: 800; }
           .titulo { text-align: right; color: #c90000; }
           .titulo h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 1px; }
           .titulo p { margin: 8px 0 0; color: #6b7280; font-size: 10px; letter-spacing: 2px; }
@@ -180,7 +204,11 @@ export function gerarPdfMedicao(
       <body>
         <div class="pagina">
           <header class="topo">
-            <img class="logo" src="/placeholder-logo.png" alt="MH3" />
+            ${logoEmpresa
+              ? `<img class="logo" src="${escaparHtml(logoEmpresa)}" alt="${escaparHtml(nomeEmpresa)}" />`
+              : empresa
+                ? `<strong class="logo-fallback">${escaparHtml(nomeEmpresa)}</strong>`
+                : '<img class="logo" src="/placeholder-logo.png" alt="MH3" />'}
             <div class="titulo">
               <h1>${documentoTerceiro ? "MEDIÇÃO DE TERCEIRO" : "MEDIÇÃO"}</h1>
               <p>${documentoTerceiro ? "REPASSE DE TERCEIRO" : "LOCAÇÃO DE EQUIPAMENTO"}</p>
@@ -190,7 +218,8 @@ export function gerarPdfMedicao(
             <section class="secao">
               <h2 class="secao-titulo">Dados da medição</h2>
               <div class="dados">
-                <div><strong>Parceiro:</strong> ${escaparHtml(parceiro)}</div>
+                <div><strong>Cliente:</strong> ${escaparHtml(cliente)}</div>
+                ${ehTerceiro ? `<div><strong>Parceiro:</strong> ${escaparHtml(parceiro)}</div>` : ""}
                 <div><strong>Veículo/Placa:</strong> ${escaparHtml(placas)}</div>
                 <div><strong>Período:</strong> ${escaparHtml(periodo)}</div>
                 <div><strong>Mês Ref.:</strong> ${escaparHtml(medicao.periodo || "-")}</div>
@@ -212,9 +241,9 @@ export function gerarPdfMedicao(
             </section>
           </main>
           <footer class="rodape">
-            <div class="marca">MH3 RENTAL LTDA</div>
-            <p>CNPJ: 26.881.195/0001-10 · Rodovia BR 381, km 361 – João Monlevade/MG</p>
-            <p>(31) 99977-6105 · Noninho · comercial@mh3rental.com.br</p>
+            <div class="marca">${escaparHtml(nomeEmpresa)}</div>
+            <p>CNPJ: ${escaparHtml(cnpjEmpresa)}${enderecoEmpresa ? ` · ${escaparHtml(enderecoEmpresa)}` : ""}</p>
+            ${contatoEmpresa ? `<p>${escaparHtml(contatoEmpresa)}</p>` : ""}
             <div class="pagina-numero">Emitido em ${escaparHtml(dataEmissao)} · Página 1 de 1</div>
           </footer>
         </div>

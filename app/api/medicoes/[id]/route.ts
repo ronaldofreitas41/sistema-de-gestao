@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getById, remove, update } from "@/lib/crud-prisma";
 import { calcularPlacasMedicao, contarDiasPeriodoMedicao } from "@/lib/medicoes";
+import { prisma } from "@/lib/prisma";
 
 const TABLE = "mh3_medicoes";
 const FIELDS = [
@@ -20,6 +21,7 @@ const FIELDS = [
   "conta_recebimento_id",
   "obs_internas",
   "cliente_id",
+  "empresa_id",
   "vendas",
 ];
 
@@ -54,7 +56,22 @@ async function atualizarMedicao(request: NextRequest, id: string) {
 
   let dados;
   try {
-    dados = bodyComValoresCalculados(body as Record<string, unknown>);
+    const registro = body as Record<string, unknown>;
+    if (registro.terceiro) {
+      if (typeof registro.empresa_id !== "string" || !/^\d+$/.test(registro.empresa_id)) {
+        return Response.json({ error: "Selecione a empresa da medição de terceiro." }, { status: 400 });
+      }
+      const empresa = await prisma.mh3_empresas.findUnique({
+        where: { id: BigInt(registro.empresa_id) },
+        select: { id: true, ativo: true },
+      });
+      if (!empresa) {
+        return Response.json({ error: "A empresa selecionada não existe." }, { status: 400 });
+      }
+    } else {
+      registro.empresa_id = null;
+    }
+    dados = bodyComValoresCalculados(registro);
   } catch (error) {
     return Response.json({
       error: error instanceof Error ? error.message : "Os valores das placas são inválidos.",
@@ -78,6 +95,7 @@ function bodyComValoresCalculados(body: Record<string, unknown>) {
       String(body.tipo_cobranca || ""),
       diasMes,
       Number(body.horas_extras) || 0,
+      Number(body.dias_trabalhados) || 0,
     );
   } catch (error) {
     throw new Error(

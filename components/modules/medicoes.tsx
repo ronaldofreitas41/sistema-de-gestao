@@ -57,10 +57,14 @@ import {
 type FormPlaca = {
   placa: string;
   valor: number;
+  dias_trabalhados?: number;
+  valor_calculado?: number;
 };
 
 type MedicaoApi = Omit<Medicao, "placas"> & {
   placas: Array<string | PlacaMedicao>;
+  cliente_id?: string | number | null;
+  empresa_id?: string | number | null;
   tipo_cobranca?: string | null;
   dias_mes?: string | number | null;
   valor_terceiro?: string | number | null;
@@ -88,6 +92,25 @@ type Parceiro = {
   nome: string;
 };
 
+type Cliente = {
+  id: string | number;
+  nome: string;
+};
+
+type Empresa = {
+  id: string | number;
+  nome: string;
+  razao_social?: string | null;
+  cnpj?: string | null;
+  logo?: string | null;
+  endereco?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  ativo?: boolean;
+};
+
 type FormData = {
   placas: FormPlaca[];
   valor_sem_placa: string;
@@ -98,12 +121,14 @@ type FormData = {
   horas_extras: string;
   valor_hora_extra: string;
   data_medicao: string;
+  cliente_id: string;
+  empresa_id: string;
   parceiro: string;
   observacoes: string;
   status: string;
   periodo_inicio: string;
   periodo_fim: string;
-  dias_mes: string;
+  dias_trabalhados: string;
   obs_internas: string;
   vendas: VendaMedicao[];
 };
@@ -146,21 +171,6 @@ function separarPeriodo(periodo?: string | null) {
   return { inicio: data, fim: data };
 }
 
-function contarDiasPeriodo(inicio: string, fim: string) {
-  if (!inicio || !fim) return "";
-  const dataInicio = new Date(`${inicio}T00:00:00`);
-  const dataFim = new Date(`${fim}T00:00:00`);
-  if (
-    Number.isNaN(dataInicio.getTime()) ||
-    Number.isNaN(dataFim.getTime()) ||
-    dataFim < dataInicio
-  )
-    return "";
-  return String(
-    Math.floor((dataFim.getTime() - dataInicio.getTime()) / 86_400_000) + 1,
-  );
-}
-
 function calcularValorVendas(vendas: VendaMedicao[]) {
   return vendas.reduce((total, venda) => {
     const sinal = venda.sinal_medicao === "-" ? -1 : 1;
@@ -188,12 +198,14 @@ const formularioInicial: FormData = {
   horas_extras: "0",
   valor_hora_extra: "0",
   data_medicao: new Date().toISOString().slice(0, 10),
+  cliente_id: "",
+  empresa_id: "",
   parceiro: "",
   observacoes: "",
   status: "pendente",
   periodo_inicio: periodoInicial.inicio,
   periodo_fim: periodoInicial.fim,
-  dias_mes: "",
+  dias_trabalhados: "",
   obs_internas: "",
   vendas: [],
 };
@@ -201,6 +213,8 @@ const formularioInicial: FormData = {
 export function Medicoes() {
   const [medicoes, setMedicoes] = useState<MedicaoApi[]>([]);
   const [vendas, setVendas] = useState<VendaApi[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [parceiros, setParceiros] = useState<Parceiro[]>([]);
   const [placasDisponiveis, setPlacasDisponiveis] = useState<string[]>([]);
   const [placaSelecionada, setPlacaSelecionada] = useState("");
@@ -213,6 +227,7 @@ export function Medicoes() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [diasMes, setDiasMes] = useState(30);
 
   async function carregar() {
     const response = await fetch("/api/medicoes");
@@ -226,6 +241,20 @@ export function Medicoes() {
     fetch("/api/parceiros")
       .then((response) => response.json())
       .then((payload) => setParceiros(payload.data || []));
+    fetch("/api/clientes")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Não foi possível carregar os clientes.");
+        const payload = await response.json();
+        setClientes(payload.data || []);
+      })
+      .catch((error) => console.error("Erro ao carregar clientes da medição:", error));
+    fetch("/api/empresas")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Não foi possível carregar as empresas.");
+        const payload = await response.json();
+        setEmpresas(payload.data || []);
+      })
+      .catch((error) => console.error("Erro ao carregar empresas da medição:", error));
     fetch("/api/vendas")
       .then(async (response) => {
         if (!response.ok)
@@ -245,16 +274,41 @@ export function Medicoes() {
     setForm((atual) => ({ ...atual, [campo]: valor }));
   }
 
+  function gerarPdf(medicao: MedicaoApi, tipoDocumento: "cliente" | "terceiro" = "cliente") {
+    const cliente = clientes.find(
+      (item) => String(item.id) === String(medicao.cliente_id),
+    )?.nome || "";
+    const empresa = medicao.terceiro
+      ? empresas.find((item) => String(item.id) === String(medicao.empresa_id))
+      : undefined;
+    gerarPdfMedicao({ ...medicao, cliente, empresa }, tipoDocumento);
+  }
+
   function alterarTipoCobranca(valor: string) {
     setForm((atual) => ({
       ...atual,
       tipo_cobranca: valor,
       quantidade_horas:
         valor === "Valor por Hora" ? atual.quantidade_horas : "0",
-      dias_mes:
-        valor === "Valor Mensal"
-          ? contarDiasPeriodo(atual.periodo_inicio, atual.periodo_fim)
-          : "",
+    }));
+  }
+
+  function alterarDiasMes(valor: string) {
+    const dias = Number(valor);
+    setDiasMes(dias);
+    setForm((atual) => ({
+      ...atual,
+      placas: atual.placas.map((placa) => ({
+        ...placa,
+        valor_calculado: calcularValorPlaca(
+          placa.valor,
+          atual.tipo_cobranca,
+          dias,
+          atual.tipo_cobranca === "Valor Mensal"
+            ? Number(placa.dias_trabalhados) || 0
+            : Number(atual.quantidade_horas) || 0,
+        ),
+      })),
     }));
   }
 
@@ -266,13 +320,6 @@ export function Medicoes() {
       const periodoAtualizado = { ...atual, [campo]: valor };
       return {
         ...periodoAtualizado,
-        dias_mes:
-          atual.tipo_cobranca === "Valor Mensal"
-            ? contarDiasPeriodo(
-              periodoAtualizado.periodo_inicio,
-              periodoAtualizado.periodo_fim,
-            )
-            : "",
       };
     });
   }
@@ -281,6 +328,7 @@ export function Medicoes() {
     setForm((atual) => ({
       ...atual,
       terceiro: valor,
+      empresa_id: valor === "sim" ? atual.empresa_id : "",
       parceiro: valor === "sim" ? atual.parceiro : "",
       valor_terceiro: valor === "sim" ? atual.valor_terceiro : "",
     }));
@@ -291,11 +339,27 @@ export function Medicoes() {
     if (!placa) return;
     if (form.placas.some((atual) => atual.placa === placa)) return;
 
+    const diasTrabalhados = Number(form.dias_trabalhados) || 0;
+    const valor = Math.round((Number(valorPlaca) || 0) * 100) / 100;
     setForm((atual) => ({
       ...atual,
       placas: [
         ...atual.placas,
-        { placa, valor: Math.round((Number(valorPlaca) || 0) * 100) / 100 },
+        {
+          placa,
+          valor,
+          ...(atual.tipo_cobranca === "Valor Mensal"
+            ? { dias_trabalhados: diasTrabalhados }
+            : {}),
+          valor_calculado: calcularValorPlaca(
+            valor,
+            atual.tipo_cobranca,
+            diasMes,
+            atual.tipo_cobranca === "Valor Mensal"
+              ? diasTrabalhados
+              : Number(atual.quantidade_horas) || 0,
+          ),
+        },
       ],
     }));
     setPlacaSelecionada("");
@@ -349,8 +413,9 @@ export function Medicoes() {
       data_medicao: new Date().toISOString().slice(0, 10),
       periodo_inicio: intervalo.inicio,
       periodo_fim: intervalo.fim,
-      dias_mes: "",
+      dias_trabalhados: "",
     });
+    setDiasMes(30);
     setPlacaSelecionada("");
     setValorPlaca("");
     setVendaSelecionadaId("");
@@ -362,17 +427,17 @@ export function Medicoes() {
     const intervalo = separarPeriodo(medicao.periodo);
     const tipoCobranca = medicao.tipo_cobranca || medicao.tipoCobranca || "";
     const vendasMedicao = Array.isArray(medicao.vendas) ? medicao.vendas : [];
-    const valorBase =
-      (Number(medicao.valor) || 0) - calcularValorVendas(vendasMedicao);
+    const valorBase = (Number(medicao.valor) || 0) - calcularValorVendas(vendasMedicao);
     const quantidadeHoras = Number(medicao.horas_extras) || 0;
     const placasSalvas = Array.isArray(medicao.placas) ? medicao.placas : [];
-    const placasDetalhadas =
-      placasSalvas.length > 0 &&
-      placasSalvas.every(
-        (placa) =>
-          typeof placa !== "string" && typeof placa.valor !== "undefined",
-      );
+    const placasDetalhadas = placasSalvas.length > 0 && placasSalvas.every(
+      (placa) =>
+        typeof placa !== "string" && typeof placa.valor !== "undefined",
+    );
     const placasNormalizadas = obterPlacasMedicao(placasSalvas);
+    const diasTrabalhadosInicial = placasNormalizadas.find(
+      (placa) => typeof placa.dias_trabalhados === "number",
+    )?.dias_trabalhados;
     const valorPorVeiculoLegado =
       placasNormalizadas.length > 0
         ? valorBase /
@@ -387,6 +452,12 @@ export function Medicoes() {
         valor: placasDetalhadas
           ? Number(placa.valor) || 0
           : valorPorVeiculoLegado,
+        ...(typeof placa.dias_trabalhados === "number"
+          ? { dias_trabalhados: placa.dias_trabalhados }
+          : {}),
+        ...(typeof placa.valor_calculado === "number"
+          ? { valor_calculado: placa.valor_calculado }
+          : {}),
       })),
       valor_sem_placa:
         placasNormalizadas.length === 0 ? String(valorBase) : "0",
@@ -399,21 +470,20 @@ export function Medicoes() {
         medicao.valor_hora_extra || medicao.valor_horas_extras || "0",
       ),
       data_medicao: medicao.data_medicao?.slice(0, 10) || "",
+      cliente_id: medicao.cliente_id == null ? "" : String(medicao.cliente_id),
+      empresa_id: medicao.empresa_id == null ? "" : String(medicao.empresa_id),
       parceiro: medicao.parceiro || "",
       observacoes: medicao.observacoes || "",
       status: medicao.status || "pendente",
       periodo_inicio: intervalo.inicio,
       periodo_fim: intervalo.fim,
-      dias_mes:
-        tipoCobranca === "Valor Mensal"
-          ? String(
-            medicao.dias_mes ??
-            contarDiasPeriodo(intervalo.inicio, intervalo.fim),
-          )
-          : "",
+      dias_trabalhados: diasTrabalhadosInicial === undefined
+        ? ""
+        : String(diasTrabalhadosInicial),
       obs_internas: medicao.obs_internas || "",
       vendas: vendasMedicao,
     });
+    setDiasMes(Number(medicao.dias_mes) || 30);
     setPlacaSelecionada("");
     setValorPlaca("");
     setVendaSelecionadaId("");
@@ -421,22 +491,16 @@ export function Medicoes() {
   }
 
   async function salvar() {
-    const diasPeriodo = contarDiasPeriodo(
-      form.periodo_inicio,
-      form.periodo_fim,
-    );
-
+    if (ehTerceiro && !form.empresa_id) {
+      alert("Selecione a empresa da medição de terceiro.");
+      return;
+    }
     const quantidadeHoras = Number(form.quantidade_horas) || 0;
-    const diasMes = Number(form.dias_mes || diasPeriodo) || 0;
+    const diasTrabalhados = Number(form.dias_trabalhados) || 0;
+    const diasMesCalculo = Number(diasMes) || 0;
     const valorBase = form.placas.reduce(
       (total, placa) =>
-        total +
-        calcularValorPlaca(
-          placa.valor,
-          form.tipo_cobranca,
-          diasMes,
-          quantidadeHoras,
-        ),
+        total + (Number(placa.valor_calculado) || 0),
       Number(form.valor_sem_placa) || 0,
     );
     const payload = {
@@ -447,7 +511,8 @@ export function Medicoes() {
       vendas: form.vendas,
       terceiro: form.terceiro === "sim",
       valor_terceiro: Number(form.valor_terceiro) || 0,
-      dias_mes: form.tipo_cobranca === "Valor Mensal" ? diasMes || null : null,
+      dias_mes: form.tipo_cobranca === "Valor Mensal" ? diasMesCalculo || null : null,
+      dias_trabalhados: diasTrabalhados,
       horas_extras: ehValorPorHora
         ? quantidadeHoras
         : Number(form.horas_extras) || 0,
@@ -455,6 +520,8 @@ export function Medicoes() {
       data_medicao: form.data_medicao
         ? new Date(form.data_medicao).toISOString()
         : new Date().toISOString(),
+      cliente_id: form.cliente_id || null,
+      empresa_id: ehTerceiro ? form.empresa_id : null,
       parceiro: form.parceiro,
       observacoes: form.observacoes,
       status: form.status,
@@ -513,17 +580,10 @@ export function Medicoes() {
   const placasAdicionadas = form.placas;
   const ehValorPorHora = form.tipo_cobranca === "Valor por Hora";
   const ehTerceiro = form.terceiro === "sim";
-  const diasMesForm = Number(form.dias_mes) || 0;
   const quantidadeHorasForm = Number(form.quantidade_horas) || 0;
   const valorBaseForm = form.placas.reduce(
     (total, placa) =>
-      total +
-      calcularValorPlaca(
-        placa.valor,
-        form.tipo_cobranca,
-        diasMesForm,
-        quantidadeHorasForm,
-      ),
+      total + (Number(placa.valor_calculado) || 0),
     Number(form.valor_sem_placa) || 0,
   );
   const vendasJaVinculadas = new Set(
@@ -657,7 +717,7 @@ export function Medicoes() {
                                 title="PDF do cliente"
                                 aria-label="Gerar PDF do cliente"
                                 onClick={() =>
-                                  gerarPdfMedicao(medicao, "cliente")
+                                  gerarPdf(medicao, "cliente")
                                 }
                               >
                                 <FileDown className="h-4 w-4 text-primary" />
@@ -669,7 +729,7 @@ export function Medicoes() {
                                 title="PDF do terceiro"
                                 aria-label="Gerar PDF do terceiro"
                                 onClick={() =>
-                                  gerarPdfMedicao(medicao, "terceiro")
+                                  gerarPdf(medicao, "terceiro")
                                 }
                               >
                                 <FileDown className="h-4 w-4 text-amber-600" />
@@ -683,7 +743,7 @@ export function Medicoes() {
                               title="Gerar PDF da medição"
                               aria-label="Gerar PDF da medição"
                               onClick={() =>
-                                gerarPdfMedicao(medicao, "cliente")
+                                gerarPdf(medicao, "cliente")
                               }
                             >
                               <FileDown className="h-4 w-4 text-primary" />
@@ -798,14 +858,42 @@ export function Medicoes() {
                 </Select>
               </div>
               {form.tipo_cobranca === "Valor Mensal" && (
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Dias no mês</Label>
+                <>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Dias no mês</Label>
+                    <Input
+                      type="number"
+                      min="28"
+                      max="31"
+                      step="1"
+                      value={diasMes}
+                      onChange={(e) => alterarDiasMes(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Dias trabalhados no mês</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="31"
+                      step="1"
+                      value={form.dias_trabalhados}
+                      onChange={(e) => alterarCampo("dias_trabalhados", e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+              {ehValorPorHora && (
+                <div className="space-y-2">
+                  <Label>Quantidade de horas</Label>
                   <Input
                     type="number"
-                    min="1"
-                    step="1"
-                    value={form.dias_mes}
-                    onChange={(e) => alterarCampo("dias_mes", e.target.value)}
+                    min="0"
+                    step="0.01"
+                    value={form.quantidade_horas}
+                    onChange={(e) =>
+                      alterarCampo("quantidade_horas", e.target.value)
+                    }
                   />
                 </div>
               )}
@@ -833,11 +921,14 @@ export function Medicoes() {
                       {placa.placa}: {formatCurrency(placa.valor)}
                       {" → "}
                       {formatCurrency(
+                        placa.valor_calculado ??
                         calcularValorPlaca(
                           placa.valor,
                           form.tipo_cobranca,
-                          diasMesForm,
-                          quantidadeHorasForm,
+                          diasMes,
+                          form.tipo_cobranca === "Valor Mensal"
+                            ? Number(placa.dias_trabalhados) || 0
+                            : quantidadeHorasForm,
                         ),
                       )}
                     </span>
@@ -923,20 +1014,6 @@ export function Medicoes() {
                 )}
               </p>
             </div>
-            {ehValorPorHora && (
-              <div className="space-y-2">
-                <Label>Quantidade de horas</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.quantidade_horas}
-                  onChange={(e) =>
-                    alterarCampo("quantidade_horas", e.target.value)
-                  }
-                />
-              </div>
-            )}
             <div className="space-y-2">
               <Label>É de terceiro?</Label>
               <Select value={form.terceiro} onValueChange={alterarTipoTerceiro}>
@@ -949,6 +1026,54 @@ export function Medicoes() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Cliente</Label>
+              <Select
+                value={form.cliente_id}
+                onValueChange={(value) => alterarCampo("cliente_id", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar cliente da medição" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientes.map((cliente) => (
+                    <SelectItem key={cliente.id} value={String(cliente.id)}>
+                      {cliente.nome}
+                    </SelectItem>
+                  ))}
+                  {clientes.length === 0 && (
+                    <SelectItem value="sem-clientes" disabled>
+                      Nenhum cliente cadastrado
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            {ehTerceiro && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Empresa <span className="text-destructive">*</span></Label>
+                <Select
+                  value={form.empresa_id}
+                  onValueChange={(value) => alterarCampo("empresa_id", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar empresa da medição" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {empresas.map((empresa) => (
+                      <SelectItem key={empresa.id} value={String(empresa.id)}>
+                        {empresa.razao_social || empresa.nome}
+                      </SelectItem>
+                    ))}
+                    {empresas.length === 0 && (
+                      <SelectItem value="sem-empresas" disabled>
+                        Nenhuma empresa ativa cadastrada
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {ehTerceiro && (
               <div className="space-y-2">
                 <Label>Valor do terceiro</Label>

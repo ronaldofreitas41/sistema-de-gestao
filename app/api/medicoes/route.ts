@@ -22,6 +22,7 @@ const FIELDS = [
   "conta_recebimento_id",
   "obs_internas",
   "cliente_id",
+  "empresa_id",
 ];
 
 export async function GET(request: NextRequest) {
@@ -40,6 +41,20 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    let empresaId: bigint | null = null;
+    if (body.terceiro) {
+      if (typeof body.empresa_id !== "string" || !/^\d+$/.test(body.empresa_id)) {
+        return Response.json({ error: "Selecione a empresa da medição de terceiro." }, { status: 400 });
+      }
+      empresaId = BigInt(body.empresa_id);
+      const empresa = await prisma.mh3_empresas.findUnique({
+        where: { id: empresaId },
+        select: { id: true, ativo: true },
+      });
+      if (!empresa) {
+        return Response.json({ error: "A empresa selecionada não existe." }, { status: 400 });
+      }
+    }
     const idsVendas: string[] = Array.isArray(body.vendas)
       ? [...new Set(body.vendas.map((venda: { id?: unknown }) => venda?.id).filter((id: unknown): id is string => typeof id === "string" && id.length > 0))]
       : [];
@@ -71,7 +86,6 @@ export async function POST(request: NextRequest) {
       placa_medicao: venda.placa_medicao,
     }));
     const dataMedicao = new Date(body.data_medicao);
-    const id = body.id || crypto.randomUUID();
     const periodo = String(body.periodo || dataMedicao.toISOString().slice(0, 7));
     const diasInformados = Number(body.dias_mes);
     const diasMes = body.tipo_cobranca === "Valor Mensal"
@@ -84,6 +98,7 @@ export async function POST(request: NextRequest) {
         String(body.tipo_cobranca || ""),
         diasMes || 0,
         Number(body.horas_extras) || 0,
+        Number(body.dias_trabalhados) || 0,
       );
     } catch (error) {
       return Response.json({
@@ -106,7 +121,6 @@ export async function POST(request: NextRequest) {
     const resultado = await prisma.$transaction(async (tx) => {
       const medicao = await tx.mh3_medicoes.create({
         data: {
-          id,
           placas: calculoPlacas.detalhadas ? calculoPlacas.placas : body.placas || [],
           tipo_cobranca: body.tipo_cobranca,
           dias_mes: diasMes,
@@ -123,9 +137,11 @@ export async function POST(request: NextRequest) {
           conta_recebimento_id: body.conta_recebimento_id || null,
           obs_internas: body.obs_internas || null,
           cliente_id: body.cliente_id || null,
+          empresa_id: empresaId,
           vendas,
         },
       });
+      const medicaoId = medicao.id.toString();
 
       await tx.mh3_contas_receber.create({
         data: {
@@ -134,7 +150,7 @@ export async function POST(request: NextRequest) {
           competencia,
           valor_total: valor - (terceiro ? valorTerceiro : 0),
           status: "pendente",
-          observacoes: `Lançamento automático da medição ${id}.`,
+          observacoes: `Lançamento automático da medição ${medicaoId}.`,
           data_emissao: dataMedicao,
         },
       });
@@ -142,15 +158,15 @@ export async function POST(request: NextRequest) {
       if (terceiro) {
         await tx.mh3_despesas.create({
           data: {
-            descricao: `Medição ${id}`,
+            descricao: `Medição ${medicaoId}`,
             categoria: "Medição de terceiro",
             fornecedor: body.parceiro || null,
             data_competencia: dataMedicao,
             data_vencimento: dataMedicao,
             valor: valorTerceiro,
             status_disp: "pendente",
-            observacoes: `Lançamento automático da medição ${id}.`,
-            num_desp: `MED - ${id}`,
+            observacoes: `Lançamento automático da medição ${medicaoId}.`,
+            num_desp: `MED - ${medicaoId}`,
           },
         });
       }
@@ -158,7 +174,12 @@ export async function POST(request: NextRequest) {
       return medicao;
     });
 
-    return Response.json(resultado, { status: 201 });
+    const resultadoSerializavel = JSON.parse(
+      JSON.stringify(resultado, (_key, value) =>
+        typeof value === "bigint" ? value.toString() : value,
+      ),
+    );
+    return Response.json(resultadoSerializavel, { status: 201 });
   } catch (error) {
     console.error("Erro ao criar medição:", error);
     return Response.json({ error: "Não foi possível criar a medição." }, { status: 500 });

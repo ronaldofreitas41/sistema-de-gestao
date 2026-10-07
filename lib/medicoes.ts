@@ -2,6 +2,7 @@ export type PlacaMedicao = {
   placa: string;
   valor: number;
   valor_calculado?: number;
+  dias_trabalhados?: number;
 };
 
 export function obterPlacasMedicao(placas: unknown): PlacaMedicao[] {
@@ -22,11 +23,17 @@ export function obterPlacasMedicao(placas: unknown): PlacaMedicao[] {
     const valorCalculado = "valor_calculado" in item
       ? Number(item.valor_calculado)
       : undefined;
+    const diasTrabalhados = "dias_trabalhados" in item
+      ? Number(item.dias_trabalhados)
+      : undefined;
     return [{
       placa,
       valor: Number.isFinite(valor) ? valor : 0,
       ...(valorCalculado !== undefined && Number.isFinite(valorCalculado)
         ? { valor_calculado: valorCalculado }
+        : {}),
+      ...(diasTrabalhados !== undefined && Number.isFinite(diasTrabalhados)
+        ? { dias_trabalhados: diasTrabalhados }
         : {}),
     }];
   });
@@ -36,12 +43,12 @@ export function calcularValorPlaca(
   valor: number,
   tipoCobranca: string,
   diasMes: number,
-  horas: number,
+  diasTrabalhadosOuHoras: number,
 ): number {
   const total = tipoCobranca === "Valor Mensal"
-    ? diasMes > 0 ? valor * diasMes / 30 : 0
+    ? diasMes > 0 ? valor / diasMes * diasTrabalhadosOuHoras : 0
     : tipoCobranca === "Valor por Hora"
-      ? valor * horas
+      ? valor * diasTrabalhadosOuHoras
       : valor;
 
   return Math.round((total + Number.EPSILON) * 100) / 100;
@@ -65,6 +72,7 @@ export function calcularPlacasMedicao(
   tipoCobranca: string,
   diasMes: number,
   horas: number,
+  diasTrabalhadosPadrao = 0,
 ): { placas: Array<string | PlacaMedicao>; total: number; detalhadas: boolean } {
   if (!Array.isArray(placas)) {
     throw new TypeError("A lista de placas é inválida.");
@@ -82,7 +90,16 @@ export function calcularPlacasMedicao(
 
     const placa = item.placa.trim().toUpperCase();
     const valor = "valor" in item ? Number(item.valor) : 0;
-    if (!placa || !Number.isFinite(valor) || valor < 0) {
+    const diasTrabalhados = "dias_trabalhados" in item
+      ? Number(item.dias_trabalhados)
+      : diasTrabalhadosPadrao;
+    if (
+      !placa ||
+      !Number.isFinite(valor) ||
+      valor < 0 ||
+      !Number.isFinite(diasTrabalhados) ||
+      diasTrabalhados < 0
+    ) {
       throw new TypeError("Informe uma placa e um valor válido para cada veículo.");
     }
 
@@ -90,11 +107,14 @@ export function calcularPlacasMedicao(
     return {
       placa,
       valor: valorArredondado,
+      ...(tipoCobranca === "Valor Mensal"
+        ? { dias_trabalhados: diasTrabalhados }
+        : {}),
       valor_calculado: calcularValorPlaca(
         valorArredondado,
         tipoCobranca,
         diasMes,
-        horas,
+        tipoCobranca === "Valor Mensal" ? diasTrabalhados : horas,
       ),
     };
   });
