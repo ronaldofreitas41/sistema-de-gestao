@@ -289,10 +289,6 @@ export function Medicoes() {
 
   async function salvar() {
     const diasPeriodo = contarDiasPeriodo(form.periodo_inicio, form.periodo_fim);
-    if (!diasPeriodo) {
-      alert("Informe um intervalo válido para o período da medição.");
-      return;
-    }
 
     const valorHora = Number(form.valor) || 0;
     const quantidadeHoras = Number(form.quantidade_horas) || 0;
@@ -312,7 +308,9 @@ export function Medicoes() {
         ? quantidadeHoras
         : Number(form.horas_extras) || 0,
       valor_hora_extra: Number(form.valor_hora_extra) || 0,
-      data_medicao: new Date(form.data_medicao).toISOString(),
+      data_medicao: form.data_medicao
+        ? new Date(form.data_medicao).toISOString()
+        : new Date().toISOString(),
       parceiro: form.parceiro,
       observacoes: form.observacoes,
       status: form.status,

@@ -184,7 +184,10 @@ export function Pneus() {
   };
 
   const handleSave = async () => {
-    const payload = { ...formData };
+    const payload = {
+      ...formData,
+      data: formData.data || new Date().toISOString().slice(0, 10),
+    };
     if (editingPneu) {
       await fetch(`/api/pneus/${editingPneu.id}`, {
         method: "PUT",

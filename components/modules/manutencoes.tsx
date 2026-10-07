@@ -32,7 +32,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { PlacaInput } from "@/components/ui/placa-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -857,11 +856,11 @@ export function Manutencoes() {
               <div role="tabpanel" className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Veículo/equipamento</Label>
-                  <PlacaInput
+                  <select
                     id="equipamento-os"
                     value={equipamentos.find((equipamento) => String(equipamento.id) === form.eqId)?.placa || form.placa || ""}
-                    options={equipamentos.map((equipamento) => equipamento.placa || "")}
-                    onValueChange={(placa) => {
+                    onChange={(event) => {
+                      const placa = event.target.value;
                       const equipamento = equipamentos.find((item) => item.placa?.toUpperCase() === placa.trim().toUpperCase());
                       if (equipamento) {
                         selecionarEquipamento(String(equipamento.id));
@@ -869,10 +868,18 @@ export function Manutencoes() {
                         setForm((atual) => ({ ...atual, eqId: "", eqLbl: "", placa }));
                       }
                     }}
-                    placeholder={carregandoEquipamentos ? "Carregando placas..." : "Selecione ou digite a placa"}
-                    className="h-10 bg-muted/20"
                     disabled={carregandoEquipamentos}
-                  />
+                    className="flex h-10 w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">
+                      {carregandoEquipamentos ? "Carregando placas..." : "Selecione uma placa"}
+                    </option>
+                    {Array.from(new Set([...equipamentos.map((equipamento) => equipamento.placa), form.placa].filter((placa): placa is string => Boolean(placa)))).map((placa) => (
+                      <option key={placa} value={placa}>
+                        {placa}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-1.5">

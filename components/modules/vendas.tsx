@@ -284,7 +284,10 @@ export function Vendas() {
   };
 
   const handleSave = async () => {
-    const payload = { ...formData };
+    const payload = {
+      ...formData,
+      data: formData.data || new Date().toISOString().slice(0, 10),
+    };
     if (editingVenda) {
       await fetch(`/api/vendas/${editingVenda.id}`, {
         method: "PUT",

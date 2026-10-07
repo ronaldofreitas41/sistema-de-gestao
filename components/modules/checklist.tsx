@@ -100,7 +100,6 @@ export function ComponenteChecklist() {
   }
 
   async function handleSaveModel() {
-    if (!modelForm.nome.trim()) return;
     const url = editingModel ? `/api/checklists/${editingModel.id}` : "/api/checklists";
     await fetch(url, {
       method: editingModel ? "PUT" : "POST",

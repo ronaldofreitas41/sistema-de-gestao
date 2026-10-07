@@ -216,10 +216,6 @@ export function Funcionarios() {
     setDialogOpen(true);
   }
   async function handleSave() {
-    if (!formData.nome.trim()) {
-      alert("Informe o nome do funcionário.");
-      return;
-    }
     try {
       setSaving(true);
       const payload = {

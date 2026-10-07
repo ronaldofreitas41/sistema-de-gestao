@@ -276,7 +276,7 @@ export default function AcompRevisaoPage() {
   }
 
   async function salvar() {
-    if ((!form.equipamentoId && !form.placaManual.trim()) || salvando) return;
+    if (salvando) return;
     setSalvando(true);
     const calculo = calcularSituacao(form);
     const dados = {
@@ -797,7 +797,7 @@ export default function AcompRevisaoPage() {
             <Button
               type="button"
               onClick={salvar}
-              disabled={salvando || (!form.equipamentoId && !form.placaManual.trim())}
+              disabled={salvando}
             >
               {salvando ? "Salvando..." : "Salvar acompanhamento"}
             </Button>

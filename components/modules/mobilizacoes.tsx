@@ -22,9 +22,6 @@ import { generateMobilizacaoPDF } from "../../lib/pdf/pdfMobilizacao";
 
 type MobilizacaoForm = Omit<Mobilizacao, "id">;
 
-type FotosPreview = Record<string, string[]>;
-
-
 const formularioInicial: MobilizacaoForm = {
   equipamento_id: "",
   contrato_id: "",
@@ -81,7 +78,6 @@ export function Mobilizacoes() {
   const [checklists, setChecklists] = useState<any[]>([]);
   const [anoFiltro, setAnoFiltro] = useState("todos");
   const [mostrarArquivadas, setMostrarArquivadas] = useState(false);
-  const [fotosPreview, setFotosPreview] = useState<FotosPreview>({});
   const [visualizando, setVisualizando] = useState<Mobilizacao | null>(null);
   const [visualizacaoOpen, setVisualizacaoOpen] = useState(false);
 
@@ -155,44 +151,6 @@ export function Mobilizacoes() {
     }));
   }
 
-  function renderFotosPreview(grupo: string) {
-    const previews = fotosPreview[grupo] || [];
-
-    if (previews.length === 0) {
-      return null;
-    }
-
-    return (
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-        {previews.map((src, index) => (
-          <div
-            key={`${grupo}-${index}-${src}`}
-            className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
-          >
-            <img
-              src={src}
-              alt={`Foto ${index + 1}`}
-              className="h-full w-full object-cover"
-            />
-
-            <button
-              type="button"
-              onClick={() => removerFoto(grupo, index)}
-              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
-              aria-label={`Remover foto ${index + 1}`}
-            >
-              <X className="h-4 w-4" />
-            </button>
-
-            <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 text-center text-[10px] text-white">
-              Foto {index + 1}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   async function adicionarFoto(
     grupo: string,
     event: React.ChangeEvent<HTMLInputElement>
@@ -203,38 +161,7 @@ export function Mobilizacoes() {
       return;
     }
 
-    const limites: Record<string, number> = {
-      frente: 1,
-      traseira: 1,
-      lateral_esquerda: 1,
-      lateral_direita: 1,
-      painel_km: 1,
-      implementos: 4,
-      interior_cabine: 4,
-      macaco_chave: 1,
-      triangulo_reboque: 1,
-      cabo_forca: 1,
-      calco_cones: 1,
-      outros_acessorios: 5,
-      avarias: 5,
-      cnh_motorista: 5,
-    };
-
-    const limite = limites[grupo] ?? 1;
-
-    const existentes = form.fotos?.[grupo] || [];
-
-    const quantidadeDisponivel = limite - existentes.length;
-
-    if (quantidadeDisponivel <= 0) {
-      event.target.value = "";
-      return;
-    }
-
-    const arquivosSelecionados = Array.from(files).slice(
-      0,
-      quantidadeDisponivel
-    );
+    const arquivosSelecionados = Array.from(files);
 
     try {
       const novasFotos = await Promise.all(
@@ -259,16 +186,6 @@ export function Mobilizacoes() {
         })
       );
 
-      // Atualiza preview
-      setFotosPreview((atual) => ({
-        ...atual,
-        [grupo]: [
-          ...(atual[grupo] || []),
-          ...novasFotos,
-        ],
-      }));
-
-      // Atualiza formulário
       setForm((atual) => ({
         ...atual,
         fotos: {
@@ -288,13 +205,6 @@ export function Mobilizacoes() {
   }
 
   function removerFoto(grupo: string, index: number) {
-    setFotosPreview((atual) => ({
-      ...atual,
-      [grupo]: (atual[grupo] || []).filter(
-        (_, i) => i !== index
-      ),
-    }));
-
     setForm((atual) => ({
       ...atual,
       fotos: {
@@ -308,7 +218,6 @@ export function Mobilizacoes() {
 
   function novaMobilizacao() {
     setEditando(null);
-    setFotosPreview({});
     setForm({
       ...formularioInicial,
       pneus_por_eixo: structuredClone(formularioInicial.pneus_por_eixo),
@@ -319,7 +228,6 @@ export function Mobilizacoes() {
 
   function editar(mobilizacao: Mobilizacao) {
     setEditando(mobilizacao);
-    setFotosPreview({});
     setForm({
       equipamento_id: mobilizacao.equipamento_id,
       contrato_id: mobilizacao.contrato_id,
@@ -349,7 +257,7 @@ export function Mobilizacoes() {
   }
 
   async function salvar() {
-    if (!form.contratante || !form.data || salvando) return;
+    if (salvando) return;
     setSalvando(true);
     try {
       const { equipamento_id, contrato_id, ...dadosForm } = form;
@@ -882,7 +790,7 @@ export function Mobilizacoes() {
             <div className="space-y-4 border-t pt-4">
               <h3 className="font-semibold text-foreground">Relatório Fotográfico (vitória)</h3>
               <p className="text-xs text-muted-foreground">
-                Só aparece a foto do EIXO que estiver preenchido na tabela de pneus. Implementos e Interior: mín. 4 fotos.
+                Adicione quantas fotos forem necessárias em cada categoria. O preenchimento das fotos é opcional.
               </p>
               <div className="space-y-4">
                 {gruposFotos.map((item: any) => (
@@ -891,10 +799,8 @@ export function Mobilizacoes() {
                     id={item.id}
                     grupo={item.grupo}
                     titulo={item.titulo}
-                    limite={item.limite}
                     opcional={item.opcional}
-                    fotos={form.fotos?.[item.grupo] || []}
-                    previews={fotosPreview[item.grupo] || []}
+                    previews={form.fotos?.[item.grupo] || []}
                     onAdicionar={adicionarFoto}
                     onRemover={removerFoto}
                   />
@@ -907,7 +813,7 @@ export function Mobilizacoes() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={salvar} disabled={salvando || !form.contratante || !form.data}>
+            <Button onClick={salvar} disabled={salvando}>
               {salvando ? "Salvando..." : "Salvar"}
             </Button>
           </div>
