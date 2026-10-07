@@ -314,7 +314,7 @@ export interface Checklist {
 
 export interface Medicao {
   id: string;
-  placas: string[];
+  placas: Array<string | { placa: string; valor: number; valor_calculado?: number }>;
   tipoCobranca: string;
   valor: number;
   terceiro: boolean;
@@ -498,4 +498,3 @@ export type Mobilizacao = {
   cliente?: string | null;
   codigo?: string | null;
 };
-

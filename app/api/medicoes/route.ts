@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { list } from "@/lib/crud-prisma";
+import { calcularPlacasMedicao, contarDiasPeriodoMedicao } from "@/lib/medicoes";
 import { prisma } from "@/lib/prisma";
 
 const TABLE = "mh3_medicoes";
@@ -23,43 +24,90 @@ const FIELDS = [
   "cliente_id",
 ];
 
-function contarDiasPeriodo(periodo: string): number | null {
-  const intervalo = periodo.match(/^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i);
-  if (intervalo) {
-    const inicio = new Date(`${intervalo[1]}T00:00:00Z`);
-    const fim = new Date(`${intervalo[2]}T00:00:00Z`);
-    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime()) || fim < inicio) return null;
-    return Math.floor((fim.getTime() - inicio.getTime()) / 86_400_000) + 1;
-  }
-
-  const mes = periodo.match(/^(\d{4})-(\d{2})$/);
-  return mes ? new Date(Number(mes[1]), Number(mes[2]), 0).getDate() : null;
-}
-
 export async function GET(request: NextRequest) {
   return list(TABLE, request, FIELDS);
 }
 
 export async function POST(request: NextRequest) {
+  let body: Record<string, any>;
   try {
-    const body = await request.json();
-    const valor = Number(body.valor) || 0;
-    const terceiro = Boolean(body.terceiro);
-    const valorTerceiro = Number(body.valor_terceiro) || 0;
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "JSON inválido." }, { status: 400 });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return Response.json({ error: "O conteúdo enviado é inválido." }, { status: 400 });
+  }
+
+  try {
+    const idsVendas: string[] = Array.isArray(body.vendas)
+      ? [...new Set(body.vendas.map((venda: { id?: unknown }) => venda?.id).filter((id: unknown): id is string => typeof id === "string" && id.length > 0))]
+      : [];
+    if (Array.isArray(body.vendas) && idsVendas.length !== body.vendas.length) {
+      return Response.json({ error: "A lista de vendas selecionadas é inválida." }, { status: 400 });
+    }
+    const registrosVendas = idsVendas.length
+      ? await prisma.mh3_vendas.findMany({
+          where: { id: { in: idsVendas }, em_medicao: true, status: { not: "cancelado" } },
+          select: {
+            id: true,
+            numero: true,
+            cliente: true,
+            total: true,
+            sinal_medicao: true,
+            placa_medicao: true,
+          },
+        })
+      : [];
+    if (registrosVendas.length !== idsVendas.length) {
+      return Response.json({ error: "Uma ou mais vendas não estão disponíveis para medição." }, { status: 400 });
+    }
+    const vendas = registrosVendas.map((venda) => ({
+      id: venda.id,
+      numero: venda.numero,
+      cliente: venda.cliente,
+      total: Number(venda.total),
+      sinal_medicao: venda.sinal_medicao,
+      placa_medicao: venda.placa_medicao,
+    }));
     const dataMedicao = new Date(body.data_medicao);
     const id = body.id || crypto.randomUUID();
     const periodo = String(body.periodo || dataMedicao.toISOString().slice(0, 7));
+    const diasInformados = Number(body.dias_mes);
+    const diasMes = body.tipo_cobranca === "Valor Mensal"
+      ? diasInformados > 0 ? diasInformados : contarDiasPeriodoMedicao(periodo)
+      : null;
+    let calculoPlacas: ReturnType<typeof calcularPlacasMedicao>;
+    try {
+      calculoPlacas = calcularPlacasMedicao(
+        body.placas || [],
+        String(body.tipo_cobranca || ""),
+        diasMes || 0,
+        Number(body.horas_extras) || 0,
+      );
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "A lista de placas ou seus valores é inválida.",
+      }, { status: 400 });
+    }
+    const ajusteVendas = vendas.reduce(
+      (total, venda) => total + (venda.sinal_medicao === "-" ? -1 : 1) * venda.total,
+      0,
+    );
+    const valorBase = calculoPlacas.detalhadas
+      ? calculoPlacas.total + (Number(body.valor_sem_placa) || 0)
+      : Number(body.valor) || 0;
+    const valor = valorBase + ajusteVendas;
+    const terceiro = Boolean(body.terceiro);
+    const valorTerceiro = Number(body.valor_terceiro) || 0;
     const competencia = periodo.match(/^(\d{4}-\d{2})/)?.[1]
       || dataMedicao.toISOString().slice(0, 7);
-    const diasMes = body.tipo_cobranca === "Valor Mensal"
-      ? Number(body.dias_mes) || contarDiasPeriodo(periodo)
-      : null;
 
     const resultado = await prisma.$transaction(async (tx) => {
       const medicao = await tx.mh3_medicoes.create({
         data: {
           id,
-          placas: body.placas || [],
+          placas: calculoPlacas.detalhadas ? calculoPlacas.placas : body.placas || [],
           tipo_cobranca: body.tipo_cobranca,
           dias_mes: diasMes,
           valor,
@@ -75,6 +123,7 @@ export async function POST(request: NextRequest) {
           conta_recebimento_id: body.conta_recebimento_id || null,
           obs_internas: body.obs_internas || null,
           cliente_id: body.cliente_id || null,
+          vendas,
         },
       });
 
@@ -110,7 +159,8 @@ export async function POST(request: NextRequest) {
     });
 
     return Response.json(resultado, { status: 201 });
-  } catch {
-    return Response.json({ error: "JSON inválido." }, { status: 400 });
+  } catch (error) {
+    console.error("Erro ao criar medição:", error);
+    return Response.json({ error: "Não foi possível criar a medição." }, { status: 500 });
   }
 }

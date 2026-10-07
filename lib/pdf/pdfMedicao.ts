@@ -1,3 +1,5 @@
+import { obterPlacasMedicao } from "@/lib/medicoes";
+
 function escaparHtml(valor: unknown): string {
   return String(valor ?? "")
     .replace(/&/g, "&amp;")
@@ -33,10 +35,23 @@ export function gerarPdfMedicao(
   medicao: any,
   tipoDocumento: "cliente" | "terceiro" = "cliente",
 ) {
-  const placas = medicao.placas?.join(", ") || "-";
+  const placasDetalhadas = Array.isArray(medicao.placas) && medicao.placas.length > 0 &&
+    medicao.placas.every(
+      (placa: unknown) => placa && typeof placa === "object" &&
+        "valor_calculado" in placa && Number.isFinite(Number(placa.valor_calculado)),
+    );
+  const placasMedicao = obterPlacasMedicao(medicao.placas);
+  const placas = placasMedicao.map((placa) => placa.placa).join(", ") || "-";
   const parceiro = medicao.parceiro || "-";
   const periodo = formatarPeriodoPdf(medicao.periodo);
-  const valorLocacao = Number(medicao.valor) || 0;
+  const vendas = Array.isArray(medicao.vendas) ? medicao.vendas : [];
+  const valorAjusteVendas = vendas.reduce(
+    (total: number, venda: { total?: number | string; sinal_medicao?: string }) =>
+      total + (venda.sinal_medicao === "-" ? -1 : 1) * (Number(venda.total) || 0),
+    0,
+  );
+  const valorMedicao = Number(medicao.valor) || 0;
+  const valorLocacao = valorMedicao - valorAjusteVendas;
   const valorTerceiro = Number(medicao.valor_terceiro) || 0;
   const horasExtras = Number(medicao.horas_extras) || 0;
   const valorHoraExtra = Number(
@@ -71,7 +86,7 @@ export function gerarPdfMedicao(
   `;
 
   const totalHorasExtras = horasExtras * valorHoraExtra;
-  const valorCliente = valorLocacao + totalHorasExtras;
+  const valorCliente = valorMedicao + totalHorasExtras;
   const documentoTerceiro = tipoDocumento === "terceiro";
   const valorLiquido = documentoTerceiro ? valorTerceiro : valorCliente;
   const dataEmissao = new Date().toLocaleDateString("pt-BR");
@@ -83,7 +98,21 @@ export function gerarPdfMedicao(
         <td class="valor">${formatarValorPdf(valorTerceiro)}</td>
       </tr>
     `]
-    : [`
+    : placasDetalhadas
+      ? placasMedicao.map((placa) => {
+          const descricao = tipoCobranca === "Valor Mensal"
+            ? `Placa ${escaparHtml(placa.placa)} — ${formatarValorPdf(placa.valor)} ÷ 30 × ${diasNoMes} dia(s)`
+            : valorPorHora
+              ? `Placa ${escaparHtml(placa.placa)} — ${quantidadeHoras}h × ${formatarValorPdf(placa.valor)}/h`
+              : `Placa ${escaparHtml(placa.placa)} — valor direto`;
+          return `
+            <tr>
+              <td>${descricao}</td>
+              <td class="valor">${formatarValorPdf(placa.valor_calculado)}</td>
+            </tr>
+          `;
+        })
+      : [`
       <tr>
         <td>${valorPorHora
           ? `Placa: ${escaparHtml(placas)} — ${quantidadeHoras}h × ${formatarValorPdf(valorHora)}`
@@ -91,6 +120,18 @@ export function gerarPdfMedicao(
         <td class="valor">${formatarValorPdf(valorLocacao)}</td>
       </tr>
     `];
+
+  if (!documentoTerceiro) {
+    for (const venda of vendas) {
+      const sinal = venda.sinal_medicao === "-" ? "-" : "+";
+      linhas.push(`
+        <tr>
+          <td>Venda ${escaparHtml(venda.numero || "")} — ${escaparHtml(venda.cliente || "")}${venda.placa_medicao ? ` (${escaparHtml(venda.placa_medicao)})` : ""}</td>
+          <td class="valor">${sinal} ${formatarValorPdf(venda.total)}</td>
+        </tr>
+      `);
+    }
+  }
 
   if (!documentoTerceiro && horasExtras > 0 && valorHoraExtra > 0) {
     linhas.push(`

@@ -40,6 +40,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Medicao } from "@/lib/types";
+import {
+  calcularPlacasMedicao,
+  calcularValorPlaca,
+  obterPlacasMedicao,
+  type PlacaMedicao,
+} from "@/lib/medicoes";
 import { gerarPdfMedicao } from "@/lib/pdf/pdfMedicao";
 import {
   deleteRegistro,
@@ -48,12 +54,33 @@ import {
   getPlacas,
 } from "@/lib/utils";
 
-type MedicaoApi = Medicao & {
+type FormPlaca = {
+  placa: string;
+  valor: number;
+};
+
+type MedicaoApi = Omit<Medicao, "placas"> & {
+  placas: Array<string | PlacaMedicao>;
   tipo_cobranca?: string | null;
   dias_mes?: string | number | null;
   valor_terceiro?: string | number | null;
   horas_extras?: string | number | null;
   valor_hora_extra?: string | number | null;
+  vendas?: VendaMedicao[] | null;
+};
+
+type VendaMedicao = {
+  id: string;
+  numero: string;
+  cliente: string;
+  total: number | string;
+  sinal_medicao?: string | null;
+  placa_medicao?: string | null;
+};
+
+type VendaApi = VendaMedicao & {
+  em_medicao: boolean;
+  status?: string | null;
 };
 
 type Parceiro = {
@@ -62,9 +89,9 @@ type Parceiro = {
 };
 
 type FormData = {
-  placas: string;
+  placas: FormPlaca[];
+  valor_sem_placa: string;
   tipo_cobranca: string;
-  valor: string;
   quantidade_horas: string;
   terceiro: string;
   valor_terceiro: string;
@@ -78,6 +105,7 @@ type FormData = {
   periodo_fim: string;
   dias_mes: string;
   obs_internas: string;
+  vendas: VendaMedicao[];
 };
 
 function dataInputLocal(data: Date) {
@@ -99,7 +127,9 @@ function intervaloMesAtual() {
 
 function separarPeriodo(periodo?: string | null) {
   if (!periodo) return { inicio: "", fim: "" };
-  const intervalo = periodo.match(/^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i);
+  const intervalo = periodo.match(
+    /^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i,
+  );
   if (intervalo) return { inicio: intervalo[1], fim: intervalo[2] };
 
   const mes = periodo.match(/^(\d{4})-(\d{2})$/);
@@ -120,13 +150,28 @@ function contarDiasPeriodo(inicio: string, fim: string) {
   if (!inicio || !fim) return "";
   const dataInicio = new Date(`${inicio}T00:00:00`);
   const dataFim = new Date(`${fim}T00:00:00`);
-  if (Number.isNaN(dataInicio.getTime()) || Number.isNaN(dataFim.getTime()) || dataFim < dataInicio) return "";
-  return String(Math.floor((dataFim.getTime() - dataInicio.getTime()) / 86_400_000) + 1);
+  if (
+    Number.isNaN(dataInicio.getTime()) ||
+    Number.isNaN(dataFim.getTime()) ||
+    dataFim < dataInicio
+  )
+    return "";
+  return String(
+    Math.floor((dataFim.getTime() - dataInicio.getTime()) / 86_400_000) + 1,
+  );
+}
+
+function calcularValorVendas(vendas: VendaMedicao[]) {
+  return vendas.reduce((total, venda) => {
+    const sinal = venda.sinal_medicao === "-" ? -1 : 1;
+    return total + sinal * (Number(venda.total) || 0);
+  }, 0);
 }
 
 function formatarPeriodoExibicao(periodo?: string | null) {
   const { inicio, fim } = separarPeriodo(periodo);
-  const formatar = (data: string) => data ? data.split("-").reverse().join("/") : "";
+  const formatar = (data: string) =>
+    data ? data.split("-").reverse().join("/") : "";
   if (!inicio) return periodo || "-";
   return `${formatar(inicio)} a ${formatar(fim)}`;
 }
@@ -134,9 +179,9 @@ function formatarPeriodoExibicao(periodo?: string | null) {
 const periodoInicial = intervaloMesAtual();
 
 const formularioInicial: FormData = {
-  placas: "",
-  tipo_cobranca: "",
-  valor: "",
+  placas: [],
+  valor_sem_placa: "0",
+  tipo_cobranca: "Valor Direito",
   quantidade_horas: "0",
   terceiro: "nao",
   valor_terceiro: "",
@@ -150,22 +195,17 @@ const formularioInicial: FormData = {
   periodo_fim: periodoInicial.fim,
   dias_mes: "",
   obs_internas: "",
+  vendas: [],
 };
-
-
-
-function placasDoFormulario(placas: string) {
-  return placas
-    .split(",")
-    .map((placa) => placa.trim())
-    .filter(Boolean);
-}
 
 export function Medicoes() {
   const [medicoes, setMedicoes] = useState<MedicaoApi[]>([]);
+  const [vendas, setVendas] = useState<VendaApi[]>([]);
   const [parceiros, setParceiros] = useState<Parceiro[]>([]);
   const [placasDisponiveis, setPlacasDisponiveis] = useState<string[]>([]);
   const [placaSelecionada, setPlacaSelecionada] = useState("");
+  const [valorPlaca, setValorPlaca] = useState("");
+  const [vendaSelecionadaId, setVendaSelecionadaId] = useState("");
   const [busca, setBusca] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MedicaoApi | null>(null);
@@ -186,9 +226,22 @@ export function Medicoes() {
     fetch("/api/parceiros")
       .then((response) => response.json())
       .then((payload) => setParceiros(payload.data || []));
+    fetch("/api/vendas")
+      .then(async (response) => {
+        if (!response.ok)
+          throw new Error("Não foi possível carregar as vendas.");
+        const payload = await response.json();
+        setVendas(payload.data || []);
+      })
+      .catch((error) =>
+        console.error("Erro ao carregar vendas para medição:", error),
+      );
   }, []);
 
-  function alterarCampo(campo: keyof FormData, valor: string) {
+  function alterarCampo(
+    campo: Exclude<keyof FormData, "placas" | "vendas">,
+    valor: string,
+  ) {
     setForm((atual) => ({ ...atual, [campo]: valor }));
   }
 
@@ -196,21 +249,30 @@ export function Medicoes() {
     setForm((atual) => ({
       ...atual,
       tipo_cobranca: valor,
-      quantidade_horas: valor === "Valor por Hora" ? atual.quantidade_horas : "0",
-      dias_mes: valor === "Valor Mensal"
-        ? contarDiasPeriodo(atual.periodo_inicio, atual.periodo_fim)
-        : "",
+      quantidade_horas:
+        valor === "Valor por Hora" ? atual.quantidade_horas : "0",
+      dias_mes:
+        valor === "Valor Mensal"
+          ? contarDiasPeriodo(atual.periodo_inicio, atual.periodo_fim)
+          : "",
     }));
   }
 
-  function alterarDataPeriodo(campo: "periodo_inicio" | "periodo_fim", valor: string) {
+  function alterarDataPeriodo(
+    campo: "periodo_inicio" | "periodo_fim",
+    valor: string,
+  ) {
     setForm((atual) => {
       const periodoAtualizado = { ...atual, [campo]: valor };
       return {
         ...periodoAtualizado,
-        dias_mes: atual.tipo_cobranca === "Valor Mensal"
-          ? contarDiasPeriodo(periodoAtualizado.periodo_inicio, periodoAtualizado.periodo_fim)
-          : "",
+        dias_mes:
+          atual.tipo_cobranca === "Valor Mensal"
+            ? contarDiasPeriodo(
+              periodoAtualizado.periodo_inicio,
+              periodoAtualizado.periodo_fim,
+            )
+            : "",
       };
     });
   }
@@ -227,20 +289,56 @@ export function Medicoes() {
   function adicionarPlaca() {
     const placa = placaSelecionada.trim().toUpperCase();
     if (!placa) return;
-    const placas = placasDoFormulario(form.placas);
-    if (placas.some((atual) => atual.toUpperCase() === placa)) return;
+    if (form.placas.some((atual) => atual.placa === placa)) return;
 
-    alterarCampo("placas", [...placas, placa].join(", "));
+    setForm((atual) => ({
+      ...atual,
+      placas: [
+        ...atual.placas,
+        { placa, valor: Math.round((Number(valorPlaca) || 0) * 100) / 100 },
+      ],
+    }));
     setPlacaSelecionada("");
+    setValorPlaca("");
+  }
+
+  function adicionarVenda() {
+    const venda = vendas.find((item) => item.id === vendaSelecionadaId);
+    if (!venda) return;
+    if (form.vendas.some((item) => item.id === venda.id)) {
+      setVendaSelecionadaId("");
+      return;
+    }
+
+    setForm((atual) => ({
+      ...atual,
+      vendas: [
+        ...atual.vendas,
+        {
+          id: venda.id,
+          numero: venda.numero,
+          cliente: venda.cliente,
+          total: venda.total,
+          sinal_medicao: venda.sinal_medicao,
+          placa_medicao: venda.placa_medicao,
+        },
+      ],
+    }));
+    setVendaSelecionadaId("");
+  }
+
+  function removerVenda(id: string) {
+    setForm((atual) => ({
+      ...atual,
+      vendas: atual.vendas.filter((venda) => venda.id !== id),
+    }));
   }
 
   function removerPlaca(placa: string) {
-    alterarCampo(
-      "placas",
-      placasDoFormulario(form.placas)
-        .filter((atual) => atual !== placa)
-        .join(", "),
-    );
+    setForm((atual) => ({
+      ...atual,
+      placas: atual.placas.filter((atual) => atual.placa !== placa),
+    }));
   }
 
   function novaMedicao() {
@@ -254,6 +352,8 @@ export function Medicoes() {
       dias_mes: "",
     });
     setPlacaSelecionada("");
+    setValorPlaca("");
+    setVendaSelecionadaId("");
     setDialogOpen(true);
   }
 
@@ -261,11 +361,37 @@ export function Medicoes() {
     setEditing(medicao);
     const intervalo = separarPeriodo(medicao.periodo);
     const tipoCobranca = medicao.tipo_cobranca || medicao.tipoCobranca || "";
+    const vendasMedicao = Array.isArray(medicao.vendas) ? medicao.vendas : [];
+    const valorBase =
+      (Number(medicao.valor) || 0) - calcularValorVendas(vendasMedicao);
+    const quantidadeHoras = Number(medicao.horas_extras) || 0;
+    const placasSalvas = Array.isArray(medicao.placas) ? medicao.placas : [];
+    const placasDetalhadas =
+      placasSalvas.length > 0 &&
+      placasSalvas.every(
+        (placa) =>
+          typeof placa !== "string" && typeof placa.valor !== "undefined",
+      );
+    const placasNormalizadas = obterPlacasMedicao(placasSalvas);
+    const valorPorVeiculoLegado =
+      placasNormalizadas.length > 0
+        ? valorBase /
+        placasNormalizadas.length /
+        (tipoCobranca === "Valor por Hora" && quantidadeHoras > 0
+          ? quantidadeHoras
+          : 1)
+        : 0;
     setForm({
-      placas: medicao.placas?.join(", ") || "",
+      placas: placasNormalizadas.map((placa) => ({
+        placa: placa.placa,
+        valor: placasDetalhadas
+          ? Number(placa.valor) || 0
+          : valorPorVeiculoLegado,
+      })),
+      valor_sem_placa:
+        placasNormalizadas.length === 0 ? String(valorBase) : "0",
       tipo_cobranca: tipoCobranca,
-      valor: String(medicao.valor || ""),
-      quantidade_horas: String(medicao.horas_extras || "0"),
+      quantidade_horas: String(quantidadeHoras),
       terceiro: medicao.terceiro ? "sim" : "nao",
       valor_terceiro: String(medicao.valor_terceiro || ""),
       horas_extras: String(medicao.horas_extras || "0"),
@@ -278,32 +404,50 @@ export function Medicoes() {
       status: medicao.status || "pendente",
       periodo_inicio: intervalo.inicio,
       periodo_fim: intervalo.fim,
-      dias_mes: tipoCobranca === "Valor Mensal"
-        ? String(medicao.dias_mes ?? contarDiasPeriodo(intervalo.inicio, intervalo.fim))
-        : "",
+      dias_mes:
+        tipoCobranca === "Valor Mensal"
+          ? String(
+            medicao.dias_mes ??
+            contarDiasPeriodo(intervalo.inicio, intervalo.fim),
+          )
+          : "",
       obs_internas: medicao.obs_internas || "",
+      vendas: vendasMedicao,
     });
     setPlacaSelecionada("");
+    setValorPlaca("");
+    setVendaSelecionadaId("");
     setDialogOpen(true);
   }
 
   async function salvar() {
-    const diasPeriodo = contarDiasPeriodo(form.periodo_inicio, form.periodo_fim);
+    const diasPeriodo = contarDiasPeriodo(
+      form.periodo_inicio,
+      form.periodo_fim,
+    );
 
-    const valorHora = Number(form.valor) || 0;
     const quantidadeHoras = Number(form.quantidade_horas) || 0;
+    const diasMes = Number(form.dias_mes || diasPeriodo) || 0;
+    const valorBase = form.placas.reduce(
+      (total, placa) =>
+        total +
+        calcularValorPlaca(
+          placa.valor,
+          form.tipo_cobranca,
+          diasMes,
+          quantidadeHoras,
+        ),
+      Number(form.valor_sem_placa) || 0,
+    );
     const payload = {
-      placas: placasDoFormulario(form.placas),
+      placas: form.placas,
       tipo_cobranca: form.tipo_cobranca,
-      valor:
-        form.tipo_cobranca === "Valor por Hora"
-          ? valorHora * quantidadeHoras
-          : valorHora,
+      valor: valorBase + (editing ? calcularValorVendas(form.vendas) : 0),
+      valor_sem_placa: Number(form.valor_sem_placa) || 0,
+      vendas: form.vendas,
       terceiro: form.terceiro === "sim",
       valor_terceiro: Number(form.valor_terceiro) || 0,
-      dias_mes: form.tipo_cobranca === "Valor Mensal"
-        ? Number(form.dias_mes || diasPeriodo) || null
-        : null,
+      dias_mes: form.tipo_cobranca === "Valor Mensal" ? diasMes || null : null,
       horas_extras: ehValorPorHora
         ? quantidadeHoras
         : Number(form.horas_extras) || 0,
@@ -314,19 +458,37 @@ export function Medicoes() {
       parceiro: form.parceiro,
       observacoes: form.observacoes,
       status: form.status,
-      periodo: form.periodo_inicio && form.periodo_fim
-        ? `${form.periodo_inicio} a ${form.periodo_fim}`
-        : "",
+      periodo:
+        form.periodo_inicio && form.periodo_fim
+          ? `${form.periodo_inicio} a ${form.periodo_fim}`
+          : "",
       obs_internas: form.obs_internas,
     };
-
-    await fetch(editing ? `/api/medicoes/${editing.id}` : "/api/medicoes", {
-      method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    await carregar();
-    setDialogOpen(false);
+    try {
+      const response = await fetch(
+        editing ? `/api/medicoes/${editing.id}` : "/api/medicoes",
+        {
+          method: editing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!response.ok) {
+        const resposta = await response.json().catch(() => null);
+        throw new Error(
+          resposta?.error || "Não foi possível salvar a medição.",
+        );
+      }
+      await carregar();
+      setDialogOpen(false);
+    } catch (error) {
+      console.error("Erro ao salvar medição:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar a medição.",
+      );
+    }
   }
 
   async function excluir(id: string) {
@@ -340,13 +502,46 @@ export function Medicoes() {
   }
 
   const filtradas = medicoes.filter((medicao) =>
-    `${medicao.parceiro || ""} ${medicao.periodo || ""} ${(medicao.placas || []).join(" ")}`
+    `${medicao.parceiro || ""} ${medicao.periodo || ""} ${obterPlacasMedicao(
+      medicao.placas,
+    )
+      .map((placa) => placa.placa)
+      .join(" ")}`
       .toLowerCase()
       .includes(busca.toLowerCase()),
   );
-  const placasAdicionadas = placasDoFormulario(form.placas);
+  const placasAdicionadas = form.placas;
   const ehValorPorHora = form.tipo_cobranca === "Valor por Hora";
   const ehTerceiro = form.terceiro === "sim";
+  const diasMesForm = Number(form.dias_mes) || 0;
+  const quantidadeHorasForm = Number(form.quantidade_horas) || 0;
+  const valorBaseForm = form.placas.reduce(
+    (total, placa) =>
+      total +
+      calcularValorPlaca(
+        placa.valor,
+        form.tipo_cobranca,
+        diasMesForm,
+        quantidadeHorasForm,
+      ),
+    Number(form.valor_sem_placa) || 0,
+  );
+  const vendasJaVinculadas = new Set(
+    medicoes
+      .filter((medicao) => String(medicao.id) !== String(editing?.id))
+      .flatMap((medicao) =>
+        (Array.isArray(medicao.vendas) ? medicao.vendas : []).map(
+          (venda) => venda.id,
+        ),
+      ),
+  );
+  const vendasDisponiveis = vendas.filter(
+    (venda) =>
+      venda.em_medicao &&
+      venda.status !== "cancelado" &&
+      !vendasJaVinculadas.has(venda.id) &&
+      !form.vendas.some((selecionada) => selecionada.id === venda.id),
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -435,9 +630,13 @@ export function Medicoes() {
                   <TableBody>
                     {filtradas.map((medicao) => (
                       <TableRow key={medicao.id}>
-                        <TableCell>{formatarPeriodoExibicao(medicao.periodo)}</TableCell>
                         <TableCell>
-                          {medicao.placas?.join(", ") || "-"}
+                          {formatarPeriodoExibicao(medicao.periodo)}
+                        </TableCell>
+                        <TableCell>
+                          {obterPlacasMedicao(medicao.placas)
+                            .map((placa) => placa.placa)
+                            .join(", ") || "-"}
                         </TableCell>
                         <TableCell>{medicao.parceiro || "-"}</TableCell>
                         <TableCell>
@@ -448,7 +647,8 @@ export function Medicoes() {
                         </TableCell>
                         <TableCell>{medicao.status}</TableCell>
                         <TableCell className="text-right">
-                          {medicao.terceiro && Number(medicao.valor_terceiro || 0) > 0 ? (
+                          {medicao.terceiro &&
+                            Number(medicao.valor_terceiro || 0) > 0 ? (
                             <div className="inline-flex items-center">
                               <Button
                                 type="button"
@@ -456,7 +656,9 @@ export function Medicoes() {
                                 size="icon"
                                 title="PDF do cliente"
                                 aria-label="Gerar PDF do cliente"
-                                onClick={() => gerarPdfMedicao(medicao, "cliente")}
+                                onClick={() =>
+                                  gerarPdfMedicao(medicao, "cliente")
+                                }
                               >
                                 <FileDown className="h-4 w-4 text-primary" />
                               </Button>
@@ -466,7 +668,9 @@ export function Medicoes() {
                                 size="icon"
                                 title="PDF do terceiro"
                                 aria-label="Gerar PDF do terceiro"
-                                onClick={() => gerarPdfMedicao(medicao, "terceiro")}
+                                onClick={() =>
+                                  gerarPdfMedicao(medicao, "terceiro")
+                                }
                               >
                                 <FileDown className="h-4 w-4 text-amber-600" />
                               </Button>
@@ -478,7 +682,9 @@ export function Medicoes() {
                               size="icon"
                               title="Gerar PDF da medição"
                               aria-label="Gerar PDF da medição"
-                              onClick={() => gerarPdfMedicao(medicao, "cliente")}
+                              onClick={() =>
+                                gerarPdfMedicao(medicao, "cliente")
+                              }
                             >
                               <FileDown className="h-4 w-4 text-primary" />
                             </Button>
@@ -522,35 +728,87 @@ export function Medicoes() {
           </DialogHeader>
           <div className="grid gap-4 py-2 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label>Placas</Label>
+              <Label>Placas desta medição</Label>
               <div className="space-y-2">
-                <div className="flex gap-2">
-                <PlacaInput
-                  id="placa-cadastrada-medicao"
-                  value={placaSelecionada}
-                  options={placasDisponiveis.filter((placa) => !placasAdicionadas.includes(placa))}
-                  onValueChange={setPlacaSelecionada}
-                  placeholder="Buscar placa cadastrada"
-                  showManualInput={false}
-                />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <PlacaInput
+                    id="placa-cadastrada-medicao"
+                    value={placaSelecionada}
+                    options={placasDisponiveis.filter(
+                      (placa) =>
+                        !placasAdicionadas.some(
+                          (adicionada) => adicionada.placa === placa,
+                        ),
+                    )}
+                    onValueChange={setPlacaSelecionada}
+                    placeholder="Selecionar placa..."
+                    showManualInput={false}
+                  />
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={valorPlaca}
+                    onChange={(event) => setValorPlaca(event.target.value)}
+                    placeholder={
+                      form.tipo_cobranca === "Valor Mensal"
+                        ? "Valor mensal (R$)"
+                        : ehValorPorHora
+                          ? "Valor/hora (R$)"
+                          : "Valor (R$)"
+                    }
+                    aria-label="Valor desta placa"
+                    className="sm:max-w-48"
+                  />
                   <Button
                     type="button"
-                    size="icon"
+                    className="sm:w-auto"
                     onClick={adicionarPlaca}
                     disabled={!placaSelecionada}
-                    aria-label="Adicionar placa"
-                    title="Adicionar placa"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="mr-1 h-4 w-4" />
+                    Adicionar
                   </Button>
                 </div>
                 <Input
                   value={placaSelecionada}
-                  onChange={(event) => setPlacaSelecionada(event.target.value.toUpperCase())}
+                  onChange={(event) =>
+                    setPlacaSelecionada(event.target.value.toUpperCase())
+                  }
                   placeholder="Ou digite uma placa manualmente"
                   aria-label="Digitar placa manualmente"
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Tipo de cobrança por veículo</Label>
+                <Select
+                  value={form.tipo_cobranca || "Valor Direito"}
+                  onValueChange={alterarTipoCobranca}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tipo de cobrança" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Valor Direito">Valor direto</SelectItem>
+                    <SelectItem value="Valor por Hora">
+                      Valor por hora
+                    </SelectItem>
+                    <SelectItem value="Valor Mensal">Valor mensal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.tipo_cobranca === "Valor Mensal" && (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Dias no mês</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={form.dias_mes}
+                    onChange={(e) => alterarCampo("dias_mes", e.target.value)}
+                  />
+                </div>
+              )}
               <div className="flex min-h-10 flex-wrap gap-2 rounded-md border border-border bg-slate-50 p-2">
                 {placasAdicionadas.length === 0 && (
                   <span className="text-sm text-muted-foreground">
@@ -559,47 +817,111 @@ export function Medicoes() {
                 )}
                 {placasAdicionadas.map((placa) => (
                   <div
-                    key={placa}
+                    key={placa.placa}
                     className="flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 text-sm"
                   >
                     <button
                       type="button"
-                      onClick={() => removerPlaca(placa)}
-                      aria-label={`Remover placa ${placa}`}
-                      title={`Remover placa ${placa}`}
+                      onClick={() => removerPlaca(placa.placa)}
+                      aria-label={`Remover placa ${placa.placa}`}
+                      title={`Remover placa ${placa.placa}`}
                       className="text-muted-foreground hover:text-destructive"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
-                    <span>{placa}</span>
+                    <span>
+                      {placa.placa}: {formatCurrency(placa.valor)}
+                      {" → "}
+                      {formatCurrency(
+                        calcularValorPlaca(
+                          placa.valor,
+                          form.tipo_cobranca,
+                          diasMesForm,
+                          quantidadeHorasForm,
+                        ),
+                      )}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Tipo de cobrança</Label>
-              <Select
-                value={form.tipo_cobranca}
-                onValueChange={alterarTipoCobranca}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Valor Direito">Valor Direto</SelectItem>
-                  <SelectItem value="Valor por Hora">Valor por Hora</SelectItem>
-                  <SelectItem value="Valor Mensal">Valor Mensal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{ehValorPorHora ? "Valor da hora" : "Valor"}</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={form.valor}
-                onChange={(e) => alterarCampo("valor", e.target.value)}
-              />
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Vendas marcadas para medição</Label>
+              {!editing && (
+                <div className="flex gap-2">
+                  <Select
+                    value={vendaSelecionadaId}
+                    onValueChange={setVendaSelecionadaId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar venda cadastrada" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendasDisponiveis.map((venda) => (
+                        <SelectItem key={venda.id} value={venda.id}>
+                          {`Venda ${venda.numero} — ${venda.cliente} — ${venda.placa_medicao || "Sem placa"} — ${venda.sinal_medicao === "-" ? "-" : "+"} ${formatCurrency(Number(venda.total) || 0)}`}
+                        </SelectItem>
+                      ))}
+                      {vendasDisponiveis.length === 0 && (
+                        <SelectItem value="sem-vendas" disabled>
+                          Nenhuma venda disponível para medição
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={adicionarVenda}
+                    disabled={!vendaSelecionadaId}
+                    aria-label="Adicionar venda à medição"
+                    title="Adicionar venda à medição"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              <div className="flex min-h-10 flex-wrap gap-2 rounded-md border border-border bg-slate-50 p-2">
+                {form.vendas.length === 0 ? (
+                  <span className="text-sm text-muted-foreground">
+                    {editing
+                      ? "Nenhuma venda vinculada a esta medição."
+                      : "Nenhuma venda adicionada."}
+                  </span>
+                ) : (
+                  form.vendas.map((venda) => (
+                    <div
+                      key={venda.id}
+                      className="flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 text-sm"
+                    >
+                      {!editing && (
+                        <button
+                          type="button"
+                          onClick={() => removerVenda(venda.id)}
+                          aria-label={`Remover venda ${venda.numero}`}
+                          title={`Remover venda ${venda.numero}`}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <span>
+                        Venda {venda.numero}:{" "}
+                        {venda.sinal_medicao === "-" ? "−" : "+"}
+                        {formatCurrency(Number(venda.total) || 0)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Ajuste das vendas:{" "}
+                {formatCurrency(calcularValorVendas(form.vendas))}. Total da
+                medição:{" "}
+                {formatCurrency(
+                  valorBaseForm + calcularValorVendas(form.vendas),
+                )}
+              </p>
             </div>
             {ehValorPorHora && (
               <div className="space-y-2">
@@ -617,10 +939,7 @@ export function Medicoes() {
             )}
             <div className="space-y-2">
               <Label>É de terceiro?</Label>
-              <Select
-                value={form.terceiro}
-                onValueChange={alterarTipoTerceiro}
-              >
+              <Select value={form.terceiro} onValueChange={alterarTipoTerceiro}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -657,7 +976,9 @@ export function Medicoes() {
                 <Input
                   type="date"
                   value={form.periodo_inicio}
-                  onChange={(event) => alterarDataPeriodo("periodo_inicio", event.target.value)}
+                  onChange={(event) =>
+                    alterarDataPeriodo("periodo_inicio", event.target.value)
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -665,22 +986,24 @@ export function Medicoes() {
                 <Input
                   type="date"
                   value={form.periodo_fim}
-                  onChange={(event) => alterarDataPeriodo("periodo_fim", event.target.value)}
+                  onChange={(event) =>
+                    alterarDataPeriodo("periodo_fim", event.target.value)
+                  }
                 />
               </div>
             </div>
-            {form.tipo_cobranca === "Valor Mensal" && (
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Dias no mês</Label>
-                <Input type="number" value={form.dias_mes} readOnly />
-              </div>
-            )}
             {ehTerceiro && (
               <div className="space-y-2 sm:col-span-2">
                 <Label>Parceiro</Label>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Select
-                    value={parceiros.some((parceiro) => parceiro.nome === form.parceiro) ? form.parceiro : ""}
+                    value={
+                      parceiros.some(
+                        (parceiro) => parceiro.nome === form.parceiro,
+                      )
+                        ? form.parceiro
+                        : ""
+                    }
                     onValueChange={(value) => alterarCampo("parceiro", value)}
                   >
                     <SelectTrigger>
@@ -696,7 +1019,9 @@ export function Medicoes() {
                   </Select>
                   <Input
                     value={form.parceiro}
-                    onChange={(event) => alterarCampo("parceiro", event.target.value)}
+                    onChange={(event) =>
+                      alterarCampo("parceiro", event.target.value)
+                    }
                     placeholder="Ou digite o parceiro manualmente"
                     aria-label="Digitar parceiro manualmente"
                   />

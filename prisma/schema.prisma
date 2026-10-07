@@ -452,6 +452,7 @@ model mh3_medicoes {
   conta_recebimento_id BigInt?
   obs_internas         String?             @db.VarChar(100)
   cliente_id           String?             @db.VarChar(255)
+  vendas               Json?
 
   @@map("mh3_medicoes")
 }
