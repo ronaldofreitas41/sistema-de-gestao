@@ -33,6 +33,7 @@ export function Relatorios() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [carregando, setCarregando] = useState(false);
+  const [erroCarregamento, setErroCarregamento] = useState("");
   const [dados, setDados] = useState<any>({});
 
   // Inicializar com datas do mês atual
@@ -49,16 +50,30 @@ export function Relatorios() {
 
   async function carregarDados() {
     setCarregando(true);
+    setErroCarregamento("");
     try {
-      const [vendas, medicoes, contas, despesas, equipamentos, clientes, estoque] = await Promise.all([
-        fetch("/api/vendas").then((r) => r.json()),
-        fetch("/api/medicoes").then((r) => r.json()),
-        fetch("/api/contas-receber").then((r) => r.json()),
-        fetch("/api/despesas").then((r) => r.json()),
-        fetch("/api/equipamentos").then((r) => r.json()),
-        fetch("/api/clientes").then((r) => r.json()),
-        fetch("/api/estoque").then((r) => r.json()),
-      ]);
+      const endpoints = [
+        "/api/vendas",
+        "/api/medicoes",
+        "/api/contas-receber",
+        "/api/despesas",
+        "/api/equipamentos",
+        "/api/clientes",
+        "/api/estoque",
+      ];
+      const respostas = await Promise.all(endpoints.map(async (endpoint) => {
+        const response = await fetch(endpoint);
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || `Falha ao carregar ${endpoint}.`);
+        }
+        const items = Array.isArray(payload) ? payload : payload.data;
+        if (!Array.isArray(items)) {
+          throw new Error(payload.error || `Resposta inválida ao carregar ${endpoint}.`);
+        }
+        return items;
+      }));
+      const [vendas, medicoes, contas, despesas, equipamentosArray, clientesArray, estoqueArray] = respostas;
 
       const inicio = new Date(dataInicio);
       const fim = new Date(dataFim);
@@ -68,19 +83,22 @@ export function Relatorios() {
       const filtrarPeriodo = (items: any[]) => {
         return Array.isArray(items)
           ? items.filter((item: any) => {
-            const data = new Date(item.data || item.data_vencimento || item.vencimento || "");
+            const data = new Date(
+              item.data ||
+              item.data_emissao ||
+              item.data_vencimento ||
+              item.vencimento ||
+              "",
+            );
             return data >= inicio && data <= fim;
           })
           : [];
       };
 
-      const vendasFiltradas = filtrarPeriodo(Array.isArray(vendas) ? vendas : vendas.data || []);
-      const medicoesFiltradas = filtrarPeriodo(Array.isArray(medicoes) ? medicoes : medicoes.data || []);
-      const contasFiltradas = filtrarPeriodo(Array.isArray(contas) ? contas : contas.data || []);
-      const despesasFiltradas = filtrarPeriodo(Array.isArray(despesas) ? despesas : despesas.data || []);
-      const equipamentosArray = Array.isArray(equipamentos) ? equipamentos : equipamentos.data || [];
-      const clientesArray = Array.isArray(clientes) ? clientes : clientes.data || [];
-      const estoqueArray = Array.isArray(estoque) ? estoque : estoque.data || [];
+      const vendasFiltradas = filtrarPeriodo(vendas);
+      const medicoesFiltradas = filtrarPeriodo(medicoes);
+      const contasFiltradas = filtrarPeriodo(contas);
+      const despesasFiltradas = filtrarPeriodo(despesas);
 
       setDados({
         vendas: vendasFiltradas,
@@ -93,6 +111,11 @@ export function Relatorios() {
       });
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
+      setErroCarregamento(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível carregar os dados dos relatórios.",
+      );
     } finally {
       setCarregando(false);
     }
@@ -110,7 +133,13 @@ export function Relatorios() {
     const receitaMedicoes = (dados.medicoes || []).reduce((sum: number, m: any) => sum + (Number(m.valor || m.total) || 0), 0);
     const receitaTotal = receitaVendas + receitaMedicoes;
 
-    const aReceber = (dados.contas || []).filter((c: any) => c.status !== "pago").reduce((sum: number, c: any) => sum + (Number(c.valor) || 0), 0);
+    const aReceber = (dados.contas || [])
+      .filter((conta: any) => String(conta.status || "").toLowerCase() !== "pago")
+      .reduce(
+        (sum: number, conta: any) =>
+          sum + (Number(conta.valor_total ?? conta.valor) || 0),
+        0,
+      );
     const despesasTotal = (dados.despesas || []).reduce((sum: number, d: any) => sum + (Number(d.valor) || 0), 0);
 
     const saldo = receitaTotal - despesasTotal;
@@ -232,6 +261,14 @@ export function Relatorios() {
         </header>
 
         <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-9">
+          {erroCarregamento && (
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              {erroCarregamento}
+            </div>
+          )}
           {/* Filtros */}
           <Card className="border-2 border-gray-600">
             <CardContent className="p-0">

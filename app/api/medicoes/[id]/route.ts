@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getById, remove, update } from "@/lib/crud-prisma";
+import { getById, update } from "@/lib/crud-prisma";
 import { calcularPlacasMedicao, contarDiasPeriodoMedicao } from "@/lib/medicoes";
 import { prisma } from "@/lib/prisma";
 
@@ -124,5 +124,41 @@ function bodyComValoresCalculados(body: Record<string, unknown>) {
 
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return remove(TABLE, id);
+  if (!/^\d+$/.test(id)) {
+    return Response.json({ error: "Identificador da medição inválido." }, { status: 400 });
+  }
+
+  const medicaoId = BigInt(id);
+  const medicaoIdTexto = medicaoId.toString();
+  const observacaoVinculo = `Lançamento automático da medição ${medicaoIdTexto}.`;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.mh3_contas_receber.deleteMany({
+        where: { observacoes: observacaoVinculo },
+      });
+      await tx.mh3_despesas.deleteMany({
+        where: {
+          num_desp: `MED - ${medicaoIdTexto}`,
+          categoria: "Medição de terceiro",
+          observacoes: observacaoVinculo,
+        },
+      });
+      await tx.mh3_medicoes.delete({
+        where: { id: medicaoId },
+      });
+    });
+
+    return Response.json({ message: "Medição e lançamentos vinculados excluídos com sucesso." });
+  } catch (error) {
+    console.error("Erro ao excluir medição e lançamentos vinculados:", error);
+    const code = (error as { code?: string })?.code;
+    if (code === "P2025") {
+      return Response.json({ error: "Medição não encontrada." }, { status: 404 });
+    }
+    return Response.json(
+      { error: "Não foi possível excluir a medição e seus lançamentos vinculados." },
+      { status: 500 },
+    );
+  }
 }

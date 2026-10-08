@@ -218,6 +218,7 @@ export function Manutencoes() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [carregandoDetalheId, setCarregandoDetalheId] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [carregandoEquipamentos, setCarregandoEquipamentos] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState<AbaManutencao>("geral");
@@ -248,6 +249,9 @@ export function Manutencoes() {
       fetch("/api/manutencoes"),
       carregarEquipamentos(),
     ]);
+    if (!manutencoesResponse.ok) {
+      throw new Error("Não foi possível carregar as manutenções.");
+    }
     const payload = await manutencoesResponse.json();
 
     setManutencoes(payload.data || []);
@@ -305,34 +309,54 @@ export function Manutencoes() {
     setDialogOpen(true);
   }
 
-  function editar(manutencao: ManutencaoApi) {
-    setEditing(manutencao);
+  async function buscarManutencaoCompleta(id: string): Promise<ManutencaoApi> {
+    const response = await fetch(`/api/manutencoes/${id}`);
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || "Não foi possível carregar os detalhes da manutenção.");
+    }
+    return payload;
+  }
+
+  async function editar(manutencao: ManutencaoApi) {
+    setCarregandoDetalheId(manutencao.id);
+    let dados: ManutencaoApi;
+    try {
+      dados = await buscarManutencaoCompleta(manutencao.id);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível carregar a manutenção.");
+      return;
+    } finally {
+      setCarregandoDetalheId(null);
+    }
+
+    setEditing(dados);
     setAbaAtiva("geral");
     setChecklistSelecionado("");
     setEstoqueSelecionado("");
 
     const equipamento = equipamentos.find(
-      (item) => String(item.id) === String(manutencao.eqId) || item.placa === manutencao.placa
+      (item) => String(item.id) === String(dados.eqId) || item.placa === dados.placa
     );
 
     setForm({
-      osNum: manutencao.osNum || "",
-      finStatus: manutencao.finStatus || "aberta",
-      eqId: equipamento ? String(equipamento.id) : manutencao.eqId || "",
-      eqLbl: manutencao.eqLbl || "",
-      placa: manutencao.placa || "",
-      tipo: manutencao.tipo || "",
-      en: manutencao.en?.slice(0, 10) || "",
-      sa: manutencao.sa?.slice(0, 10) || "",
-      km: String(manutencao.km || ""),
-      hr: String(manutencao.hr || ""),
-      pkm: String(manutencao.pkm || ""),
-      phr: String(manutencao.phr || ""),
-      custo: manutencao.custo || "",
-      resp: manutencao.resp || "",
-      ob: manutencao.ob || "",
-      status: manutencao.status || "pendente",
-      lancs: parseJsonArray(manutencao.lancs).map((entry) => {
+      osNum: dados.osNum || "",
+      finStatus: dados.finStatus || "aberta",
+      eqId: equipamento ? String(equipamento.id) : dados.eqId || "",
+      eqLbl: dados.eqLbl || "",
+      placa: dados.placa || "",
+      tipo: dados.tipo || "",
+      en: dados.en?.slice(0, 10) || "",
+      sa: dados.sa?.slice(0, 10) || "",
+      km: String(dados.km || ""),
+      hr: String(dados.hr || ""),
+      pkm: String(dados.pkm || ""),
+      phr: String(dados.phr || ""),
+      custo: dados.custo || "",
+      resp: dados.resp || "",
+      ob: dados.ob || "",
+      status: dados.status || "pendente",
+      lancs: parseJsonArray(dados.lancs).map((entry) => {
         const item = entry as Record<string, unknown>;
         return {
           desc: String(item.desc ?? item.descricao ?? ""),
@@ -341,19 +365,31 @@ export function Manutencoes() {
           val: Number(item.val ?? item.valor ?? 0),
         };
       }),
-      checklist: parseJsonArray(manutencao.checklist).map((entry) => {
+      checklist: parseJsonArray(dados.checklist).map((entry) => {
         const item = entry as Record<string, unknown>;
         return {
           nome: String(item.nome ?? item.texto ?? item.label ?? ""),
           checked: Boolean(item.checked ?? item.concluido ?? false),
         };
       }),
-      fotos: parseJsonArray(manutencao.fotos).filter(
+      fotos: parseJsonArray(dados.fotos).filter(
         (photo): photo is string => typeof photo === "string",
       ),
     });
 
     setDialogOpen(true);
+  }
+
+  async function gerarPdf(manutencao: ManutencaoApi) {
+    setCarregandoDetalheId(manutencao.id);
+    try {
+      const dados = await buscarManutencaoCompleta(manutencao.id);
+      printManutencaoPDF(dados);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível carregar a manutenção.");
+    } finally {
+      setCarregandoDetalheId(null);
+    }
   }
 
   function selecionarEquipamento(id: string) {
@@ -643,7 +679,8 @@ export function Manutencoes() {
                           title="Gerar PDF"
                           aria-label="Gerar PDF"
                           className="h-8 w-8 text-primary"
-                          onClick={() => printManutencaoPDF(manutencao)}
+                          disabled={carregandoDetalheId === manutencao.id}
+                          onClick={() => gerarPdf(manutencao)}
                         >
                           <FileDown className="h-3.5 w-3.5" />
                         </Button>
@@ -654,6 +691,7 @@ export function Manutencoes() {
                           size="icon"
                           title="Editar manutenção"
                           aria-label="Editar manutenção"
+                          disabled={carregandoDetalheId === manutencao.id}
                           className="h-8 w-8 text-blue-600"
                           onClick={() => editar(manutencao)}
                         >

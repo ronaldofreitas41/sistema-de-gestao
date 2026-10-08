@@ -91,6 +91,12 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         resource: "funcionarios",
         icon: IdCardLanyard,
       },
+      {
+        href: "/pendencias",
+        label: "Pendencias",
+        resource: "pendencias",
+        icon: Siren,
+      },
     ],
   },
   {
@@ -172,24 +178,18 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
       },
     ],
   },
-  {
-    label: "Sistema",
-    items: [
-      {
-        href: "/pendencias",
-        label: "Pendencias",
-        resource: "pendencias",
-        icon: Siren,
-      },
-      {
-        href: "/tratativas",
-        label: "Tratativas",
-        resource: "tratativas",
-        icon: Handshake,
-      },
-      { href: "/ajuda", label: "Ajuda", resource: "ajuda", icon: CircleHelp },
-    ],
-  },
+  // {
+  //   label: "Sistema",
+  //   items: [
+  //     {
+  //       href: "/tratativas",
+  //       label: "Tratativas",
+  //       resource: "tratativas",
+  //       icon: Handshake,
+  //     },
+  //     { href: "/ajuda", label: "Ajuda", resource: "ajuda", icon: CircleHelp },
+  //   ],
+  // },
   {
     label: "Configuracoes",
     items: [
@@ -206,7 +206,7 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         icon: Building2,
       },
       {
-        href: "/cheklist",
+        href: "/checklist",
         label: "Checklist",
         resource: "checklist",
         icon: Check,
@@ -222,19 +222,19 @@ export type MetricaCard = {
   tipo: "positivo" | "negativo" | "neutro";
 };
 
-export type RelatorioTab = 
-  | "financeiro" 
-  | "receitas" 
-  | "despesas" 
-  | "frota" 
-  | "clientes" 
-  | "estoque" 
-  | "os" 
-  | "contratos" 
-  | "fluxo-caixa" 
-  | "contas-pagar" 
-  | "contas-receber" 
-  | "resultado-placa" 
+export type RelatorioTab =
+  | "financeiro"
+  | "receitas"
+  | "despesas"
+  | "frota"
+  | "clientes"
+  | "estoque"
+  | "os"
+  | "contratos"
+  | "fluxo-caixa"
+  | "contas-pagar"
+  | "contas-receber"
+  | "resultado-placa"
   | "resultado-geral";
 
 export const modulosPermissoes = navGroups.flatMap((group) =>
@@ -534,7 +534,6 @@ export const tipos_conta = [
   { id: 2, nome: "Poupança" },
   { id: 3, nome: "Investimento" },
 ];
-
 
 export const CLAUSULA_PRAZO_PADRAO = `1. DO PRAZO: O PRESENTE CONTRATO VIGORARÁ PELO PRAZO MÍNIMO DE 12 (DOZE) MESES, CONTADOS A PARTIR DA DATA DE INÍCIO DA LOCAÇÃO.
 2. DA FIDELIDADE: OS PRIMEIROS 6 (SEIS) MESES DE VIGÊNCIA CONSTITUEM PERÍODO DE FIDELIDADE INTEGRAL.
