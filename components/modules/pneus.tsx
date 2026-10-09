@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro, formatDate } from "@/lib/utils";
+import { SortableListControls, useSortableData } from "@/components/ui/sortable-table";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -164,6 +165,12 @@ export function Pneus() {
       return matchSearch && matchStatus;
     });
   }, [pneus, search, filtroStatus]);
+  const {
+    sortedItems: pneusOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtered);
 
   // ── CRUD ──
   const openNew = () => {
@@ -332,6 +339,26 @@ export function Pneus() {
           </div>
 
           {/* Tabela */}
+          <div className="flex justify-end">
+            <SortableListControls
+              options={[
+                { label: "Nº", key: "numero", getValue: (pneu) => pneu.numero },
+                { label: "Marca", key: "marca", getValue: (pneu) => pneu.marca },
+                { label: "Medida", key: "medida", getValue: (pneu) => pneu.medida },
+                { label: "DOT", key: "dot", getValue: (pneu) => pneu.dot },
+                {
+                  label: "Idade",
+                  key: "idade",
+                  getValue: (pneu) => Number.parseInt(calcularIdade(pneu.dot), 10) || -1,
+                },
+                { label: "Condição", key: "condicao", getValue: (pneu) => pneu.condicao },
+                { label: "Situação", key: "status", getValue: (pneu) => pneu.status },
+              ]}
+              sortKey={sortKey}
+              direction={sortDirection}
+              onSort={toggleSort}
+            />
+          </div>
           <div className="bg-card rounded-lg border border-border overflow-hidden">
             {/* Cabeçalho da tabela */}
             <div className="grid grid-cols-[80px_100px_120px_80px_70px_100px_140px_auto] gap-2 px-4 py-2 border-b border-border bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -352,7 +379,7 @@ export function Pneus() {
               </div>
             )}
 
-            {filtered.map((p) => {
+            {pneusOrdenados.map((p) => {
               const st = statusBadge(p.status);
               const idade = calcularIdade(p.dot);
               const anosInt = parseInt(idade.split(" ")[0]);

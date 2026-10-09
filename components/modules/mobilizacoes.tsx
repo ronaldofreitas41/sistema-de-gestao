@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Menu, Search, X, RotateCcw, Download, Eye, Edit, Trash2 } from "lucide-react";
+import { Plus, Menu, Search, X, RotateCcw, Download, Eye, Edit, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +81,7 @@ export function Mobilizacoes() {
   const [mostrarArquivadas, setMostrarArquivadas] = useState(false);
   const [visualizando, setVisualizando] = useState<Mobilizacao | null>(null);
   const [visualizacaoOpen, setVisualizacaoOpen] = useState(false);
+  const [fotosExpandidas, setFotosExpandidas] = useState(false);
 
 
   function visualizar(mobilizacao: Mobilizacao) {
@@ -225,6 +226,7 @@ export function Mobilizacoes() {
 
   function novaMobilizacao() {
     setEditando(null);
+    setFotosExpandidas(false);
     setForm({
       ...formularioInicial,
       pneus_por_eixo: structuredClone(formularioInicial.pneus_por_eixo),
@@ -235,6 +237,7 @@ export function Mobilizacoes() {
 
   function editar(mobilizacao: Mobilizacao) {
     setEditando(mobilizacao);
+    setFotosExpandidas(true);
     setForm({
       equipamento_id: mobilizacao.equipamento_id,
       contrato_id: mobilizacao.contrato_id,
@@ -795,24 +798,42 @@ export function Mobilizacoes() {
 
             {/* Seção 6: Relatório Fotográfico */}
             <div className="space-y-4 border-t pt-4">
-              <h3 className="font-semibold text-foreground">Relatório Fotográfico (vitória)</h3>
-              <p className="text-xs text-muted-foreground">
-                Adicione quantas fotos forem necessárias em cada categoria. O preenchimento das fotos é opcional.
-              </p>
-              <div className="space-y-4">
-                {gruposFotos.map((item: any) => (
-                  <AnexoFotos
-                    key={item.grupo}
-                    id={item.id}
-                    grupo={item.grupo}
-                    titulo={item.titulo}
-                    opcional={item.opcional}
-                    previews={form.fotos?.[item.grupo] || []}
-                    onAdicionar={adicionarFoto}
-                    onRemover={removerFoto}
-                  />
-                ))}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-foreground">Relatório Fotográfico</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Opcional ao criar. Você pode incluir fotos agora ou editar a mobilização depois.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setFotosExpandidas((atual) => !atual)}
+                >
+                  {fotosExpandidas ? (
+                    <ChevronUp className="mr-2 h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="mr-2 h-4 w-4" />
+                  )}
+                  {fotosExpandidas ? "Ocultar fotos" : "Adicionar fotos agora"}
+                </Button>
               </div>
+              {fotosExpandidas && (
+                <div className="space-y-4">
+                  {gruposFotos.map((item: any) => (
+                    <AnexoFotos
+                      key={item.grupo}
+                      id={item.id}
+                      grupo={item.grupo}
+                      titulo={item.titulo}
+                      opcional={item.opcional}
+                      previews={form.fotos?.[item.grupo] || []}
+                      onAdicionar={adicionarFoto}
+                      onRemover={removerFoto}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

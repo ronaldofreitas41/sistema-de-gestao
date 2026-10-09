@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
 import { MetricaCard, RelatorioTab } from "@/lib/common";
+import { SortableListControls, SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function Relatorios() {
   const [dataInicio, setDataInicio] = useState<string>("");
@@ -475,6 +476,12 @@ function RelatorioReceitas({ dados }: any) {
 
     return Array.from(map.entries()).map(([cliente, dados]) => ({ cliente, ...dados }));
   }, [dados]);
+  const {
+    sortedItems: receitasOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(receitasPorCliente);
 
   return (
     <Card className="border border-gray-600">
@@ -487,16 +494,16 @@ function RelatorioReceitas({ dados }: any) {
             <TableHeader>
               <TableRow className="border-b-2 border-gray-600">
                 <TableHead className="text-xs font-semibold uppercase text-gray-700">##</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700">Cliente</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Medições</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Vendas</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Total</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">% Participação</TableHead>
+                <SortableTableHead label="Cliente" sortKey="cliente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.cliente} />
+                <SortableTableHead label="Medições" sortKey="medicoes" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.medicoes} />
+                <SortableTableHead label="Vendas" sortKey="vendas" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.vendas} />
+                <SortableTableHead label="Total" sortKey="total" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.total} />
+                <SortableTableHead label="% Participação" sortKey="participacao" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.total} />
               </TableRow>
             </TableHeader>
             <TableBody>
               {receitasPorCliente.length > 0 ? (
-                receitasPorCliente.map((item: any, idx: number) => {
+                receitasOrdenadas.map((item: any, idx: number) => {
                   const totalGeral = receitasPorCliente.reduce((sum: number, r: any) => sum + r.total, 0);
                   const percentual = totalGeral > 0 ? (item.total / totalGeral) * 100 : 0;
                   return (
@@ -546,6 +553,12 @@ function RelatorioDespesas({ dados }: any) {
   }, [dados]);
 
   const totalDespesas = despesasPorCategoria.reduce((sum: number, d: any) => sum + d.valor, 0);
+  const {
+    sortedItems: despesasOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(despesasPorCategoria);
 
   return (
     <Card className="border border-gray-600">
@@ -554,8 +567,19 @@ function RelatorioDespesas({ dados }: any) {
       </CardHeader>
       <CardContent className="p-0">
         <div className="space-y-2 p-2">
+          <div className="flex justify-end">
+            <SortableListControls
+              options={[
+                { label: "Categoria", key: "categoria", getValue: (item: any) => item.categoria },
+                { label: "Valor", key: "valor", getValue: (item: any) => item.valor },
+              ]}
+              sortKey={sortKey}
+              direction={sortDirection}
+              onSort={toggleSort}
+            />
+          </div>
           {despesasPorCategoria.length > 0 ? (
-            despesasPorCategoria.map((item: any, idx: number) => {
+            despesasOrdenadas.map((item: any, idx: number) => {
               const percentual = totalDespesas > 0 ? (item.valor / totalDespesas) * 100 : 0;
               return (
                 <div key={idx} className="space-y-1">
@@ -633,6 +657,14 @@ function RelatorioFrota({ dados }: any) {
 }
 
 function RelatorioClientes({ dados }: any) {
+  const clientes = dados.clientes || [];
+  const {
+    sortedItems: clientesOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(clientes);
+
   return (
     <Card className="border-2 border-gray-600">
       <CardHeader className="pb-0">
@@ -644,7 +676,7 @@ function RelatorioClientes({ dados }: any) {
             <TableHeader>
               <TableRow className="border-b-2 border-gray-600">
                 <TableHead className="text-xs font-semibold uppercase text-gray-700">#</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700">Cliente</TableHead>
+                <SortableTableHead label="Cliente" sortKey="cliente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(cliente: any) => cliente.nome || cliente.razao_social} />
                 <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Contratos</TableHead>
                 <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Rec. Medições</TableHead>
                 <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Rec. Vendas</TableHead>
@@ -652,8 +684,8 @@ function RelatorioClientes({ dados }: any) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(dados.clientes || []).length > 0 ? (
-                (dados.clientes || []).slice(0, 10).map((cliente: any, idx: number) => (
+              {clientes.length > 0 ? (
+                clientesOrdenados.slice(0, 10).map((cliente: any, idx: number) => (
                   <TableRow key={idx} className="border-b border-gray-300 hover:bg-gray-100 transition-colors">
                     <TableCell className="font-medium text-gray-700">{idx + 1}</TableCell>
                     <TableCell className="font-semibold text-gray-700">{cliente.nome || cliente.razao_social || "-"}</TableCell>

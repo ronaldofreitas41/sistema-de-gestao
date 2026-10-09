@@ -43,6 +43,18 @@ interface NavGroup {
   items: NavItem[];
 }
 
+function usuarioPodeAcessar(item: NavItem, usuario: Usuario | null) {
+  if (!item.resource || !usuario?.permissoes) return true;
+
+  const permissoes = normalizarPermissoes(usuario.permissoes);
+
+  if (!Object.prototype.hasOwnProperty.call(permissoes, item.resource)) {
+    return true;
+  }
+
+  return permissoes[item.resource] === true;
+}
+
 export function Sidebar({
   collapsed: collapsedProp,
   onCollapsedChange,
@@ -83,6 +95,19 @@ export function Sidebar({
       console.error("Erro ao carregar preferências da sidebar:", error);
     }
   }, []);
+
+  useEffect(() => {
+    if (pathname !== "/dashboard" || !usuario) return;
+
+    const itensNavegacao = navGroups.flatMap((grupo) => grupo.items);
+    const dashboard = itensNavegacao.find((item) => item.href === "/dashboard");
+    if (!dashboard || usuarioPodeAcessar(dashboard, usuario)) return;
+
+    const primeiraPaginaPermitida = itensNavegacao.find((item) =>
+      usuarioPodeAcessar(item, usuario),
+    );
+    router.replace(primeiraPaginaPermitida?.href ?? "/login");
+  }, [pathname, router, usuario]);
 
   function toggleSidebar() {
     setCollapsedState((estadoAtual: boolean) => {
@@ -146,15 +171,7 @@ export function Sidebar({
   }
 
   function temAcesso(item: NavItem) {
-    if (!item.resource || !usuario?.permissoes) return true;
-
-    const permissoes = normalizarPermissoes(usuario.permissoes);
-
-    if (!Object.prototype.hasOwnProperty.call(permissoes, item.resource)) {
-      return true;
-    }
-
-    return permissoes[item.resource] === true;
+    return usuarioPodeAcessar(item, usuario);
   }
 
   async function handleLogout() {

@@ -13,8 +13,11 @@ export function generatePropostaPDF(proposta: Proposta) {
   const gold: Rgb = [181, 139, 0];
   const margin = 17;
   const pageWidth = 297;
+  const pageHeight = 210;
   const contentWidth = pageWidth - margin * 2;
-  const pageBottom = 194;
+  const footerHeight = 18;
+  const footerTop = pageHeight - footerHeight;
+  const pageBottom = footerTop - 4;
   let currentY = 18;
 
   const value = (item: unknown, fallback = "-") =>
@@ -83,10 +86,29 @@ export function generatePropostaPDF(proposta: Proposta) {
       bold?: boolean;
       gap?: number;
       indent?: number;
+      keepTogether?: boolean;
     } = {},
   ) => {
-    const { size = 9.5, color = dark, bold = false, gap = 3, indent = 0 } = options;
+    const {
+      size = 9.5,
+      color = dark,
+      bold = false,
+      gap = 3,
+      indent = 0,
+      keepTogether = false,
+    } = options;
     const lineHeight = size * 0.48;
+
+    if (keepTogether) {
+      const height = paragraphHeight(content, size, gap, bold, indent);
+      const availablePageHeight = pageBottom - 19;
+      if (
+        height <= availablePageHeight &&
+        currentY + height > pageBottom
+      ) {
+        addPage();
+      }
+    }
 
     for (const paragraph of content.split("\n")) {
       if (!paragraph.trim()) {
@@ -94,7 +116,17 @@ export function generatePropostaPDF(proposta: Proposta) {
         continue;
       }
 
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(size);
       const wrapped = doc.splitTextToSize(paragraph, contentWidth - indent);
+      const maxLinesPerPage = Math.floor((pageBottom - 19) / lineHeight);
+      if (
+        wrapped.length <= maxLinesPerPage &&
+        currentY + wrapped.length * lineHeight > pageBottom
+      ) {
+        addPage();
+      }
+
       let offset = 0;
       while (offset < wrapped.length) {
         const availableLines = Math.floor((pageBottom - currentY) / lineHeight);
@@ -104,8 +136,6 @@ export function generatePropostaPDF(proposta: Proposta) {
         }
 
         const chunk = wrapped.slice(offset, offset + availableLines);
-        doc.setFont("helvetica", bold ? "bold" : "normal");
-        doc.setFontSize(size);
         doc.setTextColor(...color);
         doc.text(chunk, margin + indent, currentY);
         currentY += chunk.length * lineHeight;
@@ -115,6 +145,24 @@ export function generatePropostaPDF(proposta: Proposta) {
       currentY += gap;
     }
   };
+
+  const paragraphHeight = (
+    content: string,
+    size: number,
+    gap: number,
+    bold = false,
+    indent = 0,
+  ) =>
+    content.split("\n").reduce((height, paragraph) => {
+      if (!paragraph.trim()) return height + size * 0.48 * 0.7;
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(size);
+      const lines = doc.splitTextToSize(
+        paragraph,
+        contentWidth - indent,
+      ).length;
+      return height + lines * size * 0.48 + gap;
+    }, 0);
 
   const sectionTitle = (title: string) => {
     ensureSpace(12);
@@ -212,34 +260,48 @@ export function generatePropostaPDF(proposta: Proposta) {
   };
 
   const drawFooter = (page: number, total: number) => {
-    doc.setDrawColor(...lightLine);
-    doc.setLineWidth(0.25);
-    doc.line(margin, 200, pageWidth - margin, 200);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...gray);
+    doc.setFillColor(28, 28, 28);
+    doc.rect(0, footerTop, pageWidth, footerHeight, "F");
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(9);
+    doc.setTextColor(245, 245, 245);
     doc.text(
-      doc.splitTextToSize(nomeEmpresa, contentWidth - 20).slice(0, 1),
-      margin,
-      204,
+      doc.splitTextToSize(nomeEmpresa.toUpperCase(), contentWidth).slice(0, 1),
+      pageWidth / 2,
+      footerTop + 4.5,
+      { align: "center" },
     );
-    doc.text(`${page}/${total}`, pageWidth - margin, 204, { align: "right" });
-    const footerDetails = [
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(220, 220, 220);
+    const footerIdentity = [
       ...documentosEmpresa,
       enderecoEmpresa,
-      contatoEmpresa,
-      value(proposta.numero, "Proposta"),
     ]
       .filter(Boolean)
       .join(" · ");
-    if (footerDetails) {
-      doc.setFontSize(6.5);
+    if (footerIdentity) {
       doc.text(
-        doc.splitTextToSize(footerDetails, contentWidth).slice(0, 1),
-        margin,
-        208,
+        doc.splitTextToSize(footerIdentity, contentWidth - 8).slice(0, 1),
+        pageWidth / 2,
+        footerTop + 9,
+        { align: "center" },
       );
     }
+    if (contatoEmpresa) {
+      doc.text(
+        doc.splitTextToSize(contatoEmpresa, contentWidth - 8).slice(0, 1),
+        pageWidth / 2,
+        footerTop + 12,
+        { align: "center" },
+      );
+    }
+    doc.setFontSize(6.5);
+    doc.setTextColor(180, 180, 180);
+    doc.text(value(proposta.numero, "Proposta"), margin, footerTop + 16);
+    doc.text(`Pág. ${page} de ${total}`, pageWidth - margin, footerTop + 16, {
+      align: "right",
+    });
   };
 
   drawHeader();
@@ -387,46 +449,40 @@ export function generatePropostaPDF(proposta: Proposta) {
     { size: 9.4, gap: 6 },
   );
 
-  sectionTitle("Da proposta como parte integrante");
-  drawParagraph(
-    "ESTA PROPOSTA COMERCIAL, UMA VEZ APROVADA PELA CONTRATANTE, INTEGRA O CONTRATO DE LOCAÇÃO PARA TODOS OS EFEITOS, INDEPENDENTEMENTE DE TRANSCRIÇÃO, SEJA O INSTRUMENTO CONTRATUAL DA CONTRATADA OU DA CONTRATANTE. EM CASO DE DÚVIDA, OMISSÃO, DIVERGÊNCIA OU CONFLITO ENTRE OS TERMOS DO CONTRATO, DA ORDEM DE COMPRA OU DE QUALQUER OUTRO DOCUMENTO E OS TERMOS DESTA PROPOSTA, PREVALECEM AS CONDIÇÕES DESTA PROPOSTA, QUE REFLETE AS CONDIÇÕES COMERCIAIS EFETIVAMENTE NEGOCIADAS E APROVADAS ENTRE AS PARTES. A APROVAÇÃO DA PROPOSTA, POR ESCRITO OU POR EMISSÃO DE ORDEM DE COMPRA, IMPLICA ACEITAÇÃO INTEGRAL DE TODAS AS SUAS CONDIÇÕES.",
-    { size: 9.4, gap: 8 },
-  );
+  const propostaIntegrante =
+    "ESTA PROPOSTA COMERCIAL, UMA VEZ APROVADA PELA CONTRATANTE, INTEGRA O CONTRATO DE LOCAÇÃO PARA TODOS OS EFEITOS, INDEPENDENTEMENTE DE TRANSCRIÇÃO, SEJA O INSTRUMENTO CONTRATUAL DA CONTRATADA OU DA CONTRATANTE. EM CASO DE DÚVIDA, OMISSÃO, DIVERGÊNCIA OU CONFLITO ENTRE OS TERMOS DO CONTRATO, DA ORDEM DE COMPRA OU DE QUALQUER OUTRO DOCUMENTO E OS TERMOS DESTA PROPOSTA, PREVALECEM AS CONDIÇÕES DESTA PROPOSTA, QUE REFLETE AS CONDIÇÕES COMERCIAIS EFETIVAMENTE NEGOCIADAS E APROVADAS ENTRE AS PARTES. A APROVAÇÃO DA PROPOSTA, POR ESCRITO OU POR EMISSÃO DE ORDEM DE COMPRA, IMPLICA ACEITAÇÃO INTEGRAL DE TODAS AS SUAS CONDIÇÕES.";
+  const encerramento =
+    "Agradecemos a oportunidade e a confiança em nossos serviços. Permanecemos à inteira disposição para esclarecer dúvidas e ajustar esta proposta conforme a sua necessidade.\nAtenciosamente,";
+  doc.setFont("helvetica", "normal");
+  const alturaBlocoFinal =
+    12 +
+    paragraphHeight(propostaIntegrante, 9.4, 8) +
+    8 +
+    paragraphHeight(encerramento, 10, 1) +
+    6;
+  ensureSpace(alturaBlocoFinal);
 
-  addPage();
+  sectionTitle("Da proposta como parte integrante");
+  drawParagraph(propostaIntegrante, {
+    size: 9.4,
+    gap: 8,
+    keepTogether: true,
+  });
   doc.setDrawColor(...lightLine);
   doc.setLineDashPattern([1, 1], 0);
   doc.line(margin, currentY, pageWidth - margin, currentY);
   doc.setLineDashPattern([], 0);
   currentY += 8;
-  drawParagraph(
-    "Agradecemos a oportunidade e a confiança em nossos serviços. Permanecemos à inteira disposição para esclarecer dúvidas e ajustar esta proposta conforme a sua necessidade.\n\nAtenciosamente,",
-    { size: 10, color: gray, gap: 3 },
-  );
+  drawParagraph(encerramento, {
+    size: 10,
+    color: gray,
+    gap: 1,
+    keepTogether: true,
+  });
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...red);
   doc.text(`Equipe ${nomeEmpresa}`, margin, currentY);
-  doc.setFont("helvetica", "bolditalic");
-  doc.setFontSize(18);
-  doc.setTextColor(155, 155, 155);
-  doc.text(nomeEmpresa.toUpperCase(), pageWidth / 2, 82, { align: "center" });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...gray);
-  const assinaturaEmpresa = [
-    ...documentosEmpresa,
-    enderecoEmpresa,
-    contatoEmpresa,
-  ].filter(Boolean);
-  assinaturaEmpresa.forEach((linha, index) => {
-    doc.text(
-      doc.splitTextToSize(linha, contentWidth - 20).slice(0, 1),
-      pageWidth / 2,
-      90 + index * 6,
-      { align: "center" },
-    );
-  });
 
   const totalPages = doc.getNumberOfPages();
   for (let page = 1; page <= totalPages; page++) {
