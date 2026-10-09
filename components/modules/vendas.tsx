@@ -39,6 +39,7 @@ import {
   getNomesClientes,
   getPlacas,
 } from "@/lib/utils";
+import { SortableListControls, useSortableData } from "@/components/ui/sortable-table";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -223,6 +224,12 @@ export function Vendas() {
       return matchSearch && matchStatus;
     });
   }, [vendas, search, filtroStatus]);
+  const {
+    sortedItems: vendasOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtered);
 
   // ── Recalcular totais do form ──
   function recalcularForm(items: VendaItem[], desconto: number) {
@@ -460,6 +467,22 @@ export function Vendas() {
           </div>
 
           {/* Tabela */}
+          <div className="flex justify-end">
+            <SortableListControls
+              options={[
+                { label: "Nº", key: "numero", getValue: (item) => item.numero },
+                { label: "Cliente", key: "cliente", getValue: (item) => item.cliente },
+                { label: "Data", key: "data", getValue: (item) => item.data },
+                { label: "Itens", key: "itens", getValue: (item) => item.items.length },
+                { label: "Total", key: "total", getValue: (item) => item.total },
+                { label: "Pagamento", key: "pagamento", getValue: (item) => item.pagamento },
+                { label: "Status", key: "status", getValue: (item) => statusLabel(item).label },
+              ]}
+              sortKey={sortKey}
+              direction={sortDirection}
+              onSort={toggleSort}
+            />
+          </div>
           <div className="bg-card rounded-lg border border-border overflow-hidden">
             {/* Cabeçalho da tabela */}
             <div className="grid grid-cols-[90px_1fr_100px_60px_110px_130px_140px_auto] gap-2 px-4 py-2 border-b border-border bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -480,11 +503,11 @@ export function Vendas() {
               </div>
             )}
 
-            {filtered.map((v, idx) => {
+            {vendasOrdenadas.map((v, idx) => {
               const st = statusLabel(v);
               const isMedicao = v.em_medicao;
               const isFirstMedicao =
-                isMedicao && (idx === 0 || !filtered[idx - 1]?.em_medicao);
+                isMedicao && (idx === 0 || !vendasOrdenadas[idx - 1]?.em_medicao);
 
               return (
                 <div key={v.id}>

@@ -47,6 +47,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Estoque } from "@/lib/types";
 import { deleteRegistro, formatCurrency } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function ComponenteEstoque() {
   const [itens, setItens] = useState<Estoque[]>([]);
@@ -105,6 +106,12 @@ export function ComponenteEstoque() {
       (i.nf_num?.toLowerCase() || "").includes(term)
     );
   });
+  const {
+    sortedItems: sortedItens,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredItens);
 
   // KPIs
   const totalItens = filteredItens.length;
@@ -120,7 +127,7 @@ export function ComponenteEstoque() {
     setPage(1);
   }, [search, pageSize]);
 
-  const paginatedItens = paginate(filteredItens, page, pageSize);
+  const paginatedItens = paginate(sortedItens, page, pageSize);
 
   const openViewItem = (item: Estoque) => {
     setSelectedItem(item);
@@ -335,36 +342,16 @@ export function ComponenteEstoque() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-b border-gray-200 hover:bg-transparent dark:border-border">
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        CÓD.
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        DESCRIÇÃO
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        CAT.
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        QTD
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        MÍN
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        UN
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        CUSTO
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        VENDA
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        TOTAL
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        SIT.
-                      </TableHead>
+                      <SortableTableHead<Estoque> label="CÓD." sortKey="codigo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.codigo} />
+                      <SortableTableHead<Estoque> label="DESCRIÇÃO" sortKey="descricao" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.descricao} />
+                      <SortableTableHead<Estoque> label="CAT." sortKey="categoria" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.categoria} />
+                      <SortableTableHead<Estoque> label="QTD" sortKey="quantidade" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.quantidade} />
+                      <SortableTableHead<Estoque> label="MÍN" sortKey="estoque_minimo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.estoque_minimo} />
+                      <SortableTableHead<Estoque> label="UN" sortKey="unidade" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.unidade} />
+                      <SortableTableHead<Estoque> label="CUSTO" sortKey="custo_unitario" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.custo_unitario} />
+                      <SortableTableHead<Estoque> label="VENDA" sortKey="preco_venda" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.custo_unitario * (1 + (item.margem || 0) / 100)} />
+                      <SortableTableHead<Estoque> label="TOTAL" sortKey="valor_total" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.quantidade * item.custo_unitario} />
+                      <SortableTableHead<Estoque> label="SIT." sortKey="situacao" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.quantidade <= item.estoque_minimo ? "Baixo" : "OK"} />
                       <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2 text-right">
                         AÇÕES
                       </TableHead>

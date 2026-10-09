@@ -41,6 +41,36 @@ export function generatePropostaPDF(proposta: Proposta) {
     currentY = 19;
   };
 
+  const empresa = proposta.empresaEmitente;
+  const nomeEmpresa =
+    empresa?.razao_social ||
+    empresa?.nome ||
+    proposta.emitente ||
+    "MH3 RENTAL LTDA";
+  const documentosEmpresa = [
+    empresa?.cpf ? `CPF: ${empresa.cpf}` : "",
+    empresa?.cnpj ? `CNPJ: ${empresa.cnpj}` : "",
+  ].filter(Boolean);
+  const enderecoEmpresa = [
+    empresa?.endereco,
+    [empresa?.cidade, empresa?.estado].filter(Boolean).join("/"),
+    empresa?.cep ? `CEP: ${empresa.cep}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const contatoEmpresa = [
+    empresa?.telefone,
+    empresa?.email,
+    empresa?.inscricao_estadual
+      ? `Inscrição estadual: ${empresa.inscricao_estadual}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const dadosEmpresa = [enderecoEmpresa, contatoEmpresa]
+    .filter(Boolean)
+    .join(" · ");
+
   const ensureSpace = (height: number) => {
     if (currentY + height > pageBottom) addPage();
   };
@@ -99,10 +129,26 @@ export function generatePropostaPDF(proposta: Proposta) {
     const logo = proposta.empresaLogo;
     let logoDrawn = false;
     if (logo?.startsWith("data:image/")) {
-      const format = logo.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
       try {
-        doc.addImage(logo, format, margin, 12, 60, 20, undefined, "FAST");
-        logoDrawn = true;
+        const { width, height, fileType } = doc.getImageProperties(logo);
+        if (width > 0 && height > 0) {
+          const scale = Math.min(60 / width, 20 / height);
+          const logoWidth = width * scale;
+          const logoHeight = height * scale;
+          const format =
+            fileType === "JPG" ? "JPEG" : fileType;
+          doc.addImage(
+            logo,
+            format,
+            margin + (60 - logoWidth) / 2,
+            12 + (20 - logoHeight) / 2,
+            logoWidth,
+            logoHeight,
+            undefined,
+            "FAST",
+          );
+          logoDrawn = true;
+        }
       } catch {
         logoDrawn = false;
       }
@@ -170,10 +216,30 @@ export function generatePropostaPDF(proposta: Proposta) {
     doc.setLineWidth(0.25);
     doc.line(margin, 200, pageWidth - margin, 200);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7);
     doc.setTextColor(...gray);
-    doc.text(value(proposta.numero, "Proposta"), margin, 205);
-    doc.text(`${page}/${total}`, pageWidth - margin, 205, { align: "right" });
+    doc.text(
+      doc.splitTextToSize(nomeEmpresa, contentWidth - 20).slice(0, 1),
+      margin,
+      204,
+    );
+    doc.text(`${page}/${total}`, pageWidth - margin, 204, { align: "right" });
+    const footerDetails = [
+      ...documentosEmpresa,
+      enderecoEmpresa,
+      contatoEmpresa,
+      value(proposta.numero, "Proposta"),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    if (footerDetails) {
+      doc.setFontSize(6.5);
+      doc.text(
+        doc.splitTextToSize(footerDetails, contentWidth).slice(0, 1),
+        margin,
+        208,
+      );
+    }
   };
 
   drawHeader();
@@ -188,7 +254,7 @@ export function generatePropostaPDF(proposta: Proposta) {
   doc.text(value(proposta.contratante), margin + doc.getTextWidth(greeting), currentY);
   currentY += 6;
   drawParagraph(
-    "É com satisfação que a MH3 Rental apresenta sua proposta comercial para locação, elaborada com as melhores condições para atender às necessidades da sua operação.",
+    `É com satisfação que a ${nomeEmpresa} apresenta sua proposta comercial para locação, elaborada com as melhores condições para atender às necessidades da sua operação.`,
     { size: 10, gap: 5 },
   );
 
@@ -340,16 +406,27 @@ export function generatePropostaPDF(proposta: Proposta) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...red);
-  doc.text("Equipe MH3 Rental", margin, currentY);
+  doc.text(`Equipe ${nomeEmpresa}`, margin, currentY);
   doc.setFont("helvetica", "bolditalic");
   doc.setFontSize(18);
   doc.setTextColor(155, 155, 155);
-  doc.text("MH3 RENTAL LTDA", pageWidth / 2, 82, { align: "center" });
+  doc.text(nomeEmpresa.toUpperCase(), pageWidth / 2, 82, { align: "center" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   doc.setTextColor(...gray);
-  doc.text("CNPJ: 26.881.195/0001-10 | Rodovia BR 381, km 361 - João Monlevade/MG", pageWidth / 2, 90, { align: "center" });
-  doc.text("(31) 99977-6105 | Noninho | comercial@mh3rental.com.br", pageWidth / 2, 97, { align: "center" });
+  const assinaturaEmpresa = [
+    ...documentosEmpresa,
+    enderecoEmpresa,
+    contatoEmpresa,
+  ].filter(Boolean);
+  assinaturaEmpresa.forEach((linha, index) => {
+    doc.text(
+      doc.splitTextToSize(linha, contentWidth - 20).slice(0, 1),
+      pageWidth / 2,
+      90 + index * 6,
+      { align: "center" },
+    );
+  });
 
   const totalPages = doc.getNumberOfPages();
   for (let page = 1; page <= totalPages; page++) {

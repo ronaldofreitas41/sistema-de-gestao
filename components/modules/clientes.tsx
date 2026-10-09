@@ -25,6 +25,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Cliente } from "@/lib/types";
 import { deleteRegistro } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -74,12 +75,18 @@ export function Clientes() {
       (c.obra?.toLowerCase() || "").includes(term)
     );
   });
+  const {
+    sortedItems: sortedClientes,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredClientes);
 
   useEffect(() => {
     setPage(1);
   }, [search, pageSize]);
 
-  const paginatedClientes = paginate(filteredClientes, page, pageSize);
+  const paginatedClientes = paginate(sortedClientes, page, pageSize);
 
   const openNewCliente = () => {
     setEditingCliente(null);
@@ -241,11 +248,11 @@ export function Clientes() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">Nome</TableHead>
-                      <TableHead className="text-muted-foreground">CPF / CNPJ</TableHead>
-                      <TableHead className="text-muted-foreground">Contato</TableHead>
-                      <TableHead className="text-muted-foreground">Cidade/UF</TableHead>
-                      <TableHead className="text-muted-foreground">Obra</TableHead>
+                      <SortableTableHead<Cliente> label="Nome" sortKey="nome" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(cliente) => cliente.nome} />
+                      <SortableTableHead<Cliente> label="CPF / CNPJ" sortKey="cpf_cnpj" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(cliente) => cliente.cpf_cnpj} />
+                      <SortableTableHead<Cliente> label="Contato" sortKey="contato" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(cliente) => `${cliente.email} ${cliente.telefone}`} />
+                      <SortableTableHead<Cliente> label="Cidade/UF" sortKey="cidade" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(cliente) => `${cliente.cidade} ${cliente.estado}`} />
+                      <SortableTableHead<Cliente> label="Obra" sortKey="obra" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(cliente) => cliente.obra} />
                       <TableHead className="text-muted-foreground text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>

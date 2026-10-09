@@ -27,6 +27,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro, formatCurrency, formatarTelefone, formatarCPF} from "@/lib/utils";
 import type { Funcionario } from "@/lib/types";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableListControls, useSortableData } from "@/components/ui/sortable-table";
 
 type FuncionarioForm = Omit<Funcionario, "id">;
 
@@ -155,7 +156,13 @@ export function Funcionarios() {
     setPage(1);
   }, [search, dateFrom, dateTo, pageSize]);
 
-  const funcionariosPaginados = paginate(funcionariosFiltrados, page, pageSize);
+  const {
+    sortedItems: funcionariosOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(funcionariosFiltrados);
+  const funcionariosPaginados = paginate(funcionariosOrdenados, page, pageSize);
 
   const totais = useMemo(() => {
     const folha = funcionarios.reduce(
@@ -361,6 +368,18 @@ export function Funcionarios() {
               className="h-9 border-border bg-card text-xs sm:w-40"
             />
             <PageSizeSelect pageSize={pageSize} onChange={setPageSize} />
+            <SortableListControls
+              options={[
+                { label: "Nome", key: "nome", getValue: (item) => item.nome },
+                { label: "CPF", key: "cpf", getValue: (item) => item.cpf },
+                { label: "Cargo", key: "cargo", getValue: (item) => item.cargo },
+                { label: "Admissão", key: "admissao", getValue: (item) => item.admissao },
+                { label: "Salário", key: "salario", getValue: (item) => valorNumerico(item.salario) },
+              ]}
+              sortKey={sortKey}
+              direction={sortDirection}
+              onSort={toggleSort}
+            />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-lg border border-border border-t-2 border-t-blue-500 bg-card p-4">

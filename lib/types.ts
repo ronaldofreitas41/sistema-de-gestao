@@ -402,6 +402,19 @@ export interface Proposta {
   numero: string;
   email?: string;
   empresaLogo?: string | null;
+  empresaEmitente?: {
+    nome?: string | null;
+    razao_social?: string | null;
+    cpf?: string | null;
+    cnpj?: string | null;
+    inscricao_estadual?: string | null;
+    telefone?: string | null;
+    email?: string | null;
+    endereco?: string | null;
+    cidade?: string | null;
+    estado?: string | null;
+    cep?: string | null;
+  } | null;
   fotos?: string[];
   aprovada?: boolean;
   ctAssinado?: boolean;

@@ -11,11 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { deleteRegistro } from "@/lib/utils";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 type Empresa = {
   id: string | number;
   nome: string;
   razao_social?: string | null;
+  cpf?: string | null;
   cnpj?: string | null;
   inscricao_estadual?: string | null;
   telefone?: string | null;
@@ -33,6 +35,7 @@ type EmpresaForm = Omit<Empresa, "id">;
 const formularioInicial: EmpresaForm = {
   nome: "",
   razao_social: "",
+  cpf: "",
   cnpj: "",
   inscricao_estadual: "",
   telefone: "",
@@ -66,8 +69,14 @@ export function Empresas() {
 
   const filtradas = useMemo(() => {
     const termo = busca.toLowerCase();
-    return empresas.filter((empresa) => [empresa.nome, empresa.razao_social, empresa.cnpj, empresa.cidade].some((valor) => String(valor || "").toLowerCase().includes(termo)));
+    return empresas.filter((empresa) => [empresa.nome, empresa.razao_social, empresa.cpf, empresa.cnpj, empresa.cidade].some((valor) => String(valor || "").toLowerCase().includes(termo)));
   }, [empresas, busca]);
+  const {
+    sortedItems: empresasOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtradas);
 
   function alterar(campo: keyof EmpresaForm, valor: string | boolean) {
     setForm((atual) => ({ ...atual, [campo]: valor }));
@@ -132,11 +141,11 @@ export function Empresas() {
       <div className={`min-h-screen transition-[padding-left] duration-300 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"}`}>
         <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9"><div className="flex items-center gap-3"><button type="button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu" className="rounded-xl border border-border bg-card p-2 md:hidden"><Menu className="h-4 w-4" /></button><h1 className="text-lg font-bold sm:text-2xl">Empresas</h1></div><Button onClick={novaEmpresa}><Plus className="mr-2 h-4 w-4" />Nova empresa</Button></header>
         <main className="mx-auto w-full max-w-375 space-y-6 p-4 sm:p-6 lg:p-9">
-          <Card><CardContent className="pt-6"><div className="relative max-w-xl"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Buscar por nome, CNPJ ou cidade..." value={busca} onChange={(event) => setBusca(event.target.value)} /></div></CardContent></Card>
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" />Empresas cadastradas ({filtradas.length})</CardTitle></CardHeader><CardContent><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>CNPJ</TableHead><TableHead>Telefone</TableHead><TableHead>Cidade/UF</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>{filtradas.map((empresa) => <TableRow key={String(empresa.id)}><TableCell className="font-medium">{empresa.nome}</TableCell><TableCell>{empresa.cnpj || "-"}</TableCell><TableCell>{empresa.telefone || "-"}</TableCell><TableCell>{[empresa.cidade, empresa.estado].filter(Boolean).join("/") || "-"}</TableCell><TableCell>{empresa.ativo === false ? "Inativa" : "Ativa"}</TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => editar(empresa)} aria-label="Editar empresa"><Edit className="h-4 w-4" /></Button><Button variant="ghost" size="icon" disabled={excluindo === empresa.id} onClick={() => excluir(empresa.id)} aria-label="Excluir empresa"><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell></TableRow>)}</TableBody></Table>{filtradas.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>}</div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="relative max-w-xl"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Buscar por nome, CPF, CNPJ ou cidade..." value={busca} onChange={(event) => setBusca(event.target.value)} /></div></CardContent></Card>
+          <Card><CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" />Empresas cadastradas ({filtradas.length})</CardTitle></CardHeader><CardContent><div className="overflow-x-auto"><Table><TableHeader><TableRow><SortableTableHead<Empresa> label="Nome" sortKey="nome" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(empresa) => empresa.nome} /><SortableTableHead<Empresa> label="CNPJ" sortKey="cnpj" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(empresa) => empresa.cnpj} /><SortableTableHead<Empresa> label="CPF" sortKey="cpf" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(empresa) => empresa.cpf} /><SortableTableHead<Empresa> label="Telefone" sortKey="telefone" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(empresa) => empresa.telefone} /><SortableTableHead<Empresa> label="Cidade/UF" sortKey="cidade_uf" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(empresa) => `${empresa.cidade || ""} ${empresa.estado || ""}`} /><SortableTableHead<Empresa> label="Status" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(empresa) => empresa.ativo === false ? "Inativa" : "Ativa"} /><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>{empresasOrdenadas.map((empresa) => <TableRow key={String(empresa.id)}><TableCell className="font-medium">{empresa.nome}</TableCell><TableCell>{empresa.cnpj || "-"}</TableCell><TableCell>{empresa.cpf || "-"}</TableCell><TableCell>{empresa.telefone || "-"}</TableCell><TableCell>{[empresa.cidade, empresa.estado].filter(Boolean).join("/") || "-"}</TableCell><TableCell>{empresa.ativo === false ? "Inativa" : "Ativa"}</TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => editar(empresa)} aria-label="Editar empresa"><Edit className="h-4 w-4" /></Button><Button variant="ghost" size="icon" disabled={excluindo === empresa.id} onClick={() => excluir(empresa.id)} aria-label="Excluir empresa"><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell></TableRow>)}</TableBody></Table>{filtradas.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>}</div></CardContent></Card>
         </main>
       </div>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{editando ? "Editar empresa" : "Nova empresa"}</DialogTitle><DialogDescription>Informe os dados cadastrais da empresa.</DialogDescription></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2">{([["nome", "Nome fantasia"], ["razao_social", "Razão social"], ["cnpj", "CNPJ"], ["inscricao_estadual", "Inscrição estadual"], ["telefone", "Telefone"], ["email", "E-mail"], ["endereco", "Endereço"], ["cidade", "Cidade"], ["estado", "UF"], ["cep", "CEP"]] as [keyof EmpresaForm, string][]).map(([campo, label]) => <div key={campo} className="space-y-2"><Label>{label}</Label><Input value={String(form[campo] || "")} onChange={(event) => alterar(campo, event.target.value)} /></div>)}<div className="space-y-2 sm:col-span-2"><Label htmlFor="logo">Logo da empresa</Label><Input id="logo" type="file" accept="image/png,image/jpeg,image/webp" onChange={carregarLogo} />{form.logo && <img src={form.logo} alt="Pré-visualização da logo" className="h-16 max-w-48 rounded border border-border object-contain p-1" />}</div><div className="flex items-center gap-3 sm:col-span-2"><Switch checked={Boolean(form.ativo)} onCheckedChange={(value) => alterar("ativo", value)} /><Label>Empresa ativa</Label></div></div><div className="flex justify-end gap-2 border-t border-border pt-4"><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button><Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Salvar"}</Button></div></DialogContent></Dialog>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{editando ? "Editar empresa" : "Nova empresa"}</DialogTitle><DialogDescription>Informe os dados cadastrais da empresa.</DialogDescription></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2">{([["nome", "Nome fantasia"], ["razao_social", "Razão social"], ["cpf", "CPF"], ["cnpj", "CNPJ"], ["inscricao_estadual", "Inscrição estadual"], ["telefone", "Telefone"], ["email", "E-mail"], ["endereco", "Endereço"], ["cidade", "Cidade"], ["estado", "UF"], ["cep", "CEP"]] as [keyof EmpresaForm, string][]).map(([campo, label]) => <div key={campo} className="space-y-2"><Label>{label}</Label><Input value={String(form[campo] || "")} onChange={(event) => alterar(campo, event.target.value)} /></div>)}<div className="space-y-2 sm:col-span-2"><Label htmlFor="logo">Logo da empresa</Label><Input id="logo" type="file" accept="image/png,image/jpeg,image/webp" onChange={carregarLogo} />{form.logo && <img src={form.logo} alt="Pré-visualização da logo" className="h-16 max-w-48 rounded border border-border object-contain p-1" />}</div><div className="flex items-center gap-3 sm:col-span-2"><Switch checked={Boolean(form.ativo)} onCheckedChange={(value) => alterar("ativo", value)} /><Label>Empresa ativa</Label></div></div><div className="flex justify-end gap-2 border-t border-border pt-4"><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button><Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Salvar"}</Button></div></DialogContent></Dialog>
     </div>
   );
 }

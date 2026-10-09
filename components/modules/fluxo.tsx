@@ -47,6 +47,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro, formatCurrency } from "@/lib/utils";
 import { ContasBancarias } from "@/lib/types";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function Fluxo() {
   const [contas, setContas] = useState<ContasBancarias[]>([]);
@@ -96,6 +97,12 @@ export function Fluxo() {
       (c.conta?.toLowerCase() || "").includes(term)
     );
   });
+  const {
+    sortedItems: sortedContas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredContas);
 
   const saldoTotal = contas.reduce(
     (acc, c: ContasBancarias) =>
@@ -107,7 +114,7 @@ export function Fluxo() {
     setPage(1);
   }, [search, pageSize]);
 
-  const paginatedContas = paginate(filteredContas, page, pageSize);
+  const paginatedContas = paginate(sortedContas, page, pageSize);
 
   const openNewConta = () => {
     setEditingConta(null);
@@ -261,27 +268,13 @@ export function Fluxo() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
-                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">
-                        Nome
-                      </TableHead>
-                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">
-                        Banco
-                      </TableHead>
-                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">
-                        Agencia/Conta
-                      </TableHead>
-                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">
-                        Tipo
-                      </TableHead>
-                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">
-                        Saldo
-                      </TableHead>
-                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">
-                        Poup./Aplic.
-                      </TableHead>
-                      <TableHead className="text-xs uppercase font-bold text-muted-foreground">
-                        Fluxo
-                      </TableHead>
+                      <SortableTableHead<ContasBancarias> label="Nome" sortKey="nome" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.nome} />
+                      <SortableTableHead<ContasBancarias> label="Banco" sortKey="banco" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.banco} />
+                      <SortableTableHead<ContasBancarias> label="Agencia/Conta" sortKey="agencia_conta" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => `${conta.agencia} ${conta.conta}`} />
+                      <SortableTableHead<ContasBancarias> label="Tipo" sortKey="tipo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.tipo} />
+                      <SortableTableHead<ContasBancarias> label="Saldo" sortKey="saldo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => Number(conta.saldo) || 0} />
+                      <SortableTableHead<ContasBancarias> label="Poup./Aplic." sortKey="saldo_polpanca" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => Number(conta.saldo_polpanca) || 0} />
+                      <SortableTableHead<ContasBancarias> label="Fluxo" sortKey="fluxo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.fluxo !== false ? "Sim" : "Não"} />
                       <TableHead className="text-xs uppercase font-bold text-muted-foreground text-right">
                         Ações
                       </TableHead>

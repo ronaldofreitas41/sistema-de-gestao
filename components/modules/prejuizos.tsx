@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 type PrejuizoAgregado = {
   id: string | number;
@@ -115,6 +116,12 @@ export function Prejuizos() {
       [p.cliente, p.placa].some((valor) => String(valor || "").toLowerCase().includes(termo))
     );
   }, [prejuduizos, busca]);
+  const {
+    sortedItems: prejuizosOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtrados);
 
   const totalPrejuizos = useMemo(() => {
     return filtrados.reduce((sum, p) => sum + (Number(p.valor) || 0), 0);
@@ -232,17 +239,17 @@ export function Prejuizos() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="text-xs font-semibold uppercase">Contratante/Cliente</TableHead>
-                        <TableHead className="text-xs font-semibold uppercase">Origem</TableHead>
-                        <TableHead className="text-xs font-semibold uppercase text-right">Valor</TableHead>
-                        <TableHead className="text-xs font-semibold uppercase">Venc. Original</TableHead>
-                        <TableHead className="text-xs font-semibold uppercase">Placa</TableHead>
+                        <SortableTableHead<PrejuizoAgregado> label="Contratante/Cliente" sortKey="cliente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.cliente} />
+                        <SortableTableHead<PrejuizoAgregado> label="Origem" sortKey="origem" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.origem} />
+                        <SortableTableHead<PrejuizoAgregado> label="Valor" sortKey="valor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => Number(item.valor || 0)} />
+                        <SortableTableHead<PrejuizoAgregado> label="Venc. Original" sortKey="vencimento" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.vencimento} />
+                        <SortableTableHead<PrejuizoAgregado> label="Placa" sortKey="placa" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.placa} />
                         <TableHead className="text-right text-xs font-semibold uppercase">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filtrados.length > 0 ? (
-                        filtrados.map((prejuizo) => (
+                        prejuizosOrdenados.map((prejuizo) => (
                           <TableRow key={String(prejuizo.id)} className="hover:bg-muted/50 transition-colors">
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">

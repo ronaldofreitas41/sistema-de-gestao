@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Despesa } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function Pendencias() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
@@ -21,6 +22,12 @@ export function Pendencias() {
   const [pagandoId, setPagandoId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const {
+    sortedItems: despesasOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(despesas);
 
   async function carregarPendencias() {
     setCarregando(true);
@@ -112,15 +119,15 @@ export function Pendencias() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border">
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Valor</TableHead>
+                  <SortableTableHead<Despesa> label="Descrição" sortKey="descricao" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.descricao} />
+                  <SortableTableHead<Despesa> label="Categoria" sortKey="categoria" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.categoria} />
+                  <SortableTableHead<Despesa> label="Vencimento" sortKey="vencimento" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.data_vencimento} />
+                  <SortableTableHead<Despesa> label="Valor" sortKey="valor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => Number(item.valor || 0)} />
                   <TableHead className="text-right">Ação</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {despesas.map((despesa) => (
+                {despesasOrdenadas.map((despesa) => (
                   <TableRow key={despesa.id} className="border-border">
                     <TableCell className="font-medium">{despesa.descricao}</TableCell>
                     <TableCell>{despesa.categoria}</TableCell>

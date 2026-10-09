@@ -50,6 +50,7 @@ import {
   PaginationControls,
   paginate,
 } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function ComponenteAjudaMotorista() {
   const [ajudas, setAjudas] = useState<Ajuda_Motorista[]>([]);
@@ -134,12 +135,18 @@ export function ComponenteAjudaMotorista() {
 
     return matchesSearch && matchesDate;
   });
+  const {
+    sortedItems: sortedAjudas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredAjudas);
 
   useEffect(() => {
     setPage(1);
   }, [search, dateFrom, dateTo, pageSize]);
 
-  const paginatedAjudas = paginate(filteredAjudas, page, pageSize);
+  const paginatedAjudas = paginate(sortedAjudas, page, pageSize);
 
   const openNewAjuda = () => {
     setEditingAjuda(null);
@@ -362,24 +369,12 @@ export function ComponenteAjudaMotorista() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">
-                        Data
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Motorista / Empresa
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Placa / Contato
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Forma Pagto / PIX
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Valor
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-center">
-                        Recorrente
-                      </TableHead>
+                      <SortableTableHead<Ajuda_Motorista> label="Data" sortKey="data" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(ajuda) => ajuda.data} />
+                      <SortableTableHead<Ajuda_Motorista> label="Motorista / Empresa" sortKey="motorista_empresa" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(ajuda) => `${ajuda.motorista} ${ajuda.empresa}`} />
+                      <SortableTableHead<Ajuda_Motorista> label="Placa / Contato" sortKey="placa_contato" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(ajuda) => `${ajuda.placa} ${ajuda.telefone}`} />
+                      <SortableTableHead<Ajuda_Motorista> label="Forma Pagto / PIX" sortKey="pagamento_pix" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(ajuda) => `${ajuda.forma_pagamento} ${ajuda.pix}`} />
+                      <SortableTableHead<Ajuda_Motorista> label="Valor" sortKey="valor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(ajuda) => Number(ajuda.valor) || 0} />
+                      <SortableTableHead<Ajuda_Motorista> label="Recorrente" sortKey="recorrente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(ajuda) => ajuda.recorrente ? "Sim" : "Não"} />
                       <TableHead className="text-muted-foreground text-right">
                         Ações
                       </TableHead>

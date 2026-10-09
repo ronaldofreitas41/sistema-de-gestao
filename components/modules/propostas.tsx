@@ -49,6 +49,10 @@ import {
   PaginationControls,
   paginate,
 } from "@/components/ui/pagination";
+import {
+  SortableTableHead,
+  useSortableData,
+} from "@/components/ui/sortable-table";
 
 import { RESPONSABILIDADES_PADRAO, SEGURO_PADRAO } from "@/lib/common";
 import { generatePropostaPDF } from "@/lib/pdf/pdfProposta";
@@ -105,7 +109,15 @@ type EmpresaOption = {
   id: string | number;
   nome: string;
   razao_social?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  inscricao_estadual?: string | null;
+  telefone?: string | null;
   email?: string | null;
+  endereco?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  cep?: string | null;
   logo?: string | null;
 };
 type EquipamentoOption = {
@@ -226,11 +238,18 @@ export function Propostas() {
     );
   });
 
+  const {
+    sortedItems: sortedPropostas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredPropostas);
+
   useEffect(() => {
     setPage(1);
   }, [search, pageSize]);
 
-  const paginatedPropostas = paginate(filteredPropostas, page, pageSize);
+  const paginatedPropostas = paginate(sortedPropostas, page, pageSize);
 
   const openNewProposta = () => {
     setEditingProposta(null);
@@ -498,24 +517,54 @@ export function Propostas() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">
-                        Número
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Contratante
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Obra
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Veículo / Modelo
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Data / Validade
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Valor Fechado
-                      </TableHead>
+                      <SortableTableHead<Proposta>
+                        label="Número"
+                        sortKey="numero"
+                        activeSortKey={sortKey}
+                        direction={sortDirection}
+                        onSort={toggleSort}
+                        getValue={(item) => item.numero || item.id}
+                      />
+                      <SortableTableHead<Proposta>
+                        label="Contratante"
+                        sortKey="contratante"
+                        activeSortKey={sortKey}
+                        direction={sortDirection}
+                        onSort={toggleSort}
+                        getValue={(item) => item.contratante}
+                      />
+                      <SortableTableHead<Proposta>
+                        label="Obra"
+                        sortKey="obra"
+                        activeSortKey={sortKey}
+                        direction={sortDirection}
+                        onSort={toggleSort}
+                        getValue={(item) => item.obra}
+                      />
+                      <SortableTableHead<Proposta>
+                        label="Veículo / Modelo"
+                        sortKey="veiculo"
+                        activeSortKey={sortKey}
+                        direction={sortDirection}
+                        onSort={toggleSort}
+                        getValue={(item) => `${item.veiculo} ${item.modelo}`}
+                      />
+                      <SortableTableHead<Proposta>
+                        label="Data / Validade"
+                        sortKey="data"
+                        activeSortKey={sortKey}
+                        direction={sortDirection}
+                        onSort={toggleSort}
+                        getValue={(item) => item.data}
+                      />
+                      <SortableTableHead<Proposta>
+                        label="Valor Fechado"
+                        sortKey="valorFechado"
+                        activeSortKey={sortKey}
+                        direction={sortDirection}
+                        onSort={toggleSort}
+                        getValue={(item) => item.valorFechado}
+                      />
                       <TableHead className="text-muted-foreground text-right">
                         Ações
                       </TableHead>
@@ -561,10 +610,18 @@ export function Propostas() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700"
-                              onClick={() => generatePropostaPDF({
-                                ...proposta,
-                                empresaLogo: empresas.find((empresa) => String(empresa.id) === String(proposta.empresaId))?.logo,
-                              })}
+                              onClick={() => {
+                                const empresaEmitente = empresas.find(
+                                  (empresa) =>
+                                    String(empresa.id) ===
+                                    String(proposta.empresaId),
+                                );
+                                generatePropostaPDF({
+                                  ...proposta,
+                                  empresaLogo: empresaEmitente?.logo,
+                                  empresaEmitente,
+                                });
+                              }}
                               title="Gerar PDF"
                             >
                               <Download className="h-4 w-4" />
@@ -985,8 +1042,11 @@ export function Propostas() {
                           }
                         />
                         <Input
-                          type="number"
-                          value={linha.vm || ""}
+                          type="text"
+                          value={Number(linha.vm || 0).toLocaleString("pt-BR", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
                           readOnly
                           className="bg-muted"
                         />

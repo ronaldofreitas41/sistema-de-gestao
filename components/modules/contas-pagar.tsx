@@ -33,6 +33,7 @@ import { PlacaInput } from "@/components/ui/placa-input";
 import { Despesa } from "@/lib/types";
 import { deleteRegistro, getPlacas } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 // Funções auxiliares de formatação
 const formatCurrency = (value?: string | number | null) => {
@@ -115,12 +116,18 @@ export function ContasPagar() {
 
     return matchesSearch && matchesCategory && matchesStatus && matchesDate;
   });
+  const {
+    sortedItems: sortedDespesas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredDespesas);
 
   useEffect(() => {
     setPage(1);
   }, [search, categoryFilter, statusFilter, dateFrom, dateTo, pageSize]);
 
-  const paginatedDespesas = paginate(filteredDespesas, page, pageSize);
+  const paginatedDespesas = paginate(sortedDespesas, page, pageSize);
 
   const openNewDespesa = () => {
     setEditingDespesa(null);
@@ -331,14 +338,14 @@ export function ContasPagar() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border">
-                  <TableHead className="text-muted-foreground">Nº Desp.</TableHead>
-                  <TableHead className="text-muted-foreground">Descrição</TableHead>
-                  <TableHead className="text-muted-foreground">Categoria</TableHead>
-                  <TableHead className="text-muted-foreground">Fornecedor</TableHead>
-                  <TableHead className="text-muted-foreground">Vencimento</TableHead>
-                  <TableHead className="text-muted-foreground">Pagamento</TableHead>
-                  <TableHead className="text-muted-foreground">Valor</TableHead>
-                  <TableHead className="text-muted-foreground text-center">Status</TableHead>
+                  <SortableTableHead<Despesa> label="Nº Desp." sortKey="num_desp" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(despesa) => despesa.num_desp} />
+                  <SortableTableHead<Despesa> label="Descrição" sortKey="descricao" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(despesa) => despesa.descricao} />
+                  <SortableTableHead<Despesa> label="Categoria" sortKey="categoria" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(despesa) => despesa.categoria} />
+                  <SortableTableHead<Despesa> label="Fornecedor" sortKey="fornecedor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(despesa) => despesa.fornecedor} />
+                  <SortableTableHead<Despesa> label="Vencimento" sortKey="data_vencimento" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(despesa) => despesa.data_vencimento} />
+                  <SortableTableHead<Despesa> label="Pagamento" sortKey="data_pagamento" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(despesa) => despesa.data_pagamento} />
+                  <SortableTableHead<Despesa> label="Valor" sortKey="valor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(despesa) => Number(despesa.valor) || 0} />
+                  <SortableTableHead<Despesa> label="Status" sortKey="status_disp" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(despesa) => despesa.status_disp} />
                   <TableHead className="text-muted-foreground text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>

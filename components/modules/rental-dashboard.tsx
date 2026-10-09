@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { navGroups } from "@/lib/common";
+import { SortableListControls, SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 type RecordData = Record<string, unknown>;
 type Booking = { id: string; client: string; vehicle: string; date: string; status: string };
@@ -123,6 +124,18 @@ function DashboardHome({ onNavigate }: { onNavigate: (label: string) => void }) 
   const booking = (row: RecordData): Booking => { const client = clienteById.get(String(row.cliente_id)); const equipment = equipamentoById.get(String(row.equipamento_id)); return { id: String(row.numero ?? row.id), client: String(client?.nome ?? row.descricao ?? "Cliente não informado"), vehicle: `${String(equipment?.modelo ?? equipment?.tipo ?? "Equipamento não informado")}${equipment?.placa ? ` · ${equipment.placa}` : ""}`, date: shortDate(row.data_inicio), status: String(row.status ?? "Sem status") }; };
   const nextBookings = contratoRows.filter((row) => { const date = new Date(String(row.data_inicio ?? "")); return !Number.isNaN(date.getTime()) && date >= today && date <= tomorrow; }).slice(0, 3).map(booking);
   const recentBookings = contratoRows.slice(0, 5).map(booking);
+  const {
+    sortedItems: nextBookingsOrdenadas,
+    sortKey: nextSortKey,
+    sortDirection: nextSortDirection,
+    toggleSort: toggleNextSort,
+  } = useSortableData(nextBookings);
+  const {
+    sortedItems: recentBookingsOrdenadas,
+    sortKey: recentSortKey,
+    sortDirection: recentSortDirection,
+    toggleSort: toggleRecentSort,
+  } = useSortableData(recentBookings);
   const loading = [contas, despesas, equipamentos, contratos, vendas].some((result) => result.isLoading);
   const hasError = [contas, despesas, equipamentos, contratos].some((result) => result.error);
   const name = usuario?.nome || usuario?.login || "Usuário";
@@ -144,6 +157,12 @@ function ModulePage({ item }: { item: NavItem }) {
   const { data, error, isLoading } = useSWR<ApiResponse>(endpoint, fetcher, { revalidateOnFocus: false });
   const rows = Array.isArray(data?.data) ? data.data : [];
   const columns = useMemo(() => rows.length ? Object.keys(rows[0]).filter((key) => !["senha", "created_at", "updated_at", "criado_em", "atualizado_em"].includes(key)).slice(0, 8) : [], [rows]);
+  const {
+    sortedItems: rowsOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(rows);
   return <div className="flex flex-col gap-6"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="mb-1 text-sm font-medium text-primary">MH3 Rental / {item.label}</p><h2 className="text-3xl font-bold tracking-tight text-foreground">{item.label}</h2><p className="mt-2 text-sm text-muted-foreground">Gestão completa de {item.label.toLowerCase()} integrada ao banco de dados.</p></div><button type="button" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"><Plus className="h-4 w-4" />Adicionar registro</button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"><MetricCard label="Registros encontrados" value={isLoading ? "..." : String(rows.length)} detail="Consulta atual" icon={Database} /><MetricCard label="Status da conexão" value={error ? "Atenção" : data?.configured === false ? "Configurar" : "Online"} detail="API Next.js" icon={ShieldCheck} negative={Boolean(error)} /><MetricCard label="Última sincronização" value={isLoading ? "..." : "Agora"} detail="Dados protegidos" icon={Activity} /></div><div className="rounded-2xl border border-border bg-card shadow-sm"><div className="flex flex-col gap-4 border-b border-border p-5 md:p-6"><div><h3 className="font-semibold text-card-foreground">Dados de {item.label}</h3><p className="mt-1 text-xs text-muted-foreground">Registros carregados pela API autenticada do Next.js</p></div><div className="relative w-full md:max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar registros..." className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none" /></div></div>{isLoading ? <div className="p-10 text-center text-sm text-muted-foreground">Carregando dados...</div> : error ? <div className="p-10 text-center text-sm text-destructive">Não foi possível carregar os dados.</div> : rows.length === 0 ? <div className="p-10 text-center text-sm text-muted-foreground">Nenhum registro encontrado.</div> : <div className="overflow-x-auto"><table className="w-full min-w-190 text-left text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{columns.map((column) => <th key={column} className="px-6 py-3 font-medium">{column.replaceAll("_", " ")}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t border-border">{columns.map((column) => <td key={column} className="max-w-60 truncate px-6 py-4 text-muted-foreground">{column.includes("data") || column.endsWith("_em") ? formatDate(row[column]) : displayValue(row[column])}</td>)}</tr>)}</tbody></table></div>}</div></div>;
 }
 

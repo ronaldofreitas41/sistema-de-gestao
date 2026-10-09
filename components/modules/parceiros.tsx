@@ -25,6 +25,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Parceiro } from "@/lib/types";
 import { deleteRegistro } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function Parceiros() {
   const [parceiros, setParceiros] = useState<Parceiro[]>([]);
@@ -79,7 +80,13 @@ export function Parceiros() {
     setPage(1);
   }, [search, pageSize]);
 
-  const paginatedParceiros = paginate(filteredParceiros, page, pageSize);
+  const {
+    sortedItems: parceirosOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredParceiros);
+  const paginatedParceiros = paginate(parceirosOrdenados, page, pageSize);
 
   const openNewParceiro = () => {
     setEditingParceiro(null);
@@ -241,11 +248,11 @@ export function Parceiros() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">Nome</TableHead>
-                      <TableHead className="text-muted-foreground">CNPJ</TableHead>
-                      <TableHead className="text-muted-foreground">Contato</TableHead>
-                      <TableHead className="text-muted-foreground">Cidade/UF</TableHead>
-                      <TableHead className="text-muted-foreground">PIX</TableHead>
+                      <SortableTableHead<Parceiro> label="Nome" sortKey="nome" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.nome} />
+                      <SortableTableHead<Parceiro> label="CNPJ" sortKey="cnpj" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.cnpj} />
+                      <SortableTableHead<Parceiro> label="Contato" sortKey="contato" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.email || item.telefone} />
+                      <SortableTableHead<Parceiro> label="Cidade/UF" sortKey="cidade" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => `${item.cidade || ""} ${item.estado || ""}`} />
+                      <SortableTableHead<Parceiro> label="PIX" sortKey="pix" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.pix} />
                       <TableHead className="text-muted-foreground text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>

@@ -50,6 +50,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 import {
   deleteRegistro,
@@ -553,6 +554,12 @@ export function Manutencoes() {
       return correspondeBusca && correspondeStatus;
     });
   }, [manutencoes, busca, filtroStatus]);
+  const {
+    sortedItems: manutencoesOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtradas);
 
   const proximoOs = useMemo(() => {
     const maiorOs = manutencoes.reduce((maior, manutencao) => {
@@ -562,19 +569,19 @@ export function Manutencoes() {
     return formatarNumeroOs(maiorOs + 1);
   }, [manutencoes]);
 
-  const pendentes = filtradas.filter((manutencao) =>
+  const pendentes = manutencoesOrdenadas.filter((manutencao) =>
     ["pendente", "aberto", "aberta"].includes(
       normalizarStatus(manutencao.status)
     )
   );
 
-  const concluidas = filtradas.filter((manutencao) =>
+  const concluidas = manutencoesOrdenadas.filter((manutencao) =>
     ["pago", "concluido", "concluída"].includes(
       normalizarStatus(manutencao.status)
     )
   );
 
-  const outras = filtradas.filter((manutencao) => {
+  const outras = manutencoesOrdenadas.filter((manutencao) => {
     const status = normalizarStatus(manutencao.status);
 
     return (
@@ -612,24 +619,12 @@ export function Manutencoes() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
-                    O.S.
-                  </TableHead>
-                  <TableHead>
-                    Equipamento
-                  </TableHead>
-                  <TableHead>
-                    Placa
-                  </TableHead>
-                  <TableHead>
-                    Tipo
-                  </TableHead>
-                  <TableHead>
-                    Entrada / Saída
-                  </TableHead>
-                  <TableHead>
-                    Status
-                  </TableHead>
+                  <SortableTableHead<ManutencaoApi> label="O.S." sortKey="osNum" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(manutencao) => manutencao.osNum} />
+                  <SortableTableHead<ManutencaoApi> label="Equipamento" sortKey="eqLbl" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(manutencao) => manutencao.eqLbl} />
+                  <SortableTableHead<ManutencaoApi> label="Placa" sortKey="placa" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(manutencao) => manutencao.placa} />
+                  <SortableTableHead<ManutencaoApi> label="Tipo" sortKey="tipo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(manutencao) => manutencao.tipo} />
+                  <SortableTableHead<ManutencaoApi> label="Entrada / Saída" sortKey="en" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(manutencao) => manutencao.en} />
+                  <SortableTableHead<ManutencaoApi> label="Status" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(manutencao) => manutencao.status} />
                   <TableHead className="text-right">
                     Ações
                   </TableHead>

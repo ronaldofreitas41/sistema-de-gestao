@@ -45,6 +45,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Seguro } from "@/lib/types";
 import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function ComponenteSeguros() {
   const [seguros, setSeguros] = useState<Seguro[]>([]);
@@ -103,7 +104,13 @@ export function ComponenteSeguros() {
     setPage(1);
   }, [search, dateFrom, dateTo, pageSize]);
 
-  const paginatedSeguros = paginate(filteredSeguros, page, pageSize);
+  const {
+    sortedItems: segurosOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredSeguros);
+  const paginatedSeguros = paginate(segurosOrdenados, page, pageSize);
 
   const openViewSeguro = (seguro: Seguro) => {
     setSelectedSeguro(seguro);
@@ -262,11 +269,11 @@ export function ComponenteSeguros() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">Seguradora</TableHead>
-                      <TableHead className="text-muted-foreground">Apólice</TableHead>
-                      <TableHead className="text-muted-foreground">Vigência</TableHead>
-                      <TableHead className="text-muted-foreground">Valor</TableHead>
-                      <TableHead className="text-muted-foreground">Status</TableHead>
+                      <SortableTableHead<Seguro> label="Seguradora" sortKey="seguradora" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.seguradora} />
+                      <SortableTableHead<Seguro> label="Apólice" sortKey="apolice" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.apolice} />
+                      <SortableTableHead<Seguro> label="Vigência" sortKey="vigencia" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.data_inicio} />
+                      <SortableTableHead<Seguro> label="Valor" sortKey="valor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => Number(item.valor || 0)} />
+                      <SortableTableHead<Seguro> label="Status" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.status} />
                       <TableHead className="text-muted-foreground text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>

@@ -46,6 +46,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Equipamento } from "@/lib/types";
 import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function Equipamentos() {
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([]);
@@ -114,12 +115,18 @@ export function Equipamentos() {
 
     return matchesSearch && matchesDate;
   });
+  const {
+    sortedItems: sortedEquipamentos,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredEquipamentos);
 
   useEffect(() => {
     setPage(1);
   }, [search, dateFrom, dateTo, pageSize]);
 
-  const paginatedEquipamentos = paginate(filteredEquipamentos, page, pageSize);
+  const paginatedEquipamentos = paginate(sortedEquipamentos, page, pageSize);
 
   const openViewEquipamento = (equipamento: Equipamento) => {
     setSelectedEquipamento(equipamento);
@@ -284,12 +291,12 @@ export function Equipamentos() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">Placa / Frota</TableHead>
-                      <TableHead className="text-muted-foreground">Tipo</TableHead>
-                      <TableHead className="text-muted-foreground">Marca / Modelo</TableHead>
-                      <TableHead className="text-muted-foreground">Ano</TableHead>
-                      <TableHead className="text-muted-foreground">KM / Horímetro</TableHead>
-                      <TableHead className="text-muted-foreground">Status</TableHead>
+                      <SortableTableHead<Equipamento> label="Placa / Frota" sortKey="placa" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(eq) => eq.placa || eq.frota} />
+                      <SortableTableHead<Equipamento> label="Tipo" sortKey="tipo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(eq) => eq.tipo} />
+                      <SortableTableHead<Equipamento> label="Marca / Modelo" sortKey="marca_modelo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(eq) => `${eq.marca || ""} ${eq.modelo || ""}`} />
+                      <SortableTableHead<Equipamento> label="Ano" sortKey="ano" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(eq) => eq.ano} />
+                      <SortableTableHead<Equipamento> label="KM / Horímetro" sortKey="km_horimetro" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(eq) => `${eq.km_atual ?? ""} ${eq.horimetro ?? ""}`} />
+                      <SortableTableHead<Equipamento> label="Status" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(eq) => eq.status || "Ativo"} />
                       <TableHead className="text-muted-foreground text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>

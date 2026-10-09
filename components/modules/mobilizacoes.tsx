@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -133,6 +134,12 @@ export function Mobilizacoes() {
       return correspondeBusca && correspondeAno && correspondeStatus;
     });
   }, [mobilizacoes, busca, anoFiltro, mostrarArquivadas]);
+  const {
+    sortedItems: mobilizacoesOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtradas);
 
   function alterar(campo: keyof MobilizacaoForm, valor: any) {
     setForm((atual) => ({ ...atual, [campo]: valor }));
@@ -392,19 +399,19 @@ export function Mobilizacoes() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="text-xs font-semibold uppercase">Código</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase">Tipo</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase">Tipo de Equipamento</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase">Contratante/Cliente</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase">Saída</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase">Chegada</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase">Ciclo</TableHead>
+                      <SortableTableHead<Mobilizacao> label="Código" sortKey="codigo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.codigo || item.id} />
+                      <SortableTableHead<Mobilizacao> label="Tipo" sortKey="tipo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.tipo} />
+                      <SortableTableHead<Mobilizacao> label="Tipo de Equipamento" sortKey="tipo_equipamento" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.tipo_equipamento} />
+                      <SortableTableHead<Mobilizacao> label="Contratante/Cliente" sortKey="contratante" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.contratante || item.cliente} />
+                      <SortableTableHead<Mobilizacao> label="Saída" sortKey="data" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.data} />
+                      <SortableTableHead<Mobilizacao> label="Chegada" sortKey="data_chegada" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.data_chegada} />
+                      <SortableTableHead<Mobilizacao> label="Ciclo" sortKey="ciclo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.ciclo || "Contínuo"} />
                       <TableHead className="text-right text-xs font-semibold uppercase">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filtradas.length > 0 ? (
-                      filtradas.map((mobilizacao) => (
+                      mobilizacoesOrdenadas.map((mobilizacao) => (
                         <TableRow key={String(mobilizacao.id)} className="hover:bg-muted/50 transition-colors">
                           <TableCell className="whitespace-nowrap font-medium text-primary">
                             <div className="flex flex-col gap-1">

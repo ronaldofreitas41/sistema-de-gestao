@@ -44,6 +44,7 @@ import { Permissoes, Usuario } from "@/lib/types";
 import { contarPermissoes, deleteRegistro, normalizarPermissoes } from "@/lib/utils";
 import { PermissoesToggles } from "../ui/permissoes-toggles";
 import { permissoesModulosPadrao } from "@/lib/common";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function Usuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -110,6 +111,12 @@ export function Usuarios() {
 
     return matchesSearch && matchesPerfil;
   });
+  const {
+    sortedItems: usuariosOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredUsuarios);
 
   const openNewUsuario = () => {
     setEditingUsuario(null);
@@ -289,25 +296,17 @@ const handleSave = async () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">
-                        Nome
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Login
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Perfil
-                      </TableHead>
-                      <TableHead className="text-muted-foreground">
-                        Permissões
-                      </TableHead>
+                      <SortableTableHead<Usuario> label="Nome" sortKey="nome" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.nome} />
+                      <SortableTableHead<Usuario> label="Login" sortKey="login" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.login} />
+                      <SortableTableHead<Usuario> label="Perfil" sortKey="perfil" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.perfil} />
+                      <SortableTableHead<Usuario> label="Permissões" sortKey="permissoes" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => contarPermissoes(item.permissoes).ativas} />
                       <TableHead className="text-muted-foreground text-right">
                         Ações
                       </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUsuarios.map((usuario) => (
+                    {usuariosOrdenados.map((usuario) => (
                       <TableRow key={usuario.id} className="border-border">
                         <TableCell className="font-medium text-foreground">
                           {usuario.nome || "-"}

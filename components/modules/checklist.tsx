@@ -13,6 +13,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro } from "@/lib/utils";
+import { SortableListControls, useSortableData } from "@/components/ui/sortable-table";
 import {
   ArrowDown,
   ArrowUp,
@@ -86,6 +87,12 @@ export function ComponenteChecklist() {
       );
     });
   }, [itens, modelos, search]);
+  const {
+    sortedItems: modelosOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(modelosFiltrados);
 
   function openNewModel() {
     setEditingModel(null);
@@ -204,8 +211,19 @@ export function ComponenteChecklist() {
             <Button onClick={openNewModel} className="h-9 rounded-lg bg-[#d7193f] px-4 text-xs font-bold text-white hover:bg-[#b91436]"><Plus className="mr-1 h-3.5 w-3.5" /> Checklist</Button>
           </div>
 
+          <div className="mb-3 flex justify-end">
+            <SortableListControls
+              options={[
+                { label: "Nome", key: "nome", getValue: (item) => item.nome },
+                { label: "Categoria", key: "categoria", getValue: (item) => item.categoria },
+              ]}
+              sortKey={sortKey}
+              direction={sortDirection}
+              onSort={toggleSort}
+            />
+          </div>
           <div className="space-y-3">
-            {modelosFiltrados.map((modelo) => {
+            {modelosOrdenados.map((modelo) => {
               const modeloItens = itens.filter((item) => item.checklist_id === modelo.id);
               return (
                 <section key={modelo.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

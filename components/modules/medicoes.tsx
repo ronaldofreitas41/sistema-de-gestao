@@ -39,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 import { Medicao } from "@/lib/types";
 import {
   calcularPlacasMedicao,
@@ -577,6 +578,12 @@ export function Medicoes() {
       .toLowerCase()
       .includes(busca.toLowerCase()),
   );
+  const {
+    sortedItems: medicoesOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtradas);
   const placasAdicionadas = form.placas;
   const ehValorPorHora = form.tipo_cobranca === "Valor por Hora";
   const ehTerceiro = form.terceiro === "sim";
@@ -678,17 +685,17 @@ export function Medicoes() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Período</TableHead>
-                      <TableHead>Placas</TableHead>
-                      <TableHead>Parceiro</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Status</TableHead>
+                      <SortableTableHead<MedicaoApi> label="Período" sortKey="periodo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(medicao) => medicao.periodo || medicao.data_medicao} />
+                      <SortableTableHead<MedicaoApi> label="Placas" sortKey="placas" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(medicao) => obterPlacasMedicao(medicao.placas).map((placa) => placa.placa).join(", ")} />
+                      <SortableTableHead<MedicaoApi> label="Parceiro" sortKey="parceiro" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(medicao) => medicao.parceiro} />
+                      <SortableTableHead<MedicaoApi> label="Tipo" sortKey="tipo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(medicao) => medicao.tipo_cobranca || medicao.tipoCobranca} />
+                      <SortableTableHead<MedicaoApi> label="Valor" sortKey="valor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(medicao) => Number(medicao.valor || 0)} />
+                      <SortableTableHead<MedicaoApi> label="Status" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(medicao) => medicao.status} />
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtradas.map((medicao) => (
+                    {medicoesOrdenadas.map((medicao) => (
                       <TableRow key={medicao.id}>
                         <TableCell>
                           {formatarPeriodoExibicao(medicao.periodo)}

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SortableListControls, useSortableData } from "@/components/ui/sortable-table";
 
 type Equipamento = {
   id: string | number;
@@ -359,6 +360,12 @@ export default function AcompRevisaoPage() {
             .includes(busca.toLowerCase()),
       );
   }, [revisoes, equipamentos, busca]);
+  const {
+    sortedItems: registrosOrdenados,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(registros);
 
   const vencidas = registros.filter((item) => item.vencida).length;
 
@@ -468,10 +475,37 @@ export default function AcompRevisaoPage() {
                   onChange={(event) => setBusca(event.target.value)}
                 />
               </div>
-              <p className="text-sm text-muted-foreground">
-                A base de cálculo é a última OS preventiva + os intervalos
-                informados.
-              </p>
+              <div className="flex flex-col gap-2 md:items-end">
+                <p className="text-sm text-muted-foreground">
+                  A base de cálculo é a última OS preventiva + os intervalos
+                  informados.
+                </p>
+                <SortableListControls
+                  options={[
+                    {
+                      label: "Equipamento",
+                      key: "equipamento",
+                      getValue: (item) =>
+                        nomeEquipamento(item.equipamento, item.dados.placaManual),
+                    },
+                    {
+                      label: "Status",
+                      key: "status",
+                      getValue: (item) => (item.vencida ? "Vencida" : "Em dia"),
+                    },
+                    {
+                      label: "Data de contato",
+                      key: "data",
+                      getValue: (item) => item.revisao.data_realizacao,
+                    },
+                    { label: "Falta de KM", key: "km", getValue: (item) => item.faltaKm },
+                    { label: "Falta de horímetro", key: "horimetro", getValue: (item) => item.faltaHr },
+                  ]}
+                  sortKey={sortKey}
+                  direction={sortDirection}
+                  onSort={toggleSort}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -489,7 +523,7 @@ export default function AcompRevisaoPage() {
             </Card>
           ) : (
             <div className="grid gap-4 xl:grid-cols-2">
-              {registros.map(
+              {registrosOrdenados.map(
                 ({
                   revisao,
                   equipamento,

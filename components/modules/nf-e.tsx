@@ -35,6 +35,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { NotaFiscalEntrada, ItemNotaFiscal, Despesa } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 export function NFEntradaComponent() {
   const [notas, setNotas] = useState<NotaFiscalEntrada[]>([]);
@@ -103,7 +104,13 @@ export function NFEntradaComponent() {
     setPage(1);
   }, [search, dateFrom, dateTo, pageSize]);
 
-  const paginatedNotas = paginate(filteredNotas, page, pageSize);
+  const {
+    sortedItems: sortedNotas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredNotas);
+  const paginatedNotas = paginate(sortedNotas, page, pageSize);
 
   // Métricas
   const totalNotas = filteredNotas.length;
@@ -332,27 +339,13 @@ export function NFEntradaComponent() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-b border-gray-200 hover:bg-transparent dark:border-border">
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        Nº NF
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        EMISSÃO
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        FORNECEDOR
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        CNPJ
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        QTD ITENS
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        VALOR TOTAL
-                      </TableHead>
-                      <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2">
-                        STATUS
-                      </TableHead>
+                      <SortableTableHead<NotaFiscalEntrada> label="Nº NF" sortKey="numero_nf" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(nota) => nota.numero_nf} />
+                      <SortableTableHead<NotaFiscalEntrada> label="EMISSÃO" sortKey="data_emissao" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(nota) => nota.data_emissao} />
+                      <SortableTableHead<NotaFiscalEntrada> label="FORNECEDOR" sortKey="fornecedor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(nota) => nota.fornecedor} />
+                      <SortableTableHead<NotaFiscalEntrada> label="CNPJ" sortKey="cnpj" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(nota) => nota.cnpj} />
+                      <SortableTableHead<NotaFiscalEntrada> label="QTD ITENS" sortKey="itens" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(nota) => nota.items?.length || 0} />
+                      <SortableTableHead<NotaFiscalEntrada> label="VALOR TOTAL" sortKey="valor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(nota) => Number(nota.valor || 0)} />
+                      <SortableTableHead<NotaFiscalEntrada> label="STATUS" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(nota) => nota.status} />
                       <TableHead className="text-[11px] font-bold text-gray-500 uppercase tracking-wider py-2 text-right">
                         AÇÕES
                       </TableHead>

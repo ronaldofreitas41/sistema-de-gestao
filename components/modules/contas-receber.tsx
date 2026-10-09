@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { ContaReceber } from "@/lib/types";
 import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
+import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 const vazio = {
   cliente: "",
@@ -108,6 +109,12 @@ export function ContasReceber() {
       .toLowerCase()
       .includes(busca.toLowerCase()),
   );
+  const {
+    sortedItems: contasOrdenadas,
+    sortKey,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtradas);
   const setField = (field: keyof typeof form, value: string) =>
     setForm((current) => ({ ...current, [field]: value }));
 
@@ -184,16 +191,16 @@ export function ContasReceber() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Competência</TableHead>
-                      <TableHead>Emissão</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Status</TableHead>
+                      <SortableTableHead<ContaReceber> label="Cliente" sortKey="cliente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.cliente} />
+                      <SortableTableHead<ContaReceber> label="Competência" sortKey="competencia" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.competencia} />
+                      <SortableTableHead<ContaReceber> label="Emissão" sortKey="data_emissao" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.data_emissao} />
+                      <SortableTableHead<ContaReceber> label="Valor" sortKey="valor_total" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => Number(conta.valor_total) || 0} />
+                      <SortableTableHead<ContaReceber> label="Status" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.status} />
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtradas.map((conta) => (
+                    {contasOrdenadas.map((conta) => (
                       <TableRow key={conta.id}>
                         <TableCell className="font-medium">
                           {conta.cliente || "-"}
