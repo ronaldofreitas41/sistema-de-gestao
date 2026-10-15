@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
-import { getById, remove, update } from "@/lib/crud-prisma";
+import { atualizarRegistro, getById, remove } from "@/lib/crud-prisma";
+import { gerarFinanciamento, validarFinanciamento } from "@/lib/frota-service";
+import { ErroNegocio, respostaErro, serializar } from "@/lib/medicao-service";
+import { prisma } from "@/lib/prisma";
+import { FIELDS_EQUIPAMENTO } from "../route";
 
 const TABLE = "mh3_equipamentos";
-const FIELDS = ["empresa_id", "codigo", "placa", "frota", "tipo", "marca", "modelo", "ano", "renavam", "chassi", "km_atual", "horimetro", "status", "observacoes"];
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -11,23 +14,50 @@ export async function GET(request: NextRequest, { params }: Context) {
   return getById(TABLE, id, request);
 }
 
-export async function PUT(request: NextRequest, { params }: Context) {
+async function editar(request: NextRequest, { params }: Context) {
   const { id } = await params;
+  let body: Record<string, unknown>;
   try {
-    return update(TABLE, FIELDS, id, await request.json(), request);
+    body = await request.json();
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
+  }
+  try {
+    if (!/^\d+$/.test(id)) throw new ErroNegocio(400, "Veículo inválido.");
+    const atual = await prisma.mh3_equipamentos.findUnique({ where: { id: BigInt(id) } });
+    if (!atual) throw new ErroNegocio(404, "Veículo não encontrado.");
+
+    const placa = String(body.placa ?? atual.placa ?? "").trim().toUpperCase().replace(/\s+/g, "");
+    if (!placa) throw new ErroNegocio(400, "Informe a placa do veículo.");
+    if (placa !== atual.placa) {
+      const duplicada = await prisma.mh3_equipamentos.findFirst({ where: { placa, id: { not: atual.id } } });
+      if (duplicada) throw new ErroNegocio(409, `A placa ${placa} já está cadastrada na frota.`);
+    }
+    const precisaGerar = !atual.financiamento_gerado
+      && String(body.situacao_financeira ?? "").toLowerCase().startsWith("financ");
+    validarFinanciamento(body, precisaGerar);
+
+    const row = await atualizarRegistro(TABLE, FIELDS_EQUIPAMENTO, id, { ...body, placa }, request);
+    const despesas = precisaGerar
+      ? await gerarFinanciamento({
+          request,
+          tabela: "mh3_equipamentos",
+          id: atual.id,
+          placa,
+          titulo: placa,
+          banco: body.banco_financiamento,
+          modalidade: body.modalidade_financiamento,
+          parcelas: body.parcelas as { valor?: unknown; data_vencimento?: unknown }[],
+        })
+      : [];
+    return Response.json(serializar({ ...row, parcelas_geradas: despesas.length }));
+  } catch (erro) {
+    return respostaErro(erro);
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: Context) {
-  const { id } = await params;
-  try {
-    return update(TABLE, FIELDS, id, await request.json(), request);
-  } catch {
-    return Response.json({ error: "JSON inválido." }, { status: 400 });
-  }
-}
+export const PUT = editar;
+export const PATCH = editar;
 
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;

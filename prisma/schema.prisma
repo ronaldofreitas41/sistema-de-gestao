@@ -262,13 +262,19 @@ model mh3_empresas {
 }
 
 model mh3_equipamentos {
+  empresa_id               BigInt?   @db.UnsignedBigInt
+  modalidade_financiamento String?   @db.VarChar(20)
+  inmetro_venc             DateTime? @db.Date
+  outros_nome              String?   @db.VarChar(100)
+  outros_venc              DateTime? @db.Date
+  financiamento_gerado     Boolean   @default(false)
   id                      BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
   placa                   String?            @db.VarChar(20)
   frota                   String?            @db.VarChar(50)
   tipo                    String?            @db.VarChar(100)
   marca                   String?            @db.VarChar(100)
-  modelo                  String?            @db.VarChar(11)
-  ano                     String?            @db.VarChar(11)
+  modelo String? @db.VarChar(100)
+  ano String? @db.VarChar(10)
   renavam                 String?            @db.VarChar(30)
   chassi                  String?            @db.VarChar(50)
   km_atual                Decimal?           @default(0.00) @db.Decimal(12, 2)
@@ -423,6 +429,7 @@ model mh3_log {
 }
 
 model mh3_manutencoes {
+  pneus Json?
   id        String    @id @db.VarChar(50)
   osNum     String?   @db.VarChar(50)
   finStatus String?   @db.VarChar(50)
@@ -505,6 +512,7 @@ model mh3_contas_receber {
 }
 
 model mh3_mobilizacoes {
+  horimetro Decimal? @db.Decimal(12, 2)
   numero String? @db.VarChar(30)
   id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
   equipamento_id   BigInt?           @db.UnsignedBigInt
@@ -563,18 +571,22 @@ model mh3_nfs {
 }
 
 model mh3_pneus {
+  codigo       String? @db.VarChar(30)
+  pct_borracha Int?
+  situacao     String  @default("estoque") @db.VarChar(20)
+  placa        String? @db.VarChar(20)
   id               String    @id @db.VarChar(50)
   numero           String    @db.VarChar(50)
   marca            String    @db.VarChar(100)
-  modelo           String    @db.VarChar(100)
-  medida           String    @db.VarChar(50)
-  dot              String    @db.VarChar(20)
+  modelo String? @db.VarChar(100)
+  medida String? @db.VarChar(50)
+  dot String? @db.VarChar(20)
   condicao         String    @db.VarChar(50)
   valor            String?   @db.VarChar(50)
   data             DateTime  @db.Date
   observacao       String?   @db.Text
-  status           String    @db.VarChar(50)
-  local            String    @db.VarChar(100)
+  status String? @default("estoque") @db.VarChar(50)
+  local String? @db.VarChar(100)
   reformadora      String?   @db.VarChar(100)
   data_saida       DateTime? @db.Date
   previsao_retorno DateTime? @db.Date
@@ -677,6 +689,7 @@ model mh3_revisoes {
 }
 
 model mh3_seguros {
+  placas Json?
   numero String? @db.VarChar(30)
   id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   seguradora     String?   @db.VarChar(150)
@@ -834,4 +847,78 @@ model mh3_sequencias {
   id     BigInt @id @default(autoincrement()) @db.UnsignedBigInt
   nome   String @unique(map: "uk_sequencias_nome") @db.VarChar(60)
   ultimo BigInt @default(0)
+}
+
+model mh3_implementos {
+  id                       BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  numero                   String?   @db.VarChar(30)
+  equipamento_id           BigInt?   @db.UnsignedBigInt
+  placa                    String?   @db.VarChar(20)
+  marca                    String?   @db.VarChar(100)
+  modelo                   String?   @db.VarChar(100)
+  ano                      String?   @db.VarChar(10)
+  niev                     String?   @db.VarChar(50)
+  descricao                String?   @db.Text
+  valor_aquisicao          Decimal?  @db.Decimal(14, 2)
+  data_aquisicao           DateTime? @db.Date
+  situacao_financeira      String?   @db.VarChar(20)
+  modalidade_financiamento String?   @db.VarChar(20)
+  banco_financiamento      String?   @db.VarChar(100)
+  tipo_parcela             String?   @db.VarChar(20)
+  quantidade_parcelas      Int?
+  financiamento_gerado     Boolean   @default(false)
+  criado_em                DateTime  @default(now()) @db.DateTime(0)
+}
+
+model mh3_pneus_historico {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  pneu_id     String   @db.VarChar(50)
+  tipo        String   @db.VarChar(30)
+  data        DateTime @default(now()) @db.DateTime(0)
+  descricao   String?  @db.Text
+  usuario     String?  @db.VarChar(150)
+  placa       String?  @db.VarChar(20)
+  os_id       String?  @db.VarChar(50)
+  romaneio_id BigInt?  @db.UnsignedBigInt
+
+  @@index([pneu_id], map: "idx_pneus_hist_pneu")
+}
+
+model mh3_romaneios {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  numero           String?   @db.VarChar(30)
+  reformadora      String?   @db.VarChar(150)
+  data_saida       DateTime? @db.Date
+  previsao_retorno DateTime? @db.Date
+  status           String    @default("aberto") @db.VarChar(20)
+  observacoes      String?   @db.Text
+  criado_por       String?   @db.VarChar(150)
+  criado_em        DateTime  @default(now()) @db.DateTime(0)
+  retornado_em     DateTime? @db.DateTime(0)
+}
+
+model mh3_romaneio_itens {
+  id            BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  romaneio_id   BigInt   @db.UnsignedBigInt
+  pneu_id       String   @db.VarChar(50)
+  resultado     String?  @db.VarChar(20)
+  pct_borracha  Int?
+  valor_reforma Decimal? @db.Decimal(14, 2)
+  observacao    String?  @db.VarChar(255)
+
+  @@index([romaneio_id], map: "idx_romaneio_itens")
+}
+
+model mh3_pneu_pendencias {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  os_id           String?   @db.VarChar(50)
+  os_num          String?   @db.VarChar(50)
+  placa           String?   @db.VarChar(20)
+  pneu_saida_id   String?   @db.VarChar(50)
+  status          String    @default("pendente") @db.VarChar(20)
+  pneu_entrada_id String?   @db.VarChar(50)
+  criado_em       DateTime  @default(now()) @db.DateTime(0)
+  concluido_em    DateTime? @db.DateTime(0)
+
+  @@index([status], map: "idx_pneu_pend_status")
 }

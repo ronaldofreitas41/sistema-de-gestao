@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,217 +18,377 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  Eye,
-  Menu,
-  X,
-  AlertTriangle,
-
-} from "lucide-react";
+import { AlertTriangle, Ban, Edit, Menu, Plus, Printer, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { deleteRegistro, formatDate } from "@/lib/utils";
-import { SortableListControls, useSortableData } from "@/components/ui/sortable-table";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { chamarApi, mensagemErro } from "@/lib/api-client";
+import { usuarioLogado, usuarioPode } from "@/lib/permissoes-client";
+import { useSortableData } from "@/components/ui/sortable-table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
+const CONDICOES = [
+  { valor: "novo", rotulo: "Novo" },
+  { valor: "usado", rotulo: "Usado" },
+  { valor: "reformado", rotulo: "Reformado" },
+  { valor: "carcaça", rotulo: "Carcaça" },
+];
+
 interface Pneu {
   id: string;
+  codigo?: string | null;
+  numero: string;
+  marca: string;
+  modelo?: string | null;
+  medida?: string | null;
+  dot?: string | null;
+  condicao: string;
+  pct_borracha?: number | null;
+  valor?: string | null;
+  data?: string | null;
+  observacao?: string | null;
+  situacao: string;
+  placa?: string | null;
+}
+
+type PneuForm = {
   numero: string;
   marca: string;
   modelo: string;
   medida: string;
   dot: string;
   condicao: string;
+  pct_borracha: string;
   valor: string;
   data: string;
   observacao: string;
+};
+
+type ItemRomaneio = {
+  id: string;
+  pneu_id: string;
+  resultado?: string | null;
+  pct_borracha?: number | null;
+  valor_reforma?: string | number | null;
+  pneu?: Pneu | null;
+};
+
+type Romaneio = {
+  id: string;
+  numero?: string | null;
+  reformadora?: string | null;
+  data_saida?: string | null;
+  previsao_retorno?: string | null;
   status: string;
-  local: string;
-  reformadora?: string;
-  data_saida?: string;
-  previsao_retorno?: string;
-  saiu_reforma?: number;
-}
+  observacoes?: string | null;
+  itens: ItemRomaneio[];
+};
 
-type PneuForm = Omit<Pneu, "id">;
+type Pendencia = { id: string; os_num?: string | null; placa?: string | null; pneu_saida_id?: string | null; status: string; criado_em?: string };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+type RetornoItem = { resultado: "" | "reformado" | "recusado"; pct_borracha: string; valor_reforma: string };
 
-function gerarId() {
-  return Math.random().toString(36).slice(2, 15);
-}
+const ROTULO_SITUACAO: Record<string, { label: string; cor: string }> = {
+  estoque: { label: "Em estoque", cor: "bg-emerald-100 text-emerald-700" },
+  instalado: { label: "Instalado", cor: "bg-blue-100 text-blue-700" },
+  reforma: { label: "Em reforma", cor: "bg-amber-100 text-amber-700" },
+  inutilizado: { label: "Inutilizado", cor: "bg-red-100 text-red-700" },
+};
 
-function calcularIdade(dot: string): string {
-  if (!dot || dot.length < 2) return "?";
-  const semana = parseInt(dot.slice(0, 2));
+function calcularIdade(dot?: string | null): number | null {
+  if (!dot || dot.length < 4) return null;
   const ano = parseInt(dot.slice(2, 4));
-  if (!semana || !ano) return "?";
-  
-  const anoCompleto = ano < 50 ? 2000 + ano : 1900 + ano;
-  const agora = new Date();
-  const anosPassados = agora.getFullYear() - anoCompleto;
-  
-  return anosPassados + " ano(s)";
+  if (!parseInt(dot.slice(0, 2)) || !ano) return null;
+  return new Date().getFullYear() - (ano < 50 ? 2000 + ano : 1900 + ano);
 }
 
-function statusBadge(status: string) {
-  const config: Record<string, { label: string; bg: string; text: string }> = {
-    estoque: { label: "Em estoque", bg: "bg-emerald-100", text: "text-emerald-700" },
-    aplicado: { label: "Aplicado", bg: "bg-blue-100", text: "text-blue-700" },
-    inutilizado: { label: "Inutilizado", bg: "bg-red-100", text: "text-red-700" },
-    reformando: { label: "Em reforma", bg: "bg-amber-100", text: "text-amber-700" },
-  };
-  return config[status] || { label: status, bg: "bg-gray-100", text: "text-gray-700" };
-}
+const formularioVazio = (): PneuForm => ({
+  numero: "",
+  marca: "",
+  modelo: "",
+  medida: "",
+  dot: "",
+  condicao: "novo",
+  pct_borracha: "",
+  valor: "",
+  data: new Date().toISOString().slice(0, 10),
+  observacao: "",
+});
 
-// ─── Componente Principal ─────────────────────────────────────────────────────
+type Aba = "estoque" | "romaneios" | "pendencias";
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 
 export function Pneus() {
+  const [aba, setAba] = useState<Aba>("estoque");
   const [pneus, setPneus] = useState<Pneu[]>([]);
+  const [romaneios, setRomaneios] = useState<Romaneio[]>([]);
+  const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [search, setSearch] = useState("");
-  const [filtroStatus, setFiltroStatus] = useState("todos");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [editingPneu, setEditingPneu] = useState<Pneu | null>(null);
-  const [selectedPneu, setSelectedPneu] = useState<Pneu | null>(null);
+  const [filtroSituacao, setFiltroSituacao] = useState("estoque");
+  const [filtroCondicao, setFiltroCondicao] = useState("todas");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [usuario, setUsuario] = useState(() => (typeof window === "undefined" ? null : usuarioLogado()));
 
-  const emptyForm = (): PneuForm => ({
-    numero: "",
-    marca: "",
-    modelo: "",
-    medida: "",
-    dot: "",
-    condicao: "novo",
-    valor: "",
-    data: new Date().toISOString().slice(0, 10),
-    observacao: "",
-    status: "estoque",
-    local: "Estoque",
-  });
+  // cadastro / edição (também usado para lançar a entrada de uma pendência)
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Pneu | null>(null);
+  const [pendenciaEntrada, setPendenciaEntrada] = useState<Pendencia | null>(null);
+  const [form, setForm] = useState<PneuForm>(formularioVazio());
+  const [salvando, setSalvando] = useState(false);
 
-  const [formData, setFormData] = useState<PneuForm>(emptyForm());
+  // inutilização
+  const [inutilizando, setInutilizando] = useState<Pneu | null>(null);
+  const [motivo, setMotivo] = useState("");
 
-  // ── Fetch ──
-  async function fetchPneus() {
+  // romaneio de saída
+  const [romaneioOpen, setRomaneioOpen] = useState(false);
+  const [selecionados, setSelecionados] = useState<string[]>([]);
+  const [romaneioForm, setRomaneioForm] = useState({ reformadora: "", data_saida: new Date().toISOString().slice(0, 10), previsao_retorno: "", observacoes: "" });
+
+  // retorno do romaneio
+  const [retornando, setRetornando] = useState<Romaneio | null>(null);
+  const [retorno, setRetorno] = useState<Record<string, RetornoItem>>({});
+
+  useEffect(() => setUsuario(usuarioLogado()), []);
+  const pode = (chave: string) => usuarioPode(usuario, chave);
+
+  async function carregarTudo() {
     try {
-      const res = await fetch("/api/pneus");
-      const data = await res.json();
-      setPneus(Array.isArray(data) ? data : data.data || []);
-    } catch (e) {
-      console.error("Erro ao carregar pneus:", e);
+      const [p, r, pend] = await Promise.all([
+        fetch("/api/pneus", { credentials: "include" }).then((x) => x.json()),
+        fetch("/api/romaneios", { credentials: "include" }).then((x) => x.json()),
+        fetch("/api/pneu-pendencias", { credentials: "include" }).then((x) => x.json()),
+      ]);
+      setPneus(Array.isArray(p) ? p : p.data || []);
+      setRomaneios(r.data || []);
+      setPendencias(pend.data || []);
+    } catch (erro) {
+      console.error("Erro ao carregar pneus:", erro);
     }
   }
 
   useEffect(() => {
-    fetchPneus();
+    carregarTudo();
   }, []);
 
-  // ── Totais calculados ──
-  const totais = useMemo(() => {
-    const statusCounts = {
-      estoque: pneus.filter(p => p.status === "estoque").length,
-      aplicado: pneus.filter(p => p.status === "aplicado").length,
-      inutilizado: pneus.filter(p => p.status === "inutilizado").length,
-      reformando: pneus.filter(p => p.status === "reformando").length,
-      total: pneus.length,
-    };
-    return statusCounts;
-  }, [pneus]);
+  const pneusEmRomaneio = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of romaneios) {
+      if (r.status !== "aberto") continue;
+      for (const item of r.itens) if (!item.resultado) ids.add(item.pneu_id);
+    }
+    return ids;
+  }, [romaneios]);
 
-  // ── Pneus com DOT antigo ──
-  const pneusAntigost = useMemo(() => {
-    return pneus.filter(p => {
-      const idade = calcularIdade(p.dot);
-      const anos = parseInt(idade.split(" ")[0]);
-      return anos >= 5 && !isNaN(anos);
-    });
-  }, [pneus]);
+  const totais = useMemo(() => ({
+    estoque: pneus.filter((p) => p.situacao === "estoque").length,
+    instalado: pneus.filter((p) => p.situacao === "instalado").length,
+    reforma: pneusEmRomaneio.size,
+    inutilizado: pneus.filter((p) => p.situacao === "inutilizado").length,
+  }), [pneus, pneusEmRomaneio]);
 
-  // ── Filtros ──
-  const filtered = useMemo(() => {
-    const term = search.toLowerCase();
+  const antigos = useMemo(
+    () => pneus.filter((p) => p.situacao === "estoque" && (calcularIdade(p.dot) ?? 0) >= 5),
+    [pneus],
+  );
+
+  const filtrados = useMemo(() => {
+    const termo = search.toLowerCase();
     return pneus.filter((p) => {
-      const matchSearch =
-        p.numero?.toLowerCase().includes(term) ||
-        p.marca?.toLowerCase().includes(term) ||
-        p.medida?.toLowerCase().includes(term) ||
-        p.local?.toLowerCase().includes(term);
-      const matchStatus =
-        filtroStatus === "todos" || p.status === filtroStatus;
-      return matchSearch && matchStatus;
+      const texto = [p.numero, p.codigo, p.marca, p.modelo, p.medida, p.placa].join(" ").toLowerCase();
+      const situacao = pneusEmRomaneio.has(p.id) && p.situacao === "estoque" ? "reforma" : p.situacao;
+      return (
+        texto.includes(termo) &&
+        (filtroSituacao === "todas" || situacao === filtroSituacao) &&
+        (filtroCondicao === "todas" || p.condicao === filtroCondicao)
+      );
     });
-  }, [pneus, search, filtroStatus]);
-  const {
-    sortedItems: pneusOrdenados,
-    sortKey,
-    sortDirection,
-    toggleSort,
-  } = useSortableData(filtered);
+  }, [pneus, search, filtroSituacao, filtroCondicao, pneusEmRomaneio]);
+  const { sortedItems: pneusOrdenados } = useSortableData(filtrados);
 
-  // ── CRUD ──
-  const openNew = () => {
-    setEditingPneu(null);
-    setFormData(emptyForm());
+  // ── Cadastro ──
+  function abrirNovo() {
+    setEditing(null);
+    setPendenciaEntrada(null);
+    setForm(formularioVazio());
     setDialogOpen(true);
-  };
+  }
 
-  const openEdit = (p: Pneu) => {
-    setEditingPneu(p);
-    setFormData({ ...p });
+  function abrirEdicao(p: Pneu) {
+    setEditing(p);
+    setPendenciaEntrada(null);
+    setForm({
+      numero: p.numero || "",
+      marca: p.marca || "",
+      modelo: p.modelo || "",
+      medida: p.medida || "",
+      dot: p.dot || "",
+      condicao: p.condicao || "novo",
+      pct_borracha: p.pct_borracha == null ? "" : String(p.pct_borracha),
+      valor: p.valor || "",
+      data: p.data?.slice(0, 10) || "",
+      observacao: p.observacao || "",
+    });
     setDialogOpen(true);
-  };
+  }
 
-  const openView = (p: Pneu) => {
-    setSelectedPneu(p);
-    setViewDialogOpen(true);
-  };
+  function abrirEntrada(pendencia: Pendencia) {
+    setEditing(null);
+    setPendenciaEntrada(pendencia);
+    setForm({ ...formularioVazio(), condicao: "carcaça", observacao: `Carcaça da ${pendencia.os_num ?? "OS"} (${pendencia.placa ?? ""})` });
+    setDialogOpen(true);
+  }
 
-  const handleSave = async () => {
-    const payload = {
-      ...formData,
-      data: formData.data || new Date().toISOString().slice(0, 10),
-    };
-    if (editingPneu) {
-      await fetch(`/api/pneus/${editingPneu.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/pneus", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    }
-    await fetchPneus();
-    setDialogOpen(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Excluir este pneu?")) return;
-    if (deletingId) return;
-    setDeletingId(id);
+  async function salvar() {
+    if (!form.numero.trim()) return alert("Informe o número do pneu.");
+    if (!form.marca.trim()) return alert("Informe a marca.");
+    setSalvando(true);
     try {
-      await deleteRegistro(`/api/pneus/${id}`);
-      setPneus((prev) => prev.filter((p) => p.id !== id));
+      const payload = { ...form, pct_borracha: form.pct_borracha === "" ? null : Number(form.pct_borracha) };
+      if (pendenciaEntrada) {
+        await chamarApi(`/api/pneu-pendencias/${pendenciaEntrada.id}/entrada`, "POST", payload);
+      } else {
+        await chamarApi(editing ? `/api/pneus/${editing.id}` : "/api/pneus", editing ? "PUT" : "POST", payload);
+      }
+      await carregarTudo();
+      setDialogOpen(false);
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível salvar o pneu."));
     } finally {
-      setDeletingId(null);
+      setSalvando(false);
     }
-  };
+  }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  async function excluir(p: Pneu) {
+    if (!confirm(`Excluir o pneu ${p.numero}?`)) return;
+    try {
+      await chamarApi(`/api/pneus/${p.id}`, "DELETE");
+      await carregarTudo();
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível excluir o pneu."));
+    }
+  }
+
+  async function confirmarInutilizacao() {
+    if (!inutilizando) return;
+    if (motivo.trim().length < 5) return alert("Informe o motivo (mínimo 5 caracteres).");
+    try {
+      await chamarApi(`/api/pneus/${inutilizando.id}/inutilizar`, "POST", { motivo });
+      setInutilizando(null);
+      setMotivo("");
+      await carregarTudo();
+    } catch (erro) {
+      alert(mensagemErro(erro));
+    }
+  }
+
+  // ── Romaneio ──
+  function abrirRomaneio() {
+    setSelecionados([]);
+    setRomaneioForm({ reformadora: "", data_saida: new Date().toISOString().slice(0, 10), previsao_retorno: "", observacoes: "" });
+    setRomaneioOpen(true);
+  }
+
+  const elegiveis = pneus.filter((p) => p.situacao === "estoque" && !pneusEmRomaneio.has(p.id));
+
+  async function criarRomaneio() {
+    if (!romaneioForm.reformadora.trim()) return alert("Informe a reformadora.");
+    if (!selecionados.length) return alert("Selecione ao menos um pneu.");
+    try {
+      const criado = await chamarApi<{ id: string }>("/api/romaneios", "POST", { ...romaneioForm, pneu_ids: selecionados });
+      setRomaneioOpen(false);
+      await carregarTudo();
+      const lista = await fetch("/api/romaneios", { credentials: "include" }).then((x) => x.json());
+      const novo = (lista.data || []).find((r: Romaneio) => String(r.id) === String(criado.id));
+      if (novo) imprimirRomaneio(novo);
+    } catch (erro) {
+      alert(mensagemErro(erro));
+    }
+  }
+
+  function imprimirRomaneio(r: Romaneio) {
+    const linhas = r.itens
+      .map(
+        (i) => `<tr><td>${i.pneu?.codigo ?? ""}</td><td>${i.pneu?.numero ?? ""}</td><td>${i.pneu?.marca ?? ""} ${i.pneu?.modelo ?? ""}</td><td>${i.pneu?.medida ?? ""}</td><td>${i.pneu?.dot ?? ""}</td><td>${i.pneu?.condicao ?? ""}</td><td></td></tr>`,
+      )
+      .join("");
+    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Romaneio ${r.numero}</title>
+      <style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #999;padding:6px 8px;font-size:12px;text-align:left}th{background:#eee}.meta{font-size:13px;margin:2px 0}.ass{margin-top:60px;display:flex;gap:40px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;font-size:12px;text-align:center}</style></head>
+      <body><h1>Romaneio de saída para reforma ${r.numero ?? ""}</h1>
+      <p class="meta"><strong>Reformadora:</strong> ${r.reformadora ?? ""}</p>
+      <p class="meta"><strong>Data de saída:</strong> ${formatDate(r.data_saida)} &nbsp; <strong>Previsão de retorno:</strong> ${formatDate(r.previsao_retorno)}</p>
+      ${r.observacoes ? `<p class="meta"><strong>Observações:</strong> ${r.observacoes}</p>` : ""}
+      <table><thead><tr><th>Código</th><th>Nº pneu</th><th>Marca / modelo</th><th>Medida</th><th>DOT</th><th>Condição</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table>
+      <p class="meta" style="margin-top:12px">Total: ${r.itens.length} pneu(s)</p>
+      <div class="ass"><div>Responsável MH3</div><div>Reformadora</div></div>
+      <script>window.onload=function(){window.print()}</script></body></html>`;
+    const janela = window.open("", "_blank");
+    if (!janela) return alert("Não foi possível abrir a impressão. Verifique o bloqueio de pop-ups.");
+    janela.document.open();
+    janela.document.write(html);
+    janela.document.close();
+  }
+
+  function abrirRetorno(r: Romaneio) {
+    setRetornando(r);
+    const inicial: Record<string, RetornoItem> = {};
+    for (const i of r.itens) {
+      if (!i.resultado) inicial[i.id] = { resultado: "", pct_borracha: i.pneu?.pct_borracha == null ? "" : String(i.pneu.pct_borracha), valor_reforma: "" };
+    }
+    setRetorno(inicial);
+  }
+
+  async function salvarRetorno() {
+    if (!retornando) return;
+    const itens = Object.entries(retorno)
+      .filter(([, v]) => v.resultado)
+      .map(([id, v]) => ({
+        id,
+        resultado: v.resultado,
+        pct_borracha: v.pct_borracha === "" ? null : Number(v.pct_borracha),
+        valor_reforma: v.valor_reforma === "" ? null : Number(v.valor_reforma),
+      }));
+    if (!itens.length) return alert("Marque o resultado (reformado ou recusado) de ao menos um pneu.");
+    try {
+      await chamarApi(`/api/romaneios/${retornando.id}`, "PUT", { itens });
+      setRetornando(null);
+      await carregarTudo();
+    } catch (erro) {
+      alert(mensagemErro(erro));
+    }
+  }
+
+  async function excluirRomaneio(r: Romaneio) {
+    if (!confirm(`Excluir o romaneio ${r.numero}?`)) return;
+    try {
+      await chamarApi(`/api/romaneios/${r.id}`, "DELETE");
+      await carregarTudo();
+    } catch (erro) {
+      alert(mensagemErro(erro));
+    }
+  }
+
+  const pendenciasAbertas = pendencias.filter((p) => p.status === "pendente");
+  const romaneiosAbertos = romaneios.filter((r) => r.status === "aberto");
+
+  const abas: [Aba, string, number][] = [
+    ["estoque", "Pneus", pneus.length],
+    ["romaneios", "Romaneios de reforma", romaneiosAbertos.length],
+    ["pendencias", "Entradas pendentes", pendenciasAbertas.length],
+  ];
 
   return (
     <div className="min-h-screen bg-[#f4f6f9] text-foreground dark:bg-background">
-      {/* Sidebar */}
       <div className="fixed inset-y-0 left-0 z-40 hidden md:flex">
         <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
       </div>
@@ -250,419 +410,391 @@ export function Pneus() {
       )}
 
       <div className={`min-h-screen transition-[padding-left] duration-300 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"}`}>
-
-        {/* Topbar */}
         <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
-          <div className="flex items-center gap-3 flex-1 max-w-lg">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="rounded-xl border border-border bg-card p-2 md:hidden"
-            >
+          <div className="flex flex-1 items-center gap-3">
+            <button type="button" onClick={() => setMenuOpen(true)} className="rounded-xl border border-border bg-card p-2 md:hidden">
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-lg font-bold text-foreground whitespace-nowrap">Pneus</h1>
+            <h1 className="whitespace-nowrap text-lg font-bold text-foreground">Pneus</h1>
+          </div>
+          <div className="flex gap-2">
+            {pode("pneus-romaneio") && (
+              <Button variant="outline" className="h-9 text-sm" onClick={abrirRomaneio}>
+                <Printer className="mr-1 h-4 w-4" /> Saída para reformadora
+              </Button>
+            )}
+            {pode("pneus-criar") && (
+              <Button onClick={abrirNovo} className="h-9 rounded-md bg-red-600 text-sm font-bold text-white hover:bg-red-700">
+                <Plus className="mr-1 h-4 w-4" /> Novo pneu
+              </Button>
+            )}
           </div>
         </header>
 
         <main className="w-full space-y-4 p-4 sm:p-6">
+          <div role="tablist" className="flex gap-1 border-b border-border">
+            {abas.map(([id, rotulo, qtd]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={aba === id}
+                onClick={() => setAba(id)}
+                className={`border-b-2 px-4 py-2 text-sm font-medium ${aba === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                {rotulo} <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{qtd}</span>
+              </button>
+            ))}
+          </div>
 
-          {/* Alerta de pneus antigos */}
-          {pneusAntigost.length > 0 && (
-            <div className="bg-amber-100 dark:bg-amber-100 border border-amber-200 dark:border-amber-900/30 rounded-lg p-4 flex gap-3 items-start">
-              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-amber-600 dark:text-amber-600">Pneus com DOT de 5 anos ou mais ({pneusAntigost.length})</p>
-                <p className="text-sm text-amber-600 dark:text-amber-600">Regra: pneu a partir de 5 anos de fabricação entra neste alerta.</p>
+          {aba === "estoque" && (
+            <>
+              {antigos.length > 0 && (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-100 p-4">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="font-bold text-amber-700">Pneus em estoque com DOT de 5 anos ou mais ({antigos.length})</p>
+                    <p className="text-sm text-amber-700">Pneu a partir de 5 anos de fabricação entra neste alerta.</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+                {([
+                  ["Em estoque", totais.estoque, "text-emerald-600"],
+                  ["Instalados", totais.instalado, "text-blue-600"],
+                  ["Em romaneio de reforma", totais.reforma, "text-amber-600"],
+                  ["Inutilizados", totais.inutilizado, "text-red-600"],
+                ] as [string, number, string][]).map(([rotulo, valor, cor]) => (
+                  <div key={rotulo} className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{rotulo}</p>
+                    <p className={`mt-1 text-2xl font-black ${cor}`}>{valor}</p>
+                  </div>
+                ))}
               </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="relative flex-1 sm:max-w-sm">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Buscar nº, código, marca, medida, placa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 border-border bg-card pl-9 text-xs" />
+                </div>
+                <Select value={filtroSituacao} onValueChange={(v) => setFiltroSituacao(v ?? "estoque")}>
+                  <SelectTrigger className="h-9 w-full border-border bg-card text-xs sm:w-48"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="estoque">Em estoque</SelectItem>
+                    <SelectItem value="instalado">Instalados</SelectItem>
+                    <SelectItem value="reforma">Em reforma</SelectItem>
+                    <SelectItem value="inutilizado">Inutilizados</SelectItem>
+                    <SelectItem value="todas">Todas as situações</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filtroCondicao} onValueChange={(v) => setFiltroCondicao(v ?? "todas")}>
+                  <SelectTrigger className="h-9 w-full border-border bg-card text-xs sm:w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as condições</SelectItem>
+                    {CONDICOES.map((c) => <SelectItem key={c.valor} value={c.valor}>{c.rotulo}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Nº</TableHead>
+                      <TableHead>Marca / modelo</TableHead>
+                      <TableHead>Medida</TableHead>
+                      <TableHead>DOT</TableHead>
+                      <TableHead>Condição</TableHead>
+                      <TableHead>% borracha</TableHead>
+                      <TableHead>Situação</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pneusOrdenados.length === 0 && (
+                      <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Nenhum pneu encontrado.</TableCell></TableRow>
+                    )}
+                    {pneusOrdenados.map((p) => {
+                      const situacaoExibida = pneusEmRomaneio.has(p.id) && p.situacao === "estoque" ? "reforma" : p.situacao;
+                      const badge = ROTULO_SITUACAO[situacaoExibida] ?? { label: situacaoExibida, cor: "bg-gray-100 text-gray-700" };
+                      return (
+                        <TableRow key={p.id}>
+                          <TableCell className="font-mono text-xs">{p.codigo || "-"}</TableCell>
+                          <TableCell className="font-semibold">{p.numero}</TableCell>
+                          <TableCell className="text-xs">{p.marca} {p.modelo}</TableCell>
+                          <TableCell className="text-xs">{p.medida || "-"}</TableCell>
+                          <TableCell className="text-xs">{p.dot || "-"}</TableCell>
+                          <TableCell className="text-xs capitalize">{p.condicao}</TableCell>
+                          <TableCell className="text-xs">{p.pct_borracha == null ? "-" : `${p.pct_borracha}%`}</TableCell>
+                          <TableCell>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.cor}`}>{badge.label}</span>
+                            {p.placa && p.situacao === "instalado" && <span className="ml-1 text-[11px] text-muted-foreground">{p.placa}</span>}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {pode("pneus-editar") && p.situacao !== "inutilizado" && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" title="Editar" onClick={() => abrirEdicao(p)}>
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {pode("pneus-inutilizar") && p.situacao === "estoque" && !pneusEmRomaneio.has(p.id) && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-amber-600" title="Saída por inutilização" onClick={() => { setInutilizando(p); setMotivo(""); }}>
+                                  <Ban className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {pode("pneus-excluir") && p.situacao === "estoque" && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Excluir" onClick={() => excluir(p)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Pneus instalados saem do estoque pela OS (troca de pneus) e os vendidos, pela venda/avaria. A saída por inutilização é feita aqui.
+              </p>
+            </>
+          )}
+
+          {aba === "romaneios" && (
+            <div className="space-y-3">
+              {romaneios.length === 0 && <p className="py-8 text-center text-muted-foreground">Nenhum romaneio criado.</p>}
+              {romaneios.map((r) => (
+                <div key={r.id} className="rounded-lg border border-border bg-card p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">{r.numero} — {r.reformadora}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Saída {formatDate(r.data_saida)} · previsão {formatDate(r.previsao_retorno)} · {r.itens.length} pneu(s)
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "aberto" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                        {r.status === "aberto" ? "Aguardando retorno" : "Retornado"}
+                      </span>
+                      <Button size="sm" variant="outline" onClick={() => imprimirRomaneio(r)}><Printer className="mr-1 h-4 w-4" /> Imprimir</Button>
+                      {pode("pneus-romaneio") && r.status === "aberto" && (
+                        <>
+                          <Button size="sm" onClick={() => abrirRetorno(r)}><RotateCcw className="mr-1 h-4 w-4" /> Lançar retorno</Button>
+                          {r.itens.every((i) => !i.resultado) && (
+                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => excluirRomaneio(r)}><Trash2 className="h-4 w-4" /></Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <ul className="mt-3 divide-y divide-border text-sm">
+                    {r.itens.map((i) => (
+                      <li key={i.id} className="flex items-center justify-between py-1.5">
+                        <span>Nº {i.pneu?.numero} — {i.pneu?.marca} {i.pneu?.medida}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {i.resultado
+                            ? `${i.resultado}${i.pct_borracha != null ? ` · ${i.pct_borracha}% borracha` : ""}${i.valor_reforma ? ` · ${formatCurrency(Number(i.valor_reforma))}` : ""}`
+                            : "aguardando"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Subtítulo + Botão Novo Pneu */}
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">Controle de pneus: estoque, aplicação e histórico</p>
-            <Button
-              onClick={openNew}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-md h-9"
-            >
-              <Plus className="h-4 w-4 mr-1" /> Novo Pneu
-            </Button>
-          </div>
-
-          {/* Busca e Filtro */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1 sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="BUSCAR PLACA, CLIENTE..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-9 text-xs bg-card border-border"
-              />
-            </div>
-            <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-              <SelectTrigger className="h-9 text-xs bg-card border-border w-full sm:w-52">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="estoque">Em estoque</SelectItem>
-                <SelectItem value="aplicado">Aplicado</SelectItem>
-                <SelectItem value="reformando">Em reforma</SelectItem>
-                <SelectItem value="inutilizado">Inutilizado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Cards de totais */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4">
-            <div className="bg-card rounded-lg border-t-2 border-t-emerald-500 border border-border p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Em estoque</p>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 mt-1">{totais.estoque}</p>
-            </div>
-            <div className="bg-card rounded-lg border-t-2 border-t-blue-500 border border-border p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Aplicados</p>
-              <p className="text-xl sm:text-2xl font-black text-blue-600 mt-1">{totais.aplicado}</p>
-            </div>
-            <div className="bg-card rounded-lg border-t-2 border-t-amber-500 border border-border p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Em reforma</p>
-              <p className="text-xl sm:text-2xl font-black text-amber-600 mt-1">{totais.reformando}</p>
-            </div>
-            <div className="bg-card rounded-lg border-t-2 border-t-red-500 border border-border p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Inutilizados</p>
-              <p className="text-xl sm:text-2xl font-black text-red-600 mt-1">{totais.inutilizado}</p>
-            </div>
-            <div className="bg-card rounded-lg border-t-2 border-t-purple-500 border border-border p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total</p>
-              <p className="text-xl sm:text-2xl font-black text-purple-600 mt-1">{totais.total}</p>
-            </div>
-          </div>
-
-          {/* Tabela */}
-          <div className="flex justify-end">
-            <SortableListControls
-              options={[
-                { label: "Nº", key: "numero", getValue: (pneu) => pneu.numero },
-                { label: "Marca", key: "marca", getValue: (pneu) => pneu.marca },
-                { label: "Medida", key: "medida", getValue: (pneu) => pneu.medida },
-                { label: "DOT", key: "dot", getValue: (pneu) => pneu.dot },
-                {
-                  label: "Idade",
-                  key: "idade",
-                  getValue: (pneu) => Number.parseInt(calcularIdade(pneu.dot), 10) || -1,
-                },
-                { label: "Condição", key: "condicao", getValue: (pneu) => pneu.condicao },
-                { label: "Situação", key: "status", getValue: (pneu) => pneu.status },
-              ]}
-              sortKey={sortKey}
-              direction={sortDirection}
-              onSort={toggleSort}
-            />
-          </div>
-          <div className="bg-card rounded-lg border border-border overflow-hidden">
-            {/* Cabeçalho da tabela */}
-            <div className="grid grid-cols-[80px_100px_120px_80px_70px_100px_140px_auto] gap-2 px-4 py-2 border-b border-border bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              <div>Nº</div>
-              <div>Marca</div>
-              <div>Medida</div>
-              <div>DOT</div>
-              <div>Idade</div>
-              <div>Condição</div>
-              <div>Situação</div>
-              <div />
-            </div>
-
-            {/* Linhas */}
-            {filtered.length === 0 && (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                Nenhum pneu encontrado.
-              </div>
-            )}
-
-            {pneusOrdenados.map((p) => {
-              const st = statusBadge(p.status);
-              const idade = calcularIdade(p.dot);
-              const anosInt = parseInt(idade.split(" ")[0]);
-
-              return (
-                <div key={p.id} className="grid grid-cols-[80px_100px_120px_80px_70px_100px_140px_auto] gap-2 px-4 py-3 border-b border-border items-center text-sm hover:bg-muted/20 transition-colors">
-                  
-                  {/* Número */}
-                  <div>
-                    <span className="text-[11px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 font-mono">
-                      {p.numero}
-                    </span>
-                  </div>
-
-                  {/* Marca */}
-                  <div className="font-medium text-foreground text-xs truncate">
-                    {p.marca}
-                  </div>
-
-                  {/* Medida */}
-                  <div className="text-xs text-muted-foreground font-mono">
-                    {p.medida}
-                  </div>
-
-                  {/* DOT */}
-                  <div className="text-xs text-muted-foreground font-mono">
-                    {p.dot}
-                  </div>
-
-                  {/* Idade */}
-                  <div className={`text-xs font-bold ${anosInt >= 5 ? "text-red-600" : "text-muted-foreground"}`}>
-                    {idade}
-                  </div>
-
-                  {/* Condição */}
-                  <div className="text-xs text-muted-foreground capitalize">
-                    {p.condicao}
-                  </div>
-
-                  {/* Status */}
-                  <div>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${st.bg} ${st.text}`}>
-                      {st.label}
-                    </span>
-                  </div>
-
-                  {/* Ações */}
-                  <div className="flex items-center gap-1 justify-end">
-                    <button
-                      onClick={() => openView(p)}
-                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      title="Visualizar"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-
-                    <button
-                      onClick={() => openEdit(p)}
-                      className="p-1.5 rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
-                      title="Editar"
-                    >
-                      <Edit className="h-3.5 w-3.5" />
-                    </button>
-
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      disabled={deletingId !== null}
-                      className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                      title="Excluir"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+          {aba === "pendencias" && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Cada pneu retirado do estoque em uma OS de troca gera uma entrada de carcaça a cadastrar.
+              </p>
+              {pendenciasAbertas.length === 0 && <p className="py-8 text-center text-muted-foreground">Nenhuma entrada pendente.</p>}
+              {pendenciasAbertas.map((p) => (
+                <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-3">
+                  <span className="text-sm">
+                    <strong>{p.os_num}</strong> — placa {p.placa} — saiu o pneu Nº {pneus.find((x) => x.id === p.pneu_saida_id)?.numero ?? p.pneu_saida_id}
+                  </span>
+                  {pode("pneus-criar") && (
+                    <Button size="sm" onClick={() => abrirEntrada(p)}><Plus className="mr-1 h-4 w-4" /> Cadastrar entrada</Button>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </main>
       </div>
 
-      {/* ── Modal Visualização ──────────────────────────────────────────────── */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-2xl max-h-[85vh] overflow-y-auto" onMouseDown={(e) => e.detail > 1 && e.stopPropagation()}>
+      {/* Cadastro / edição / entrada de carcaça */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto bg-card sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-foreground">
-              Pneu Nº {selectedPneu?.numero}
-            </DialogTitle>
-            <DialogDescription>Detalhes do pneu</DialogDescription>
+            <DialogTitle>{pendenciaEntrada ? `Entrada de pneu — ${pendenciaEntrada.os_num}` : editing ? "Editar pneu" : "Novo pneu"}</DialogTitle>
+            <DialogDescription>O código do lançamento é gerado automaticamente.</DialogDescription>
           </DialogHeader>
-
-          {selectedPneu && (
-            <div className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3 bg-muted/30 p-3 rounded-lg border border-border">
-                <div>
-                  <span className="text-muted-foreground block mb-1">Marca</span>
-                  <strong>{selectedPneu.marca}</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block mb-1">Modelo</span>
-                  <strong>{selectedPneu.modelo}</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block mb-1">Medida</span>
-                  <strong className="font-mono">{selectedPneu.medida}</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block mb-1">DOT</span>
-                  <strong className="font-mono">{selectedPneu.dot}</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block mb-1">Condição</span>
-                  <strong className="capitalize">{selectedPneu.condicao}</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block mb-1">Status</span>
-                  <strong>{statusBadge(selectedPneu.status).label}</strong>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-muted-foreground block mb-1">Localização</span>
-                  <strong>{selectedPneu.local}</strong>
-                </div>
-                {selectedPneu.reformadora && (
-                  <div>
-                    <span className="text-muted-foreground block mb-1">Reformadora</span>
-                    <strong>{selectedPneu.reformadora}</strong>
-                  </div>
-                )}
-                {selectedPneu.observacao && (
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground block mb-1">Observações</span>
-                    <p className="text-foreground">{selectedPneu.observacao}</p>
-                  </div>
-                )}
-              </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Nº do pneu *</Label>
+              <Input value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} />
             </div>
-          )}
-
-          <div className="flex justify-end pt-2">
-            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>Fechar</Button>
+            <div className="space-y-2">
+              <Label>Marca *</Label>
+              <Input value={form.marca} onChange={(e) => setForm({ ...form, marca: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Modelo</Label>
+              <Input value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Medida</Label>
+              <Input value={form.medida} onChange={(e) => setForm({ ...form, medida: e.target.value })} placeholder="295/80 R22.5" />
+            </div>
+            <div className="space-y-2">
+              <Label>DOT (semana+ano, ex.: 2523)</Label>
+              <Input value={form.dot} maxLength={4} onChange={(e) => setForm({ ...form, dot: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Condição *</Label>
+              <Select value={form.condicao} onValueChange={(v) => setForm({ ...form, condicao: v ?? "novo" })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CONDICOES.map((c) => <SelectItem key={c.valor} value={c.valor}>{c.rotulo}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>% de borracha</Label>
+              <Input type="number" min="0" max="100" step="1" value={form.pct_borracha} onChange={(e) => setForm({ ...form, pct_borracha: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Valor (R$)</Label>
+              <Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Data de entrada</Label>
+              <Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Observação</Label>
+              <Input value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Salvar"}</Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal Cadastro / Edição ─────────────────────────────────────────── */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto" onMouseDown={(e) => e.detail > 1 && e.stopPropagation()}>
+      {/* Inutilização */}
+      <Dialog open={!!inutilizando} onOpenChange={(aberto) => !aberto && setInutilizando(null)}>
+        <DialogContent className="bg-card sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-foreground">
-              {editingPneu ? `Editar Pneu ${editingPneu.numero}` : "Novo Pneu"}
-            </DialogTitle>
-            <DialogDescription>Preencha os dados do pneu.</DialogDescription>
+            <DialogTitle>Saída por inutilização</DialogTitle>
+            <DialogDescription>Pneu Nº {inutilizando?.numero} — {inutilizando?.marca}. Esta ação não pode ser desfeita.</DialogDescription>
           </DialogHeader>
+          <div className="space-y-2">
+            <Label>Motivo</Label>
+            <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: corte lateral irrecuperável" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setInutilizando(null)}>Cancelar</Button>
+            <Button className="bg-red-600 text-white hover:bg-red-700" onClick={confirmarInutilizacao}>Inutilizar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-          <div className="space-y-4 py-2 text-sm">
-
-            {/* Dados básicos */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Nº RBS</Label>
-                <Input
-                  placeholder="Ex: 0261"
-                  value={formData.numero}
-                  onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Marca</Label>
-                <Input
-                  placeholder="MICHELIN"
-                  value={formData.marca}
-                  onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Modelo</Label>
-                <Input
-                  placeholder="MISTO"
-                  value={formData.modelo}
-                  onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Medida</Label>
-                <Input
-                  placeholder="295/80R22,5"
-                  value={formData.medida}
-                  onChange={(e) => setFormData({ ...formData, medida: e.target.value })}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>DOT</Label>
-                <Input
-                  placeholder="4820"
-                  value={formData.dot}
-                  onChange={(e) => setFormData({ ...formData, dot: e.target.value })}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Condição</Label>
-                <Select
-                  value={formData.condicao}
-                  onValueChange={(val) => setFormData({ ...formData, condicao: val })}
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="novo">Novo</SelectItem>
-                    <SelectItem value="reformado">Reformado</SelectItem>
-                    <SelectItem value="usado">Usado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(val) => setFormData({ ...formData, status: val })}
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="estoque">Em estoque</SelectItem>
-                    <SelectItem value="aplicado">Aplicado</SelectItem>
-                    <SelectItem value="reformando">Em reforma</SelectItem>
-                    <SelectItem value="inutilizado">Inutilizado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Localização</Label>
-                <Input
-                  placeholder="Estoque"
-                  value={formData.local}
-                  onChange={(e) => setFormData({ ...formData, local: e.target.value })}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Data</Label>
-                <Input
-                  type="date"
-                  value={formData.data}
-                  onChange={(e) => setFormData({ ...formData, data: e.target.value })}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Valor (R$)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={formData.valor}
-                  onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="col-span-2 space-y-1">
-                <Label>Observações</Label>
-                <textarea
-                  rows={2}
-                  value={formData.observacao}
-                  onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
-                  className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
-                  placeholder="Observações opcionais..."
-                />
-              </div>
+      {/* Romaneio de saída */}
+      <Dialog open={romaneioOpen} onOpenChange={setRomaneioOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto bg-card sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Saída para reformadora</DialogTitle>
+            <DialogDescription>
+              Cria o romaneio para impressão e uma pendência de retorno. Os pneus continuam no estoque até o retorno.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-2 sm:col-span-3">
+              <Label>Reformadora *</Label>
+              <Input value={romaneioForm.reformadora} onChange={(e) => setRomaneioForm({ ...romaneioForm, reformadora: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Data de saída</Label>
+              <Input type="date" value={romaneioForm.data_saida} onChange={(e) => setRomaneioForm({ ...romaneioForm, data_saida: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Previsão de retorno</Label>
+              <Input type="date" value={romaneioForm.previsao_retorno} onChange={(e) => setRomaneioForm({ ...romaneioForm, previsao_retorno: e.target.value })} />
+            </div>
+            <div className="space-y-2 sm:col-span-3">
+              <Label>Observações</Label>
+              <Input value={romaneioForm.observacoes} onChange={(e) => setRomaneioForm({ ...romaneioForm, observacoes: e.target.value })} />
             </div>
           </div>
-
-          <div className="flex justify-end gap-3 mt-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} className="bg-primary text-primary-foreground">
-              {editingPneu ? "Salvar alterações" : "Cadastrar Pneu"}
-            </Button>
+          <div className="max-h-64 overflow-y-auto rounded-md border border-border">
+            {elegiveis.length === 0 && <p className="p-4 text-sm text-muted-foreground">Nenhum pneu disponível em estoque.</p>}
+            {elegiveis.map((p) => (
+              <label key={p.id} className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:bg-muted/40">
+                <input
+                  type="checkbox"
+                  checked={selecionados.includes(p.id)}
+                  onChange={(e) => setSelecionados((atual) => e.target.checked ? [...atual, p.id] : atual.filter((x) => x !== p.id))}
+                />
+                <span className="flex-1">Nº {p.numero} — {p.marca} {p.modelo} {p.medida}</span>
+                <span className="text-xs capitalize text-muted-foreground">{p.condicao}{p.pct_borracha != null ? ` · ${p.pct_borracha}%` : ""}</span>
+              </label>
+            ))}
           </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">{selecionados.length} pneu(s) selecionado(s)</span>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setRomaneioOpen(false)}>Cancelar</Button>
+              <Button onClick={criarRomaneio}>Criar e imprimir</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Retorno do romaneio */}
+      <Dialog open={!!retornando} onOpenChange={(aberto) => !aberto && setRetornando(null)}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto bg-card sm:max-w-3xl">
+          {retornando && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Retorno do romaneio {retornando.numero}</DialogTitle>
+                <DialogDescription>
+                  Informe, para cada pneu que voltou, se foi reformado ou recusado e a % de borracha. Pode lançar parcialmente.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                {retornando.itens.filter((i) => !i.resultado).map((i) => {
+                  const atual = retorno[i.id] ?? { resultado: "", pct_borracha: "", valor_reforma: "" };
+                  const atualizar = (parcial: Partial<RetornoItem>) => setRetorno((r) => ({ ...r, [i.id]: { ...atual, ...parcial } }));
+                  return (
+                    <div key={i.id} className="grid items-center gap-2 rounded-md border border-border p-2 sm:grid-cols-[1.4fr_1fr_0.8fr_0.9fr]">
+                      <span className="text-sm">Nº {i.pneu?.numero} — {i.pneu?.marca} {i.pneu?.medida}</span>
+                      <Select value={atual.resultado} onValueChange={(v) => atualizar({ resultado: (v ?? "") as RetornoItem["resultado"] })}>
+                        <SelectTrigger><SelectValue placeholder="Resultado" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="reformado">Reformado</SelectItem>
+                          <SelectItem value="recusado">Recusado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input type="number" min="0" max="100" placeholder="% borracha" value={atual.pct_borracha} onChange={(e) => atualizar({ pct_borracha: e.target.value })} />
+                      <Input type="number" step="0.01" placeholder="Valor (R$)" value={atual.valor_reforma} onChange={(e) => atualizar({ valor_reforma: e.target.value })} />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setRetornando(null)}>Cancelar</Button>
+                <Button onClick={salvarRetorno}>Salvar retorno</Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

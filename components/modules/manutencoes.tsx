@@ -57,6 +57,7 @@ import {
 } from "@/lib/utils";
 import { printManutencaoPDF } from "@/lib/pdf/pdfManutencao";
 import { ManutencaoApi } from "@/lib/types";
+import { chamarApi, mensagemErro } from "@/lib/api-client";
 
 
 type Equipamento = {
@@ -87,6 +88,18 @@ type FormData = {
   lancs: ItemOS[];
   checklist: ChecklistOS[];
   fotos: string[];
+  pneus: PneuOS[];
+};
+
+type PneuOS = { pneu_id: string; numero: string };
+
+type PneuEstoque = {
+  id: string;
+  numero: string;
+  marca?: string | null;
+  medida?: string | null;
+  condicao?: string | null;
+  situacao?: string | null;
 };
 
 type ItemOS = {
@@ -138,10 +151,11 @@ const formularioInicial: FormData = {
   custo: "",
   resp: "",
   ob: "",
-  status: "pendente",
+  status: "aberta",
   lancs: [],
   checklist: [],
   fotos: [],
+  pneus: [],
 };
 
 function parseJsonArray(value: unknown): unknown[] {
@@ -183,6 +197,7 @@ function BadgeStatus({ status }: { status?: string | null }) {
   const valor = normalizarStatus(status);
 
   const estilos: Record<string, string> = {
+    finalizada: "bg-emerald-100 text-emerald-700 border-emerald-200",
     pago: "bg-emerald-100 text-emerald-700 border-emerald-200",
     concluido: "bg-emerald-100 text-emerald-700 border-emerald-200",
     concluída: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -200,7 +215,7 @@ function BadgeStatus({ status }: { status?: string | null }) {
     <span
       className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${classe}`}
     >
-      {status || "Pendente"}
+      {valor === "aberta" ? "Em aberto" : valor === "finalizada" ? "Finalizada" : status || "Em aberto"}
     </span>
   );
 }
@@ -211,6 +226,9 @@ export function Manutencoes() {
 
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
+  const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
+  const [pneusEstoque, setPneusEstoque] = useState<PneuEstoque[]>([]);
+  const [pneuSelecionado, setPneuSelecionado] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ManutencaoApi | null>(null);
@@ -247,7 +265,7 @@ export function Manutencoes() {
 
   const carregar = useCallback(async () => {
     const [manutencoesResponse] = await Promise.all([
-      fetch("/api/manutencoes"),
+      fetch(`/api/manutencoes?mes=${mes || "todos"}`, { credentials: "include" }),
       carregarEquipamentos(),
     ]);
     if (!manutencoesResponse.ok) {
@@ -256,7 +274,21 @@ export function Manutencoes() {
     const payload = await manutencoesResponse.json();
 
     setManutencoes(payload.data || []);
-  }, [carregarEquipamentos]);
+  }, [carregarEquipamentos, mes]);
+
+  const carregarPneus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/pneus", { credentials: "include" });
+      const payload = await response.json();
+      setPneusEstoque((Array.isArray(payload) ? payload : payload.data || []).filter((p: PneuEstoque) => p.situacao === "estoque"));
+    } catch (erro) {
+      console.error("Erro ao carregar pneus:", erro);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarPneus();
+  }, [carregarPneus]);
 
   useEffect(() => {
     carregar();
@@ -306,7 +338,10 @@ export function Manutencoes() {
       lancs: [],
       checklist: [],
       fotos: [],
+      pneus: [],
     });
+    setPneuSelecionado("");
+    carregarPneus();
     setDialogOpen(true);
   }
 
@@ -332,6 +367,8 @@ export function Manutencoes() {
     }
 
     setEditing(dados);
+    setPneuSelecionado("");
+    carregarPneus();
     setAbaAtiva("geral");
     setChecklistSelecionado("");
     setEstoqueSelecionado("");
@@ -356,7 +393,11 @@ export function Manutencoes() {
       custo: dados.custo || "",
       resp: dados.resp || "",
       ob: dados.ob || "",
-      status: dados.status || "pendente",
+      status: String(dados.status || "aberta").toLowerCase() === "finalizada" ? "finalizada" : "aberta",
+      pneus: parseJsonArray((dados as unknown as { pneus?: unknown }).pneus).map((entry) => {
+        const item = entry as Record<string, unknown>;
+        return { pneu_id: String(item.pneu_id ?? ""), numero: String(item.numero ?? "") };
+      }),
       lancs: parseJsonArray(dados.lancs).map((entry) => {
         const item = entry as Record<string, unknown>;
         return {
@@ -476,40 +517,37 @@ export function Manutencoes() {
 
   async function salvar() {
     if (salvando) return;
+    if (!form.placa) return alert("Selecione a placa do veículo cadastrado na frota.");
+    if (!form.tipo) return alert("Selecione o tipo da OS.");
+    if (form.tipo === "TROCA DE PNEUS" && form.pneus.length === 0) {
+      return alert("Na troca de pneus, selecione os pneus do estoque que serão retirados.");
+    }
 
     setSalvando(true);
 
     try {
       const payload = {
         ...form,
-        en: form.en ? new Date(form.en).toISOString() : null,
-        sa: form.sa ? new Date(form.sa).toISOString() : null,
+        en: form.en || null,
+        sa: form.sa || null,
         km: form.km || null,
         hr: form.hr || null,
         pkm: form.pkm || null,
         phr: form.phr || null,
       };
 
-      const response = await fetch(
+      await chamarApi(
         editing ? `/api/manutencoes/${editing.id}` : "/api/manutencoes",
-        {
-          method: editing ? "PUT" : "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
+        editing ? "PUT" : "POST",
+        payload,
       );
 
-      if (!response.ok) {
-        throw new Error("Não foi possível salvar a manutenção.");
-      }
-
       await carregar();
+      await carregarPneus();
       setDialogOpen(false);
     } catch (error) {
       console.error(error);
-      alert("Erro ao salvar a manutenção. Verifique os dados e tente novamente.");
+      alert(mensagemErro(error, "Erro ao salvar a manutenção. Verifique os dados e tente novamente."));
     } finally {
       setSalvando(false);
     }
@@ -523,6 +561,9 @@ export function Manutencoes() {
     try {
       await deleteRegistro(`/api/manutencoes/${id}`);
       await carregar();
+      await carregarPneus();
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível excluir a OS."));
     } finally {
       setDeletingId(null);
     }
@@ -549,7 +590,7 @@ export function Manutencoes() {
         (filtroStatus === "pendentes" &&
           ["pendente", "aberto", "aberta"].includes(status)) ||
         (filtroStatus === "concluidas" &&
-          ["pago", "concluido", "concluída"].includes(status));
+          ["finalizada", "pago", "concluido", "concluída"].includes(status));
 
       return correspondeBusca && correspondeStatus;
     });
@@ -576,7 +617,7 @@ export function Manutencoes() {
   );
 
   const concluidas = manutencoesOrdenadas.filter((manutencao) =>
-    ["pago", "concluido", "concluída"].includes(
+    ["finalizada", "pago", "concluido", "concluída"].includes(
       normalizarStatus(manutencao.status)
     )
   );
@@ -586,7 +627,7 @@ export function Manutencoes() {
 
     return (
       !["pendente", "aberto", "aberta"].includes(status) &&
-      !["pago", "concluido", "concluída"].includes(status)
+      !["finalizada", "pago", "concluido", "concluída"].includes(status)
     );
   });
 
@@ -798,6 +839,17 @@ export function Manutencoes() {
               </div>
 
               <div className="flex items-center gap-2">
+                <Label className="whitespace-nowrap">Mês:</Label>
+                <Input
+                  type="month"
+                  value={mes}
+                  onChange={(event) => setMes(event.target.value)}
+                  className="w-40"
+                  aria-label="Mês das OS"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={() => setMes("")}>
+                  Todos
+                </Button>
                 <Label className="whitespace-nowrap">
                   Status:
                 </Label>
@@ -812,8 +864,8 @@ export function Manutencoes() {
 
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="pendentes">Pendentes</SelectItem>
-                    <SelectItem value="concluidas">Concluídas</SelectItem>
+                    <SelectItem value="pendentes">Em aberto</SelectItem>
+                    <SelectItem value="concluidas">Finalizadas</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -825,8 +877,8 @@ export function Manutencoes() {
           </Card>
 
           {/* Tabelas por status */}
-          {renderTabela("Manutenções Pendentes", pendentes, "abertas")}
-          {renderTabela("Manutenções Concluídas", concluidas, "concluidas")}
+          {renderTabela("OS em aberto", pendentes, "abertas")}
+          {renderTabela("OS finalizadas", concluidas, "concluidas")}
           {renderTabela("Outras Manutenções", outras, "outras")}
 
           {filtradas.length === 0 && (
@@ -907,7 +959,7 @@ export function Manutencoes() {
                     <option value="">
                       {carregandoEquipamentos ? "Carregando placas..." : "Selecione uma placa"}
                     </option>
-                    {Array.from(new Set([...equipamentos.map((equipamento) => equipamento.placa), form.placa].filter((placa): placa is string => Boolean(placa)))).map((placa) => (
+                    {Array.from(new Set(equipamentos.map((equipamento) => equipamento.placa).filter((placa): placa is string => Boolean(placa)))).map((placa) => (
                       <option key={placa} value={placa}>
                         {placa}
                       </option>
@@ -920,16 +972,66 @@ export function Manutencoes() {
                   <Select value={form.tipo} onValueChange={(value) => alterarCampo("tipo", value)}>
                     <SelectTrigger className="h-10 bg-muted/20"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Preventiva">Preventiva</SelectItem>
-                      <SelectItem value="Revisão">Revisão</SelectItem>
-                      <SelectItem value="Revisão preventiva">Revisão preventiva</SelectItem>
-                      <SelectItem value="Troca de Pneus">Troca de Pneus</SelectItem>
-                      <SelectItem value="Troca de Peças">Troca de Peças</SelectItem>
-                      <SelectItem value="Manutenção">Manutenção</SelectItem>
+                      <SelectItem value="PREVENTIVA">Preventiva (revisão, troca de óleo...)</SelectItem>
+                      <SelectItem value="TROCA DE PNEUS">Troca de pneus</SelectItem>
+                      <SelectItem value="MANUTENÇÃO">Manutenção</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
+                {form.tipo === "TROCA DE PNEUS" && (
+                  <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50/60 p-3 sm:col-span-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                      Pneus retirados do estoque (pelo nº cadastrado)
+                    </Label>
+                    <div className="flex gap-2">
+                      <Select value={pneuSelecionado} onValueChange={(valor) => setPneuSelecionado(valor ?? "")}>
+                        <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Selecionar pneu em estoque" /></SelectTrigger>
+                        <SelectContent>
+                          {pneusEstoque
+                            .filter((p) => !form.pneus.some((x) => x.pneu_id === p.id))
+                            .map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {`Nº ${p.numero} — ${[p.marca, p.medida, p.condicao].filter(Boolean).join(" · ")}`}
+                              </SelectItem>
+                            ))}
+                          {pneusEstoque.length === 0 && <SelectItem value="sem-pneus" disabled>Nenhum pneu em estoque</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        disabled={!pneuSelecionado}
+                        onClick={() => {
+                          const pneu = pneusEstoque.find((p) => p.id === pneuSelecionado);
+                          if (!pneu) return;
+                          setForm((atual) => ({ ...atual, pneus: [...atual.pneus, { pneu_id: pneu.id, numero: pneu.numero }] }));
+                          setPneuSelecionado("");
+                        }}
+                      >
+                        <Plus className="mr-1 h-4 w-4" /> Adicionar
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {form.pneus.length === 0 && <span className="text-xs text-muted-foreground">Nenhum pneu selecionado.</span>}
+                      {form.pneus.map((p) => (
+                        <span key={p.pneu_id} className="flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 text-xs">
+                          Nº {p.numero}
+                          <button
+                            type="button"
+                            aria-label={`Remover pneu ${p.numero}`}
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => setForm((atual) => ({ ...atual, pneus: atual.pneus.filter((x) => x.pneu_id !== p.pneu_id) }))}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Ao salvar, os pneus saem do estoque e o sistema gera uma pendência de entrada de carcaça para cada pneu retirado.
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Entrada</Label>
                   <Input type="date" value={form.en} onChange={(event) => alterarCampo("en", event.target.value)} className="h-10 bg-muted/20" />
@@ -968,24 +1070,11 @@ export function Manutencoes() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status</Label>
-                  <Select value={form.status} onValueChange={(value) => alterarCampo("status", value)}>
+                  <Select value={form.status} onValueChange={(value) => setForm((atual) => ({ ...atual, status: value ?? "aberta", finStatus: value ?? "aberta" }))}>
                     <SelectTrigger className="h-10 bg-muted/20"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pendente">Pendente</SelectItem>
-                      <SelectItem value="aberta">Aberta</SelectItem>
-                      <SelectItem value="concluida">Concluída</SelectItem>
-                      <SelectItem value="cancelada">Cancelada</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status financeiro</Label>
-                  <Select value={form.finStatus} onValueChange={(value) => alterarCampo("finStatus", value)}>
-                    <SelectTrigger className="h-10 bg-muted/20"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="aberta">Aberta</SelectItem>
-                      <SelectItem value="paga">Paga</SelectItem>
-                      <SelectItem value="cancelada">Cancelada</SelectItem>
+                      <SelectItem value="aberta">Em aberto</SelectItem>
+                      <SelectItem value="finalizada">Finalizada</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

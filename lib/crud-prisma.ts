@@ -3,6 +3,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 import { auditar, descreverAlteracoes, NUMERACAO, proximoNumero } from "./audit";
 
+/** Campo de data usado pelo filtro ?mes= em cada tabela. */
+const FILTRO_MES: Record<string, string> = {
+  mh3_despesas: "data_vencimento",
+  mh3_contas_receber: "data_vencimento",
+  mh3_medicoes: "data_medicao",
+  mh3_vendas: "data",
+  mh3_mobilizacoes: "data",
+  mh3_prejuizos: "data",
+};
+
 const SEM_AUDITORIA = new Set(["mh3_auditoria", "mh3_sequencias"]);
 const resumo = (r: Record<string, unknown>) =>
   String(r.nome ?? r.descricao ?? r.numero ?? r.num_desp ?? r.placa ?? r.cliente ?? "").slice(0, 120);
@@ -49,6 +59,10 @@ const TABLE_TO_MODEL: Record<string, string> = {
   mh3_investimentos: "mh3_investimentos",
   mh3_pneus: "mh3_pneus",
   mh3_pneus_historico: "mh3_pneus_historico",
+  mh3_implementos: "mh3_implementos",
+  mh3_romaneios: "mh3_romaneios",
+  mh3_romaneio_itens: "mh3_romaneio_itens",
+  mh3_pneu_pendencias: "mh3_pneu_pendencias",
   mh3_mobilizacoes: "mh3_mobilizacoes",
   mh3_ajudas_motorista: "mh3_ajudas_motorista",
   mh3_checklists: "mh3_checklists",
@@ -97,7 +111,8 @@ function getFieldMetadata(table: string, fieldName: string): any | undefined {
 function normalizeValue(table: string, fieldName: string, value: unknown): unknown {
   if (value === undefined || value === null) return value;
 
-  if (value === "" && getFieldMetadata(table, fieldName)?.type === "DateTime") {
+  const tipoCampo = getFieldMetadata(table, fieldName)?.type;
+  if (value === "" && ["DateTime", "BigInt", "Int", "Float", "Decimal"].includes(tipoCampo)) {
     return null;
   }
 
@@ -134,6 +149,10 @@ function normalizeValue(table: string, fieldName: string, value: unknown): unkno
     case "Json":
       return value;
 
+    case "String":
+      // Campos de texto (ex.: quantidade_parcelas) podem chegar como número do formulário.
+      return typeof value === "number" || typeof value === "bigint" ? String(value) : value;
+
     default:
       return value;
   }
@@ -163,6 +182,28 @@ function normalizeId(table: string, id: Id): Id {
   return id;
 }
 
+/** Traduz erros comuns do Prisma/MySQL para uma mensagem que o usuário entenda. */
+export function mensagemPrisma(error: unknown, padrao: string) {
+  const err = error as { code?: string; message?: string; meta?: { column_name?: string; target?: unknown; modelName?: string } };
+  const coluna = err?.meta?.column_name ? ` (campo ${err.meta.column_name})` : "";
+  switch (err?.code) {
+    case "P2000":
+      return `Um dos valores é longo demais para o campo${coluna}.`;
+    case "P2002":
+      return "Já existe um registro com estes dados (valor duplicado).";
+    case "P2003":
+      return "Este registro está vinculado a outros e não pode ser alterado ou excluído.";
+    case "P2011":
+    case "P2012":
+      return `Há um campo obrigatório sem valor${coluna}.`;
+    default: {
+      const faltando = err?.message?.match(/Argument `(\w+)` is missing/);
+      if (faltando) return `Campo obrigatório não informado: ${faltando[1]}.`;
+      return padrao;
+    }
+  }
+}
+
 function prismaError(error: unknown) {
   const err = error as { code?: string; message?: string };
   return {
@@ -185,16 +226,23 @@ export async function list(
 
     const delegate = getDelegate(table);
 
-    const where = search && searchFields.length
-      ? {
-          OR: searchFields.map((field) => ({
-            [field]: { contains: search },
-          })),
-        }
-      : undefined;
+    const where: Record<string, unknown> = {};
+    if (search && searchFields.length) {
+      where.OR = searchFields.map((field) => ({ [field]: { contains: search } }));
+    }
+    // ?mes=YYYY-MM limita pela data de referência da tabela (ex.: vencimento, data da medição)
+    const mes = searchParams.get("mes");
+    const campoMes = FILTRO_MES[table];
+    if (mes && campoMes && /^\d{4}-\d{2}$/.test(mes)) {
+      const [ano, numero] = mes.split("-").map(Number);
+      where[campoMes] = {
+        gte: new Date(Date.UTC(ano, numero - 1, 1)),
+        lt: new Date(Date.UTC(ano, numero, 1)),
+      };
+    }
 
     const rows = await delegate.findMany({
-      where,
+      where: Object.keys(where).length ? where : undefined,
       orderBy: { id: "desc" },
       skip,
       take: 10000,
@@ -232,6 +280,44 @@ export async function getById(table: string, id: Id, _request?: Request) {
   }
 }
 
+export class ErroCrud extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+/** Cria o registro (id, numeração e auditoria incluídos) e devolve a linha. Lança erro em caso de falha. */
+export async function criarRegistro(
+  table: string,
+  allowedFields: string[],
+  body: Record<string, unknown>,
+  request?: Request,
+) {
+  const data = normalizeBody(table, allowedFields, body);
+
+  if (!Object.keys(data).length) {
+    throw new ErroCrud(400, "Nenhum campo válido foi enviado.");
+  }
+
+  // Tabelas com id texto sem valor padrão (contas a receber, pneus, vendas...)
+  // falhavam ao criar porque o id não estava entre os campos permitidos.
+  if (getFieldMetadata(table, "id")?.type === "String" && !data.id) {
+    data.id = randomUUID().replace(/-/g, "").slice(0, 20);
+  }
+
+  const numeracao = NUMERACAO[table];
+  if (numeracao && !data[numeracao.campo]) {
+    data[numeracao.campo] = await proximoNumero(numeracao.prefixo);
+  }
+
+  const delegate = getDelegate(table);
+  const row = await delegate.create({ data });
+  if (!SEM_AUDITORIA.has(table)) {
+    await auditar({ request, acao: "CRIAR", modulo: table, registroId: row.id, descricao: resumo(row) });
+  }
+  return row;
+}
+
 export async function create(
   table: string,
   allowedFields: string[],
@@ -239,37 +325,46 @@ export async function create(
   request?: Request
 ) {
   try {
-    const data = normalizeBody(table, allowedFields, body);
-
-    if (!Object.keys(data).length) {
-      return json({ error: "Nenhum campo válido foi enviado." }, 400);
-    }
-
-    // Tabelas com id texto sem valor padrão (contas a receber, pneus, vendas...)
-    // falhavam ao criar porque o id não estava entre os campos permitidos.
-    if (getFieldMetadata(table, "id")?.type === "String" && !data.id) {
-      data.id = randomUUID().replace(/-/g, "").slice(0, 20);
-    }
-
-    const numeracao = NUMERACAO[table];
-    if (numeracao && !data[numeracao.campo]) {
-      data[numeracao.campo] = await proximoNumero(numeracao.prefixo);
-    }
-
-    const delegate = getDelegate(table);
-    const row = await delegate.create({ data });
-    if (!SEM_AUDITORIA.has(table)) {
-      await auditar({ request, acao: "CRIAR", modulo: table, registroId: row.id, descricao: resumo(row) });
-    }
-
-    return json(row, 201);
+    return json(await criarRegistro(table, allowedFields, body, request), 201);
   } catch (error) {
+    if (error instanceof ErroCrud) return json({ error: error.message }, error.status);
     console.error("Prisma create error:", error);
     return json(
-      { error: "Erro ao criar registro.", detail: prismaError(error) },
+      { error: mensagemPrisma(error, "Erro ao criar registro."), detail: prismaError(error) },
       500
     );
   }
+}
+
+/** Atualiza o registro (com auditoria dos campos alterados) e devolve a linha. */
+export async function atualizarRegistro(
+  table: string,
+  allowedFields: string[],
+  id: Id,
+  body: Record<string, unknown>,
+  request?: Request,
+) {
+  const data = normalizeBody(table, allowedFields, body);
+
+  if (!Object.keys(data).length) {
+    throw new ErroCrud(400, "Nenhum campo válido foi enviado.");
+  }
+
+  const delegate = getDelegate(table);
+  const recordId = normalizeId(table, id);
+
+  const antes = SEM_AUDITORIA.has(table)
+    ? null
+    : await delegate.findUnique({ where: { id: recordId } });
+
+  const row = await delegate.update({
+    where: { id: recordId },
+    data,
+  });
+  if (!SEM_AUDITORIA.has(table)) {
+    await auditar({ request, acao: "EDITAR", modulo: table, registroId: row.id, descricao: `${resumo(row)} | ${descreverAlteracoes(antes, data)}` });
+  }
+  return row;
 }
 
 export async function update(
@@ -280,29 +375,9 @@ export async function update(
   request?: Request
 ) {
   try {
-    const data = normalizeBody(table, allowedFields, body);
-
-    if (!Object.keys(data).length) {
-      return json({ error: "Nenhum campo válido foi enviado." }, 400);
-    }
-
-    const delegate = getDelegate(table);
-    const recordId = normalizeId(table, id);
-
-    const antes = SEM_AUDITORIA.has(table)
-      ? null
-      : await delegate.findUnique({ where: { id: recordId } });
-
-    const row = await delegate.update({
-      where: { id: recordId },
-      data,
-    });
-    if (!SEM_AUDITORIA.has(table)) {
-      await auditar({ request, acao: "EDITAR", modulo: table, registroId: row.id, descricao: `${resumo(row)} | ${descreverAlteracoes(antes, data)}` });
-    }
-
-    return json(row);
+    return json(await atualizarRegistro(table, allowedFields, id, body, request));
   } catch (error) {
+    if (error instanceof ErroCrud) return json({ error: error.message }, error.status);
     console.error("Prisma update error:", error);
     const details = prismaError(error);
 
@@ -311,7 +386,7 @@ export async function update(
     }
 
     return json(
-      { error: "Erro ao atualizar registro.", detail: details },
+      { error: mensagemPrisma(error, "Erro ao atualizar registro."), detail: details },
       500
     );
   }
@@ -343,7 +418,7 @@ export async function remove(table: string, id: Id, request?: Request) {
     }
 
     return json(
-      { error: "Erro ao excluir registro.", detail: details },
+      { error: mensagemPrisma(error, "Erro ao excluir registro."), detail: details },
       500
     );
   }

@@ -70,6 +70,9 @@ export const NUMERACAO: Record<string, { campo: string; prefixo: string }> = {
   mh3_mobilizacoes: { campo: "numero", prefixo: "MOB" },
   mh3_prejuizos: { campo: "numero", prefixo: "PRJ" },
   mh3_seguros: { campo: "numero", prefixo: "SEG" },
+  mh3_implementos: { campo: "numero", prefixo: "IMP" },
+  mh3_romaneios: { campo: "numero", prefixo: "ROM" },
+  mh3_pneus: { campo: "codigo", prefixo: "PNE" },
 };
 
 /** Compara dois registros e descreve apenas os campos alterados. */

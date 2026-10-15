@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatarData } from "@/lib/utils";
 import { AnexoFotos } from "../ui/anexo-fotos";
-import { gruposFotos } from "@/lib/common";
+import { fotosDoGrupo, gruposFotos, GRUPOS_FOTOS_LEGADOS } from "@/lib/common";
+import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { Mobilizacao } from "@/lib/types";
 import { generateMobilizacaoPDF } from "../../lib/pdf/pdfMobilizacao";
 
@@ -259,32 +260,48 @@ export function Mobilizacoes() {
         : structuredClone(formularioInicial.pneus_por_eixo),
       estepe: mobilizacao.estepe || "Não",
       checklist_id: mobilizacao.checklist_id,
-      fotos: mobilizacao.fotos
-        ? structuredClone(mobilizacao.fotos)
-        : structuredClone(formularioInicial.fotos),
+      fotos: (() => {
+        const fotos: Record<string, string[]> = mobilizacao.fotos
+          ? structuredClone(mobilizacao.fotos)
+          : structuredClone(formularioInicial.fotos ?? {});
+        for (const [grupo, antigos] of Object.entries(GRUPOS_FOTOS_LEGADOS)) {
+          fotos[grupo] = fotosDoGrupo(fotos, grupo);
+          for (const antigo of antigos) fotos[antigo] = [];
+        }
+        return fotos;
+      })(),
     });
     setDialogOpen(true);
   }
 
   async function salvar() {
     if (salvando) return;
+    const obrigatorios: [keyof MobilizacaoForm, string][] = [
+      ["contratante", "o contratante"],
+      ["tipo", "o tipo"],
+      ["data", "a data"],
+      ["marca_modelo", "a marca/modelo"],
+      ["local_origem", "o local de origem"],
+      ["local_destino", "o local de destino"],
+      ["responsavel", "o responsável"],
+    ];
+    const faltando = obrigatorios.filter(([campo]) => !String(form[campo] ?? "").trim()).map(([, rotulo]) => rotulo);
+    if (faltando.length) {
+      return alert(`Preencha todos os dados antes de salvar. Falta informar: ${faltando.join(", ")}.`);
+    }
     setSalvando(true);
     try {
       const { equipamento_id, contrato_id, ...dadosForm } = form;
-      const response = await fetch(
+      await chamarApi(
         editando ? `/api/mobilizacoes/${editando.id}` : "/api/mobilizacoes",
-        {
-          method: editando ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dadosForm),
-        }
+        editando ? "PUT" : "POST",
+        dadosForm,
       );
-      if (!response.ok) throw new Error("Não foi possível salvar a mobilização.");
       await carregar();
       setDialogOpen(false);
     } catch (error) {
       console.error(error);
-      alert("Não foi possível salvar a mobilização.");
+      alert(mensagemErro(error, "Não foi possível salvar a mobilização."));
     } finally {
       setSalvando(false);
     }

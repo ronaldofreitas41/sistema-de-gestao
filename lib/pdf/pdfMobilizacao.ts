@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { gruposFotos } from "@/lib/common";
+import { fotosDoGrupo, gruposFotos } from "@/lib/common";
 import { Mobilizacao } from "@/lib/types";
 
 type Rgb = [number, number, number];
@@ -844,15 +844,14 @@ export async function generateMobilizacaoPDF(
   // FOTOS
   // ============================================================
 
-  sectionTitle("Fotos");
-
   const photoItems =
     gruposFotos.flatMap(
       (group) => {
         const photos =
-          mobilizacao.fotos?.[
+          fotosDoGrupo(
+            mobilizacao.fotos,
             group.grupo
-          ] || [];
+          );
 
         const title =
           group.titulo.replace(
@@ -869,14 +868,14 @@ export async function generateMobilizacaoPDF(
                 src,
               })
             )
-          : [
-              {
-                title,
-                src: "",
-              },
-            ];
+          : [];
       }
     );
+
+  // Sem nenhuma foto anexada, a seção inteira não aparece no PDF.
+  if (photoItems.length > 0) {
+    sectionTitle("Fotos");
+  }
 
   const photoColumns = 2;
 

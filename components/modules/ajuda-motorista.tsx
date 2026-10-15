@@ -42,6 +42,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { PlacaInput } from "@/components/ui/placa-input";
 import { Ajuda_Motorista, ContasBancarias, Despesa, Usuario } from "@/lib/types";
 import { deleteRegistro, fetchContas, formatCurrency, formatDate, formatPhone, formatarData, getPlacas } from "@/lib/utils";
@@ -195,61 +196,29 @@ export function ComponenteAjudaMotorista() {
   };
 
   const handleSave = async () => {
+    if (!formData.motorista?.trim()) return alert("Informe o motorista.");
+    if (!(Number(formData.valor) > 0)) return alert("Informe o valor da ajuda.");
+    if (!formData.data) return alert("Informe a data de vencimento da ajuda.");
     const payload = {
       ...formData,
       valor: Number(formData.valor) || 0,
-      data: formData.data
-        ? new Date(formData.data).toISOString()
-        : new Date().toISOString(),
+      recorrente: formData.recorrente ? 1 : 0,
+      data: formData.data,
     };
 
-    const payloadDespesa = {
-      antigo: false,
-      categoria: "Ajuda Motorista",
-      conta_banco: formData.conta || "",
-      conta_banco_id: formData.conta_banco_id || "",
-      data_competencia: formData.data
-        ? new Date(formData.data).toISOString()
-        : new Date().toISOString(),
-      data_pagamento: formData.data
-        ? new Date(formData.data).toISOString()
-        : new Date().toISOString(),
-      data_vencimento: formData.data
-        ? new Date(formData.data).toISOString()
-        : new Date().toISOString(),
-      descricao:
-        "AJUDA DE CUSTO - " + formData.empresa + " - " + formData.motorista,
-      fornecedor: "",
-      num_desp: "DP - AC - " + (ajudas.length + 1),
-      observacoes: formData.observacoes || "",
-      placa: formData.placa || "",
-      status_disp: "pago",
-      valor: formData.valor || "",
-    };
-
-    if (editingAjuda) {
-      await fetch(`/api/ajudas-motorista/${editingAjuda.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      const res = await fetch("/api/despesas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payloadDespesa),
-      });
-      const despesa: Despesa = await res.json();
-
-      await fetch("/api/ajudas-motorista", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, despesa_id: despesa.id }),
-      });
+    try {
+      // Ajuda recorrente: aparece em Pendências 7 dias antes do vencimento e, após confirmada,
+      // entra no Contas a Pagar. Ajuda avulsa já gera a conta a pagar pendente ao salvar.
+      await chamarApi(
+        editingAjuda ? `/api/ajudas-motorista/${editingAjuda.id}` : "/api/ajudas-motorista",
+        editingAjuda ? "PUT" : "POST",
+        payload,
+      );
+      await fetchAjudas();
+      setDialogOpen(false);
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível salvar a ajuda."));
     }
-
-    await fetchAjudas();
-    setDialogOpen(false);
   };
 
   const handleDelete = async (id: string) => {

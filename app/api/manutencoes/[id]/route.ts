@@ -1,29 +1,9 @@
 import { NextRequest } from "next/server";
-import { getById, remove, update } from "@/lib/crud-prisma";
+import { getById } from "@/lib/crud-prisma";
+import { atualizarOS, excluirOS } from "@/lib/os-service";
+import { respostaErro, serializar } from "@/lib/medicao-service";
 
 const TABLE = "mh3_manutencoes";
-const FIELDS = [
-  "id",
-  "osNum",
-  "finStatus",
-  "eqId",
-  "eqLbl",
-  "placa",
-  "tipo",
-  "en",
-  "sa",
-  "km",
-  "hr",
-  "pkm",
-  "phr",
-  "custo",
-  "status",
-  "resp",
-  "ob",
-  "lancs",
-  "checklist",
-  "fotos",
-];
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -32,27 +12,30 @@ export async function GET(request: NextRequest, { params }: Context) {
   return getById(TABLE, id, request);
 }
 
-export async function PUT(request: NextRequest, { params }: Context) {
+async function editar(request: NextRequest, { params }: Context) {
   const { id } = await params;
+  let body: Record<string, unknown>;
   try {
-    const { osNum: _osNum, ...body } = await request.json();
-    return update(TABLE, FIELDS, id, body, request);
+    body = await request.json();
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
+  }
+  try {
+    return Response.json(serializar(await atualizarOS(id, body, request)));
+  } catch (erro) {
+    return respostaErro(erro);
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: Context) {
-  const { id } = await params;
-  try {
-    const { osNum: _osNum, ...body } = await request.json();
-    return update(TABLE, FIELDS, id, body, request);
-  } catch {
-    return Response.json({ error: "JSON inválido." }, { status: 400 });
-  }
-}
+export const PUT = editar;
+export const PATCH = editar;
 
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return remove(TABLE, id, request);
+  try {
+    await excluirOS(id, request);
+    return Response.json({ message: "OS excluída com sucesso." });
+  } catch (erro) {
+    return respostaErro(erro);
+  }
 }

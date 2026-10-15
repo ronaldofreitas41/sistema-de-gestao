@@ -330,6 +330,8 @@ export const permissoesPadrao: Permissoes = {
   "pneus-criar": false,
   "pneus-editar": false,
   "pneus-excluir": false,
+  "pneus-inutilizar": false,
+  "pneus-romaneio": false,
   resultado: false,
   "resultado-criar": false,
   "resultado-editar": false,
@@ -456,6 +458,8 @@ export const nomesPermissoes: Record<string, string> = {
   "pneus-criar": "Criar pneu",
   "pneus-editar": "Editar pneu",
   "pneus-excluir": "Excluir pneu",
+  "pneus-inutilizar": "Inutilizar pneu (saída)",
+  "pneus-romaneio": "Romaneio de reforma (criar/lançar retorno)",
   resultado: "Resultado",
   "resultado-criar": "Criar resultado",
   "resultado-editar": "Editar resultado",
@@ -602,19 +606,9 @@ export const gruposFotos = [
     titulo: "🟡 Interior da Cabine",
   },
   {
-    id: "macaco-input",
+    id: "equipamentos-input",
     grupo: "macaco_chave",
-    titulo: "🟡 Macaco / Chave de Roda",
-  },
-  {
-    id: "triangulo-input",
-    grupo: "triangulo_reboque",
-    titulo: "🟡 Triângulo / Pino de Reboque",
-  },
-  {
-    id: "cabo-input",
-    grupo: "cabo_forca",
-    titulo: "🟡 Cabo de Força",
+    titulo: "🟡 Macaco / Chave de Roda / Cabo de Força / Pino de Reboque / Triângulo / Extintor",
   },
   {
     id: "calco-input",
@@ -624,7 +618,7 @@ export const gruposFotos = [
   {
     id: "outros-input",
     grupo: "outros_acessorios",
-    titulo: "📁 Outros acessórios",
+    titulo: "📁 Outros",
     opcional: true,
   },
   {
@@ -640,3 +634,14 @@ export const gruposFotos = [
     opcional: true,
   },
 ];
+
+/** Grupos de fotos antigos que foram reunidos em "macaco_chave" (continuam aparecendo no PDF e na edição). */
+export const GRUPOS_FOTOS_LEGADOS: Record<string, string[]> = {
+  macaco_chave: ["triangulo_reboque", "cabo_forca"],
+};
+
+/** Fotos de um grupo, incluindo as dos grupos legados que foram reunidos nele. */
+export function fotosDoGrupo(fotos: Record<string, string[]> | null | undefined, grupo: string): string[] {
+  const lista = [grupo, ...(GRUPOS_FOTOS_LEGADOS[grupo] ?? [])];
+  return lista.flatMap((chave) => fotos?.[chave] ?? []);
+}

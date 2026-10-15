@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
-import { getById, remove, update } from "@/lib/crud-prisma";
+import { getById, remove } from "@/lib/crud-prisma";
+import { exigirPermissao } from "@/lib/permissoes-server";
+import { ErroNegocio, respostaErro, serializar } from "@/lib/medicao-service";
+import { editarPneu } from "@/lib/pneus-service";
+import { prisma } from "@/lib/prisma";
 
 const TABLE = "mh3_pneus";
-const FIELDS = ["equipamento_id", "codigo", "marca", "modelo", "medida", "numero_serie", "km_instalacao", "km_atual", "posicao", "status", "valor", "data_compra", "observacoes"];
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -11,25 +14,35 @@ export async function GET(request: NextRequest, { params }: Context) {
   return getById(TABLE, id, request);
 }
 
-export async function PUT(request: NextRequest, { params }: Context) {
+async function editar(request: NextRequest, { params }: Context) {
   const { id } = await params;
+  let body: Record<string, unknown>;
   try {
-    return update(TABLE, FIELDS, id, await request.json(), request);
+    body = await request.json();
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
+  }
+  try {
+    await exigirPermissao(request, "pneus-editar", "editar pneus");
+    return Response.json(serializar(await editarPneu(id, body, request)));
+  } catch (erro) {
+    return respostaErro(erro);
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: Context) {
-  const { id } = await params;
-  try {
-    return update(TABLE, FIELDS, id, await request.json(), request);
-  } catch {
-    return Response.json({ error: "JSON inválido." }, { status: 400 });
-  }
-}
+export const PUT = editar;
+export const PATCH = editar;
 
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return remove(TABLE, id, request);
+  try {
+    await exigirPermissao(request, "pneus-excluir", "excluir pneus");
+    const pneu = await prisma.mh3_pneus.findUnique({ where: { id } });
+    if (pneu && pneu.situacao !== "estoque") {
+      throw new ErroNegocio(409, "Apenas pneus em estoque podem ser excluídos. Para descartar use a saída por inutilização.");
+    }
+    return remove(TABLE, id, request);
+  } catch (erro) {
+    return respostaErro(erro);
+  }
 }

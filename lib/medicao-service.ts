@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { auditar, obterAtor, proximoNumero } from "./audit";
+import { ErroCrud, mensagemPrisma } from "./crud-prisma";
 import {
   calcularPlacasMedicao,
   contarDiasPeriodoMedicao,
@@ -472,6 +473,9 @@ export function respostaErro(erro: unknown) {
   if (erro instanceof ErroNegocio) {
     return Response.json({ error: erro.message }, { status: erro.status });
   }
-  console.error("Erro na medição:", erro);
-  return Response.json({ error: "Não foi possível concluir a operação da medição." }, { status: 500 });
+  if (erro instanceof ErroCrud) {
+    return Response.json({ error: erro.message }, { status: erro.status });
+  }
+  console.error("Erro na operação:", erro);
+  return Response.json({ error: mensagemPrisma(erro, "Não foi possível concluir a operação.") }, { status: 500 });
 }
