@@ -8,13 +8,13 @@ type Context = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return getById(TABLE, id);
+  return getById(TABLE, id, request);
 }
 
 export async function PUT(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    return update(TABLE, FIELDS, id, await request.json());
+    return update(TABLE, FIELDS, id, await request.json(), request);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
 export async function PATCH(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    return update(TABLE, FIELDS, id, await request.json());
+    return update(TABLE, FIELDS, id, await request.json(), request);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
@@ -31,5 +31,5 @@ export async function PATCH(request: NextRequest, { params }: Context) {
 
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return remove(TABLE, id);
+  return remove(TABLE, id, request);
 }

@@ -44,7 +44,8 @@ interface NavGroup {
 }
 
 function usuarioPodeAcessar(item: NavItem, usuario: Usuario | null) {
-  if (!item.resource || !usuario?.permissoes) return true;
+  if (!item.resource) return true;
+  if (!usuario?.permissoes) return item.resource !== "dashboard";
 
   const permissoes = normalizarPermissoes(usuario.permissoes);
 

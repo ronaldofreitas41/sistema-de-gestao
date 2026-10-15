@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       ...body,
       id: crypto.randomUUID(),
       osNum: formatarNumeroOs(maiorOs + 1),
-    });
+    }, request);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }

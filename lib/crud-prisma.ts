@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
+import { auditar, descreverAlteracoes, NUMERACAO, proximoNumero } from "./audit";
+
+const SEM_AUDITORIA = new Set(["mh3_auditoria", "mh3_sequencias"]);
+const resumo = (r: Record<string, unknown>) =>
+  String(r.nome ?? r.descricao ?? r.numero ?? r.num_desp ?? r.placa ?? r.cliente ?? "").slice(0, 120);
 
 
 type Id = string | number | bigint;
@@ -205,7 +210,7 @@ export async function list(
   }
 }
 
-export async function getById(table: string, id: Id) {
+export async function getById(table: string, id: Id, _request?: Request) {
   try {
     const delegate = getDelegate(table);
     const recordId = normalizeId(table, id);
@@ -229,7 +234,8 @@ export async function getById(table: string, id: Id) {
 export async function create(
   table: string,
   allowedFields: string[],
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  request?: Request
 ) {
   try {
     const data = normalizeBody(table, allowedFields, body);
@@ -238,8 +244,16 @@ export async function create(
       return json({ error: "Nenhum campo válido foi enviado." }, 400);
     }
 
+    const numeracao = NUMERACAO[table];
+    if (numeracao && !data[numeracao.campo]) {
+      data[numeracao.campo] = await proximoNumero(numeracao.prefixo);
+    }
+
     const delegate = getDelegate(table);
     const row = await delegate.create({ data });
+    if (!SEM_AUDITORIA.has(table)) {
+      await auditar({ request, acao: "CRIAR", modulo: table, registroId: row.id, descricao: resumo(row) });
+    }
 
     return json(row, 201);
   } catch (error) {
@@ -255,7 +269,8 @@ export async function update(
   table: string,
   allowedFields: string[],
   id: Id,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  request?: Request
 ) {
   try {
     const data = normalizeBody(table, allowedFields, body);
@@ -267,10 +282,17 @@ export async function update(
     const delegate = getDelegate(table);
     const recordId = normalizeId(table, id);
 
+    const antes = SEM_AUDITORIA.has(table)
+      ? null
+      : await delegate.findUnique({ where: { id: recordId } });
+
     const row = await delegate.update({
       where: { id: recordId },
       data,
     });
+    if (!SEM_AUDITORIA.has(table)) {
+      await auditar({ request, acao: "EDITAR", modulo: table, registroId: row.id, descricao: `${resumo(row)} | ${descreverAlteracoes(antes, data)}` });
+    }
 
     return json(row);
   } catch (error) {
@@ -288,14 +310,21 @@ export async function update(
   }
 }
 
-export async function remove(table: string, id: Id) {
+export async function remove(table: string, id: Id, request?: Request) {
   try {
     const delegate = getDelegate(table);
     const recordId = normalizeId(table, id);
 
+    const antes = SEM_AUDITORIA.has(table)
+      ? null
+      : await delegate.findUnique({ where: { id: recordId } });
+
     await delegate.delete({
       where: { id: recordId },
     });
+    if (!SEM_AUDITORIA.has(table)) {
+      await auditar({ request, acao: "EXCLUIR", modulo: table, registroId: String(id), descricao: antes ? resumo(antes) : "" });
+    }
 
     return json({ message: "Registro excluído com sucesso." });
   } catch (error) {

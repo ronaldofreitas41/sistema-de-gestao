@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       ...body,
       id: crypto.randomUUID(),
       senha: await bcrypt.hash(String(body.senha ?? ""), 12),
-    });
+    }, request);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }

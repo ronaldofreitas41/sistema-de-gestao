@@ -17,7 +17,7 @@ export interface AuthPayload {
 }
 
 export async function createToken(payload: AuthPayload) {
-  return await new SignJWT(payload)
+  return await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("8h")

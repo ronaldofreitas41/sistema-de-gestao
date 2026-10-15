@@ -7,6 +7,7 @@ datasource db {
 }
 
 model mh3_ajudas_motorista {
+  numero String? @db.VarChar(30)
   id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   pix             String?   @db.VarChar(150)
   agencia         String?   @db.VarChar(30)
@@ -437,6 +438,7 @@ model mh3_manutencoes {
 }
 
 model mh3_medicoes {
+  numero String? @db.VarChar(30)
   id                   BigInt              @id @default(autoincrement())
   placas               Json
   tipo_cobranca        String              @db.VarChar(100)
@@ -463,6 +465,7 @@ model mh3_medicoes {
 }
 
 model mh3_contas_receber {
+  numero String? @db.VarChar(30)
   id            String    @id @db.VarChar(36)
   contrato_id   String?   @db.VarChar(36)
   cliente       String    @db.VarChar(255)
@@ -478,6 +481,7 @@ model mh3_contas_receber {
 }
 
 model mh3_mobilizacoes {
+  numero String? @db.VarChar(30)
   id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
   equipamento_id   BigInt?           @db.UnsignedBigInt
   contrato_id      BigInt?           @db.UnsignedBigInt
@@ -564,6 +568,7 @@ model mh3_prazos {
 }
 
 model mh3_prejuizos {
+  numero String? @db.VarChar(30)
   id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
   equipamento_id   BigInt?           @db.UnsignedBigInt
   funcionario_id   BigInt?           @db.UnsignedBigInt
@@ -644,6 +649,7 @@ model mh3_revisoes {
 }
 
 model mh3_seguros {
+  numero String? @db.VarChar(30)
   id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   seguradora     String?   @db.VarChar(150)
   numero_apolice String?   @db.VarChar(100)
@@ -783,4 +789,10 @@ enum mh3_medicoes_status {
   pendente
   pago
   cancelado
+}
+
+model mh3_sequencias {
+  id     BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  nome   String @unique(map: "uk_sequencias_nome") @db.VarChar(60)
+  ultimo BigInt @default(0)
 }

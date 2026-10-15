@@ -29,7 +29,7 @@ type Context = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return getById(TABLE, id);
+  return getById(TABLE, id, request);
 }
 
 export async function PUT(request: NextRequest, { params }: Context) {
@@ -77,7 +77,7 @@ async function atualizarMedicao(request: NextRequest, id: string) {
       error: error instanceof Error ? error.message : "Os valores das placas são inválidos.",
     }, { status: 400 });
   }
-  return update(TABLE, FIELDS, id, dados);
+  return update(TABLE, FIELDS, id, dados, request);
 }
 
 function bodyComValoresCalculados(body: Record<string, unknown>) {

@@ -20,7 +20,7 @@ export async function GET() {
   try {
     await verificarAjudasRecorrentes();
     const { inicio, fim } = intervaloMesAtual();
-    const despesas = await prisma.mh3Despesas.findMany({
+    const despesas = await prisma.mh3_despesas.findMany({
       where: {
         status_disp: "pendente",
         data_vencimento: { gte: inicio, lt: fim },
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const dataPagamento = new Date();
 
     const resultado = await prisma.$transaction(async (transaction) => {
-      const despesa = await transaction.mh3Despesas.findUnique({
+      const despesa = await transaction.mh3_despesas.findUnique({
         where: { id: despesaId },
       });
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         throw new Error("DESPESA_NAO_ENCONTRADA");
       }
 
-      const atualizada = await transaction.mh3Despesas.update({
+      const atualizada = await transaction.mh3_despesas.update({
         where: { id: despesaId },
         data: { status_disp: "pago", data_pagamento: dataPagamento },
       });

@@ -33,7 +33,7 @@ export async function verificarAjudasRecorrentes(data = new Date()) {
 
     for (const ajuda of ajudas) {
       if (ajuda.despesa_id) {
-        const despesaVigente = await transaction.mh3Despesas.findFirst({
+        const despesaVigente = await transaction.mh3_despesas.findFirst({
           where: {
             id: ajuda.despesa_id,
             status_disp: "pendente",
@@ -44,7 +44,7 @@ export async function verificarAjudasRecorrentes(data = new Date()) {
         if (despesaVigente) continue;
       }
 
-      const despesa = await transaction.mh3Despesas.create({
+      const despesa = await transaction.mh3_despesas.create({
         data: {
           descricao: `AJUDA DE CUSTO - ${ajuda.empresa || ""} - ${ajuda.motorista || ""}`,
           categoria: "Ajuda Motorista",
