@@ -443,6 +443,8 @@ export interface Proposta {
     cidade?: string | null;
     estado?: string | null;
     cep?: string | null;
+    cor_primaria?: string | null;
+    cor_secundaria?: string | null;
   } | null;
   fotos?: string[];
   aprovada?: boolean;

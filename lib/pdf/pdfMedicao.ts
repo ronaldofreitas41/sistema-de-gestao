@@ -1,4 +1,5 @@
 import { obterPlacasMedicao } from "@/lib/medicoes";
+import { corHex } from "@/lib/pdf/cores";
 
 function escaparHtml(valor: unknown): string {
   return String(valor ?? "")
@@ -55,6 +56,8 @@ export function gerarPdfMedicao(
   const contatoEmpresa = empresa
     ? [empresa.telefone, empresa.email].filter(Boolean).join(" · ")
     : "(31) 99977-6105 · Noninho · comercial@mh3rental.com.br";
+  const corPrimaria = corHex(empresa?.cor_primaria, "#c90000");
+  const corSecundaria = corHex(empresa?.cor_secundaria, "#191919");
   const parceiro = medicao.parceiro || "-";
   const cliente = medicao.cliente || "-";
   const periodo = formatarPeriodoPdf(medicao.periodo);
@@ -175,26 +178,26 @@ export function gerarPdfMedicao(
           * { box-sizing: border-box; }
           body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111827; background: #fff; font-size: 12px; }
           .pagina { min-height: 297mm; display: flex; flex-direction: column; padding: 22mm 13mm 0; }
-          .topo { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 17px; border-bottom: 4px solid #d71920; }
+          .topo { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 17px; border-bottom: 4px solid ${corPrimaria}; }
           .logo { max-width: 180px; max-height: 70px; object-fit: contain; }
-          .logo-fallback { max-width: 180px; color: #c90000; font-size: 18px; font-weight: 800; }
-          .titulo { text-align: right; color: #c90000; }
+          .logo-fallback { max-width: 180px; color: ${corPrimaria}; font-size: 18px; font-weight: 800; }
+          .titulo { text-align: right; color: ${corPrimaria}; }
           .titulo h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 1px; }
           .titulo p { margin: 8px 0 0; color: #6b7280; font-size: 10px; letter-spacing: 2px; }
           .conteudo { padding-top: 45px; }
           .secao { margin-bottom: 25px; }
-          .secao-titulo { margin: 0 0 12px; padding-left: 10px; border-left: 4px solid #d71920; color: #c90000; font-size: 14px; font-weight: 800; text-transform: uppercase; }
+          .secao-titulo { margin: 0 0 12px; padding-left: 10px; border-left: 4px solid ${corPrimaria}; color: ${corPrimaria}; font-size: 14px; font-weight: 800; text-transform: uppercase; }
           .dados { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; font-size: 12px; }
           .dados strong { font-weight: 700; }
           table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
-          thead th { padding: 12px; background: #c90000; color: #fff; font-size: 10px; text-align: center; text-transform: uppercase; }
+          thead th { padding: 12px; background: ${corPrimaria}; color: #fff; font-size: 10px; text-align: center; text-transform: uppercase; }
           tbody td { padding: 14px 12px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
           tbody tr:last-child td { border-bottom: none; }
           tbody tr:nth-child(even) { background: #fafafa; }
           td.valor { width: 34%; text-align: right; font-weight: 700; }
-          .total td { background: #fff7f7; color: #c90000; font-size: 14px; font-weight: 800; }
+          .total td { background: ${corPrimaria}14; color: ${corPrimaria}; font-size: 14px; font-weight: 800; }
           .total td:first-child { text-align: right; }
-          .rodape { margin-top: auto; margin-left: -13mm; margin-right: -13mm; padding: 25px 15px 18px; background: #191919; color: #fff; text-align: center; }
+          .rodape { margin-top: auto; margin-left: -13mm; margin-right: -13mm; padding: 25px 15px 18px; background: ${corSecundaria}; color: #fff; text-align: center; }
           .rodape .marca { margin-bottom: 14px; font-size: 24px; font-weight: 900; font-style: italic; }
           .rodape p { margin: 8px 0 0; font-size: 11px; }
           .pagina-numero { margin-top: 12px; color: #cbd5e1; font-size: 9px; text-align: right; }

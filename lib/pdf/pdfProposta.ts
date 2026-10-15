@@ -1,12 +1,11 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Proposta } from "@/lib/types";
-
-type Rgb = [number, number, number];
+import { corEmpresaRgb, type Rgb } from "@/lib/pdf/cores";
 
 export function generatePropostaPDF(proposta: Proposta) {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
-  const red: Rgb = [190, 0, 0];
+  const red: Rgb = corEmpresaRgb(proposta.empresaEmitente?.cor_primaria, [190, 0, 0]);
   const dark: Rgb = [65, 65, 65];
   const gray: Rgb = [105, 105, 105];
   const lightLine: Rgb = [225, 225, 225];

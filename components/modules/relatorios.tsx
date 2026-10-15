@@ -1,22 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Menu,
-  X,
-  Download,
-  Printer,
-  RefreshCw,
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  DollarSign,
-  Truck,
-  Users,
-  BarChart3,
-  CalendarDays,
-  ChevronRight,
-} from "lucide-react";
+import { Download, Menu, Printer, RefreshCw, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,803 +9,216 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
-import { MetricaCard, RelatorioTab } from "@/lib/common";
-import { SortableListControls, SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
+
+type Coluna = { chave: string; rotulo: string; tipo: "texto" | "moeda" | "numero" | "data" };
+type Linha = Record<string, string | number | null>;
+type Relatorio = { titulo: string; colunas: Coluna[]; linhas: Linha[]; totais: Record<string, number>; somar: string[] };
+type Empresa = { id: string | number; nome: string };
+
+const ROTULOS: Record<string, string> = {
+  faturamento: "Faturamento por período",
+  "lucro-empresa": "Lucro por empresa",
+  "lucro-parceiros": "Lucro sobre parceiros",
+  "a-pagar": "A pagar por período",
+  "a-receber": "A receber por período",
+  "pagar-receber": "Pagar e receber (juntos)",
+  estoque: "Estoque",
+  pneus: "Pneus (estoque, entradas e saídas)",
+  "resultado-placa": "Resultado por placa",
+};
+// Relatórios que mostram a posição atual, sem usar o período.
+const SEM_PERIODO = new Set(["estoque"]);
+
+const formatarData = (valor: string) => (/^\d{4}-\d{2}-\d{2}$/.test(valor) ? valor.split("-").reverse().join("/") : valor);
+
+function formatar(coluna: Coluna, valor: string | number | null) {
+  if (valor === null || valor === undefined || valor === "") return "-";
+  if (coluna.tipo === "moeda") return formatCurrency(Number(valor));
+  if (coluna.tipo === "data") return formatarData(String(valor));
+  return String(valor);
+}
+
+function hojeIso() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export function Relatorios() {
-  const [dataInicio, setDataInicio] = useState<string>("");
-  const [dataFim, setDataFim] = useState<string>("");
-  const [tabAtiva, setTabAtiva] = useState<RelatorioTab>("financeiro");
+  const [tipos, setTipos] = useState<string[]>([]);
+  const [tipo, setTipo] = useState("");
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [empresa, setEmpresa] = useState("");
+  const [modo, setModo] = useState<"simplificado" | "detalhado">("detalhado");
+  const [inicio, setInicio] = useState(() => `${hojeIso().slice(0, 8)}01`);
+  const [fim, setFim] = useState(hojeIso);
+  const [relatorio, setRelatorio] = useState<Relatorio | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [carregando, setCarregando] = useState(false);
-  const [erroCarregamento, setErroCarregamento] = useState("");
-  const [dados, setDados] = useState<any>({});
 
-  // Inicializar com datas do mês atual
   useEffect(() => {
-    const hoje = new Date();
-    const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-
-    const dataInicioStr = primeiroDia.toISOString().split("T")[0];
-    const dataFimStr = hoje.toISOString().split("T")[0];
-
-    setDataInicio(dataInicioStr);
-    setDataFim(dataFimStr);
+    (async () => {
+      try {
+        const [respostaTipos, respostaEmpresas] = await Promise.all([fetch("/api/relatorios"), fetch("/api/empresas")]);
+        const dadosTipos = await respostaTipos.json();
+        if (!respostaTipos.ok) throw new Error(dadosTipos.error || "Não foi possível carregar os relatórios.");
+        setTipos(dadosTipos.tipos);
+        setTipo((atual) => atual || dadosTipos.tipos[0] || "");
+        const dadosEmpresas = await respostaEmpresas.json();
+        setEmpresas(Array.isArray(dadosEmpresas) ? dadosEmpresas : dadosEmpresas.data || []);
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : "Não foi possível carregar os relatórios.");
+      }
+    })();
   }, []);
 
-  async function carregarDados() {
+  async function gerar() {
+    if (!tipo) return;
     setCarregando(true);
-    setErroCarregamento("");
+    setErro("");
     try {
-      const endpoints = [
-        "/api/vendas",
-        "/api/medicoes",
-        "/api/contas-receber",
-        "/api/despesas",
-        "/api/equipamentos",
-        "/api/clientes",
-        "/api/estoque",
-      ];
-      const respostas = await Promise.all(endpoints.map(async (endpoint) => {
-        const response = await fetch(endpoint);
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload.error || `Falha ao carregar ${endpoint}.`);
-        }
-        const items = Array.isArray(payload) ? payload : payload.data;
-        if (!Array.isArray(items)) {
-          throw new Error(payload.error || `Resposta inválida ao carregar ${endpoint}.`);
-        }
-        return items;
-      }));
-      const [vendas, medicoes, contas, despesas, equipamentosArray, clientesArray, estoqueArray] = respostas;
-
-      const inicio = new Date(dataInicio);
-      const fim = new Date(dataFim);
-      fim.setHours(23, 59, 59, 999);
-
-      // Filtrar por período
-      const filtrarPeriodo = (items: any[]) => {
-        return Array.isArray(items)
-          ? items.filter((item: any) => {
-            const data = new Date(
-              item.data ||
-              item.data_emissao ||
-              item.data_vencimento ||
-              item.vencimento ||
-              "",
-            );
-            return data >= inicio && data <= fim;
-          })
-          : [];
-      };
-
-      const vendasFiltradas = filtrarPeriodo(vendas);
-      const medicoesFiltradas = filtrarPeriodo(medicoes);
-      const contasFiltradas = filtrarPeriodo(contas);
-      const despesasFiltradas = filtrarPeriodo(despesas);
-
-      setDados({
-        vendas: vendasFiltradas,
-        medicoes: medicoesFiltradas,
-        contas: contasFiltradas,
-        despesas: despesasFiltradas,
-        equipamentos: equipamentosArray,
-        clientes: clientesArray,
-        estoque: estoqueArray,
-      });
-    } catch (error) {
-      console.error("Erro ao carregar dados:", error);
-      setErroCarregamento(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível carregar os dados dos relatórios.",
-      );
+      const params = new URLSearchParams({ tipo, inicio, fim });
+      if (empresa) params.set("empresa", empresa);
+      const resposta = await fetch(`/api/relatorios?${params}`);
+      const dados = await resposta.json();
+      if (!resposta.ok) throw new Error(dados.error || "Não foi possível gerar o relatório.");
+      setRelatorio(dados);
+    } catch (e) {
+      setRelatorio(null);
+      setErro(e instanceof Error ? e.message : "Não foi possível gerar o relatório.");
     } finally {
       setCarregando(false);
     }
   }
 
   useEffect(() => {
-    if (dataInicio && dataFim) {
-      carregarDados();
+    if (tipo && inicio && fim) gerar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo, empresa]);
+
+  // Simplificado: uma linha por empresa com os totais das colunas numéricas.
+  const exibicao = useMemo(() => {
+    if (!relatorio) return null;
+    if (modo === "detalhado") return { colunas: relatorio.colunas, linhas: relatorio.linhas };
+    const grupos = new Map<string, Linha>();
+    for (const linha of relatorio.linhas) {
+      const nome = String(linha.empresa ?? "Geral");
+      const atual = grupos.get(nome) ?? { empresa: nome, ...Object.fromEntries(relatorio.somar.map((c) => [c, 0])) };
+      for (const c of relatorio.somar) atual[c] = Math.round((Number(atual[c]) + Number(linha[c] || 0)) * 100) / 100;
+      grupos.set(nome, atual);
     }
-  }, [dataInicio, dataFim]);
+    const colunas: Coluna[] = [
+      { chave: "empresa", rotulo: "Empresa", tipo: "texto" },
+      ...relatorio.colunas.filter((c) => relatorio.somar.includes(c.chave)),
+    ];
+    return { colunas, linhas: [...grupos.values()] };
+  }, [relatorio, modo]);
 
-  // Calcular métricas financeiras
-  const metricasFinanceiras = useMemo(() => {
-    const receitaVendas = (dados.vendas || []).reduce((sum: number, v: any) => sum + (Number(v.valor || v.total) || 0), 0);
-    const receitaMedicoes = (dados.medicoes || []).reduce((sum: number, m: any) => sum + (Number(m.valor || m.total) || 0), 0);
-    const receitaTotal = receitaVendas + receitaMedicoes;
+  function exportarCsv() {
+    if (!exibicao || !relatorio) return;
+    const escapar = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const linhas = [
+      exibicao.colunas.map((c) => escapar(c.rotulo)).join(";"),
+      ...exibicao.linhas.map((l) => exibicao.colunas.map((c) => escapar(c.tipo === "moeda" ? Number(l[c.chave] || 0).toFixed(2).replace(".", ",") : l[c.chave])).join(";")),
+    ];
+    const blob = new Blob(["﻿" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `relatorio-${tipo}-${inicio}-${fim}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
-    const aReceber = (dados.contas || [])
-      .filter((conta: any) => String(conta.status || "").toLowerCase() !== "pago")
-      .reduce(
-        (sum: number, conta: any) =>
-          sum + (Number(conta.valor_total ?? conta.valor) || 0),
-        0,
-      );
-    const despesasTotal = (dados.despesas || []).reduce((sum: number, d: any) => sum + (Number(d.valor) || 0), 0);
-
-    const saldo = receitaTotal - despesasTotal;
-    const margemLiquida = receitaTotal > 0 ? (saldo / receitaTotal) * 100 : 0;
-
-    return {
-      receitaTotal,
-      aReceber,
-      despesasTotal,
-      saldo,
-      margemLiquida,
-    };
-  }, [dados]);
-
-  const metricas: MetricaCard[] = [
-    {
-      label: "Receita Total",
-      valor: metricasFinanceiras.receitaTotal,
-      tipo: "positivo",
-    },
-    {
-      label: "A Receber",
-      valor: metricasFinanceiras.aReceber,
-      tipo: "neutro",
-    },
-    {
-      label: "Total Despesas",
-      valor: metricasFinanceiras.despesasTotal,
-      tipo: "negativo",
-    },
-    {
-      label: "Saldo",
-      valor: metricasFinanceiras.saldo,
-      tipo: metricasFinanceiras.saldo >= 0 ? "positivo" : "negativo",
-    },
-  ];
-
-  // Renderizar conteúdo por aba
-  const renderizarConteudo = () => {
-    switch (tabAtiva) {
-      case "financeiro":
-        return <RelatorioFinanceiro metricas={metricas} dados={dados} />;
-      case "receitas":
-        return <RelatorioReceitas dados={dados} />;
-      case "despesas":
-        return <RelatorioDespesas dados={dados} />;
-      case "frota":
-        return <RelatorioFrota dados={dados} />;
-      case "clientes":
-        return <RelatorioClientes dados={dados} />;
-      case "resultado-geral":
-        return <RelatorioResultadoGeral metricas={metricas} dados={dados} />;
-      default:
-        return <div className="text-center py-12 text-muted-foreground">Relatório em desenvolvimento</div>;
-    }
-  };
-
-  const abas: { id: RelatorioTab; label: string; icon: any }[] = [
-    { id: "financeiro", label: "Financeiro", icon: Wallet },
-    { id: "receitas", label: "Receitas", icon: TrendingUp },
-    { id: "despesas", label: "Despesas", icon: TrendingDown },
-    { id: "frota", label: "Frota", icon: Truck },
-    { id: "clientes", label: "Clientes", icon: Users },
-    { id: "resultado-geral", label: "Resultado", icon: BarChart3 },
-  ];
+  const nomeEmpresa = empresas.find((e) => String(e.id) === empresa)?.nome;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="fixed inset-y-0 left-0 z-40 hidden md:flex">
-        <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
-      </div>
-
-      {menuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
-          <div className="relative z-10 flex h-full">
-            <Sidebar onClose={() => setMenuOpen(false)} />
-            <button
-              type="button"
-              onClick={() => setMenuOpen(false)}
-              aria-label="Fechar menu"
-              className="absolute left-[calc(100%+12px)] top-4 rounded-lg bg-card p-2"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className={`min-h-screen transition-[padding-left] duration-300 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"}`}>
-        <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9">
+      <div className="fixed inset-y-0 left-0 z-40 hidden md:flex print:hidden"><Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} /></div>
+      {menuOpen && <div className="fixed inset-0 z-50 flex md:hidden"><div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} /><div className="relative z-10 flex h-full"><Sidebar onClose={() => setMenuOpen(false)} /><button type="button" onClick={() => setMenuOpen(false)} aria-label="Fechar menu" className="absolute left-[calc(100%+12px)] top-4 rounded-lg bg-card p-2"><X className="h-5 w-5" /></button></div></div>}
+      <div className={`min-h-screen transition-[padding-left] duration-300 print:pl-0 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"}`}>
+        <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9 print:hidden">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Abrir menu"
-              className="rounded-xl border border-border bg-card p-2 md:hidden"
-            >
-              <Menu className="h-4 w-4" />
-            </button>
-            <div>
-              <h1 className="text-lg font-bold sm:text-2xl">Relatórios</h1>
-            </div>
+            <button type="button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu" className="rounded-xl border border-border bg-card p-2 md:hidden"><Menu className="h-4 w-4" /></button>
+            <h1 className="text-lg font-bold sm:text-2xl">Relatórios</h1>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={carregarDados} disabled={carregando}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              {carregando ? "Carregando..." : "Atualizar"}
-            </Button>
-            <Button variant="outline" size="sm">
-              <Printer className="mr-2 h-4 w-4" />
-              Imprimir
-            </Button>
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              CSV
-            </Button>
+            <Button variant="outline" size="sm" onClick={gerar} disabled={carregando || !tipo}><RefreshCw className="mr-2 h-4 w-4" />{carregando ? "Gerando..." : "Gerar"}</Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()} disabled={!relatorio}><Printer className="mr-2 h-4 w-4" />Imprimir</Button>
+            <Button variant="outline" size="sm" onClick={exportarCsv} disabled={!relatorio}><Download className="mr-2 h-4 w-4" />CSV</Button>
           </div>
         </header>
 
         <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-9">
-          {erroCarregamento && (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-            >
-              {erroCarregamento}
-            </div>
-          )}
-          {/* Filtros */}
-          <Card className="border-2 border-gray-600">
-            <CardContent className="p-0">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 p-2">
-                <div className="space-y-1">
-                  <Label htmlFor="data-inicio" className="text-xs font-semibold uppercase text-gray-700">DE</Label>
-                  <Input
-                    id="data-inicio"
-                    type="date"
-                    value={dataInicio}
-                    onChange={(e) => setDataInicio(e.target.value)}
-                    placeholder="dd/mm/aaaa"
-                    className="text-sm"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="data-fim" className="text-xs font-semibold uppercase text-gray-700">ATÉ</Label>
-                  <Input
-                    id="data-fim"
-                    type="date"
-                    value={dataFim}
-                    onChange={(e) => setDataFim(e.target.value)}
-                    placeholder="dd/mm/aaaa"
-                    className="text-sm"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold uppercase text-gray-700">PERÍODO</Label>
-                  <select className="flex h-10 w-full rounded-md border border-gray-600 bg-gray-100 px-3 py-2 text-sm text-gray-700 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    <option>Este mês</option>
-                    <option>Último mês</option>
-                    <option>Este trimestre</option>
-                    <option>Este ano</option>
-                    <option>Personalizado</option>
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <Button className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold text-sm">Gerar</Button>
-                </div>
+          {erro && <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{erro}</div>}
+
+          <Card className="print:hidden">
+            <CardContent className="grid grid-cols-1 gap-3 pt-6 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="space-y-1 lg:col-span-2">
+                <Label htmlFor="rel-tipo">Relatório</Label>
+                <select id="rel-tipo" value={tipo} onChange={(e) => setTipo(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  {tipos.map((t) => <option key={t} value={t}>{ROTULOS[t] ?? t}</option>)}
+                </select>
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="rel-empresa">Empresa</Label>
+                <select id="rel-empresa" value={empresa} onChange={(e) => setEmpresa(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="">Todas</option>
+                  {empresas.map((e) => <option key={String(e.id)} value={String(e.id)}>{e.nome}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="rel-modo">Visão</Label>
+                <select id="rel-modo" value={modo} onChange={(e) => setModo(e.target.value as "simplificado" | "detalhado")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="detalhado">Detalhado</option>
+                  <option value="simplificado">Simplificado (por empresa)</option>
+                </select>
+              </div>
+              <div className="hidden lg:block" />
+              {!SEM_PERIODO.has(tipo) && <>
+                <div className="space-y-1"><Label htmlFor="rel-inicio">De</Label><Input id="rel-inicio" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} /></div>
+                <div className="space-y-1"><Label htmlFor="rel-fim">Até</Label><Input id="rel-fim" type="date" value={fim} onChange={(e) => setFim(e.target.value)} /></div>
+              </>}
             </CardContent>
           </Card>
 
-          {/* Abas */}
-          <div className="flex flex-wrap gap-1 border-b border-border overflow-x-auto pb-0">
-            {abas.map((aba) => {
-              const Icon = aba.icon;
-              return (
-                <button
-                  key={aba.id}
-                  onClick={() => setTabAtiva(aba.id)}
-                  className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${tabAtiva === aba.id
-                      ? "border-primary text-primary bg-primary/5"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {aba.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Conteúdo */}
-          <div>{renderizarConteudo()}</div>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-// Componentes de relatórios específicos
-
-function RelatorioFinanceiro({ metricas, dados }: any) {
-  const icons = [DollarSign, TrendingUp, TrendingDown, Wallet];
-
-  return (
-    <div className="space-y-4">
-      {/* Métricas Principais */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {metricas.map((metrica: MetricaCard, idx: number) => {
-          const Icon = icons[idx] || DollarSign;
-          const bgColor =
-            metrica.tipo === "positivo" ? "bg-green-100" :
-              metrica.tipo === "negativo" ? "bg-red-100" :
-                "bg-blue-100";
-
-          const borderColor =
-            metrica.tipo === "positivo" ? "border-green-600" :
-              metrica.tipo === "negativo" ? "border-red-600" :
-                "border-blue-600";
-
-          const textColor =
-            metrica.tipo === "positivo" ? "text-green-600" :
-              metrica.tipo === "negativo" ? "text-red-600" :
-                "text-blue-600";
-
-          const iconBgColor =
-            metrica.tipo === "positivo" ? "bg-green-200" :
-              metrica.tipo === "negativo" ? "bg-red-200" :
-                "bg-blue-200";
-
-          return (
-            <Card key={idx} className={`border ${borderColor}  ${bgColor} overflow-hidden`}>
-              <CardContent className={`p-2`}>
-                <div className="space-y-0.5">
-                  <div className="flex items-start justify-between">
-                    <p className={`text-xs font-semibold uppercase tracking-wider ${textColor}`}>{metrica.label}</p>
-                    <div className={`rounded-lg p-1 ${iconBgColor}`}>
-                      <Icon className={`h-3 w-3 ${textColor}`} />
-                    </div>
-                  </div>
-                  <p className={`text-2xl font-bold ${textColor}`}>
-                    {formatCurrency(metrica.valor)}
-                  </p>
-                  {metrica.percentual && (
-                    <p className="text-xs text-gray-600">+{metrica.percentual.toFixed(1)}%</p>
-                  )}
+          {relatorio && exibicao && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{relatorio.titulo}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {SEM_PERIODO.has(tipo) ? "Posição atual" : `${formatarData(inicio)} a ${formatarData(fim)}`}
+                  {" · "}{nomeEmpresa ?? "Todas as empresas"}{" · "}{modo === "detalhado" ? "Detalhado" : "Simplificado"}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>{exibicao.colunas.map((c) => <TableHead key={c.chave} className={c.tipo === "moeda" || c.tipo === "numero" ? "text-right" : ""}>{c.rotulo}</TableHead>)}</TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {exibicao.linhas.map((linha, i) => (
+                        <TableRow key={i}>{exibicao.colunas.map((c) => <TableCell key={c.chave} className={c.tipo === "moeda" || c.tipo === "numero" ? "text-right tabular-nums" : ""}>{formatar(c, linha[c.chave])}</TableCell>)}</TableRow>
+                      ))}
+                      {exibicao.linhas.length > 0 && (
+                        <TableRow className="font-bold">
+                          {exibicao.colunas.map((c, i) => (
+                            <TableCell key={c.chave} className={c.tipo === "moeda" || c.tipo === "numero" ? "text-right tabular-nums" : ""}>
+                              {i === 0 ? "Total" : relatorio.somar.includes(c.chave) ? formatar(c, relatorio.totais[c.chave]) : ""}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                  {exibicao.linhas.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum registro no período.</p>}
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
-
-      {/* Resumo Período */}
-      <Card className="border border-gray-600">
-        <CardHeader className="pb-0">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Resumo do Período
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-2">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 p-2">
-            <div className="space-y-1 rounded-xl bg-green-100 border border-green-600 p-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-600" />
-                <p className="text-xs font-semibold uppercase tracking-wider text-green-600">Receita Total</p>
-              </div>
-              <p className="text-3xl font-bold text-green-600">
-                {formatCurrency(
-                  (dados.vendas || []).reduce((sum: number, v: any) => sum + (Number(v.valor || v.total) || 0), 0) +
-                  (dados.medicoes || []).reduce((sum: number, m: any) => sum + (Number(m.valor || m.total) || 0), 0)
-                )}
-              </p>
-              <p className="text-xs text-green-600">Total de receitas geradas</p>
-            </div>
-            <div className="space-y-1 rounded-xl bg-red-100 border border-red-600 p-3">
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-600" />
-                <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Total Despesas</p>
-              </div>
-              <p className="text-3xl font-bold text-red-600">
-                {formatCurrency(
-                  (dados.despesas || []).reduce((sum: number, d: any) => sum + (Number(d.valor) || 0), 0)
-                )}
-              </p>
-              <p className="text-xs text-red-600">Total de despesas</p>
-            </div>
-            <div className="space-y-1 rounded-xl bg-blue-100 border border-blue-600 p-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-blue-600" />
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Margem Líquida</p>
-              </div>
-              <p className="text-3xl font-bold text-blue-600">
-                {(
-                  ((Number((dados.vendas || []).reduce((sum: number, v: any) => sum + (Number(v.valor || v.total) || 0), 0)) +
-                    Number((dados.medicoes || []).reduce((sum: number, m: any) => sum + (Number(m.valor || m.total) || 0), 0)) -
-                    Number((dados.despesas || []).reduce((sum: number, d: any) => sum + (Number(d.valor) || 0), 0))) /
-                    (Number((dados.vendas || []).reduce((sum: number, v: any) => sum + (Number(v.valor || v.total) || 0), 0)) +
-                      Number((dados.medicoes || []).reduce((sum: number, m: any) => sum + (Number(m.valor || m.total) || 0), 0)) ||
-                      1)) *
-                  100
-                ).toFixed(1)}
-                %
-              </p>
-              <p className="text-xs text-blue-600">Percentual de margem</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function RelatorioReceitas({ dados }: any) {
-  const receitasPorCliente = useMemo(() => {
-    const map = new Map<string, { vendas: number; medicoes: number; total: number }>();
-
-    (dados.vendas || []).forEach((v: any) => {
-      const cliente = v.cliente || v.contratante || "-";
-      const current = map.get(cliente) || { vendas: 0, medicoes: 0, total: 0 };
-      const valor = Number(v.valor || v.total) || 0;
-      map.set(cliente, { ...current, vendas: current.vendas + valor, total: current.total + valor });
-    });
-
-    (dados.medicoes || []).forEach((m: any) => {
-      const cliente = m.cliente || m.contratante || "-";
-      const current = map.get(cliente) || { vendas: 0, medicoes: 0, total: 0 };
-      const valor = Number(m.valor || m.total) || 0;
-      map.set(cliente, { ...current, medicoes: current.medicoes + valor, total: current.total + valor });
-    });
-
-    return Array.from(map.entries()).map(([cliente, dados]) => ({ cliente, ...dados }));
-  }, [dados]);
-  const {
-    sortedItems: receitasOrdenadas,
-    sortKey,
-    sortDirection,
-    toggleSort,
-  } = useSortableData(receitasPorCliente);
-
-  return (
-    <Card className="border border-gray-600">
-      <CardHeader className="pb-0">
-        <CardTitle className="text-base">Receita por Cliente</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto p-2">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-b-2 border-gray-600">
-                <TableHead className="text-xs font-semibold uppercase text-gray-700">##</TableHead>
-                <SortableTableHead label="Cliente" sortKey="cliente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.cliente} />
-                <SortableTableHead label="Medições" sortKey="medicoes" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.medicoes} />
-                <SortableTableHead label="Vendas" sortKey="vendas" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.vendas} />
-                <SortableTableHead label="Total" sortKey="total" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.total} />
-                <SortableTableHead label="% Participação" sortKey="participacao" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item: any) => item.total} />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {receitasPorCliente.length > 0 ? (
-                receitasOrdenadas.map((item: any, idx: number) => {
-                  const totalGeral = receitasPorCliente.reduce((sum: number, r: any) => sum + r.total, 0);
-                  const percentual = totalGeral > 0 ? (item.total / totalGeral) * 100 : 0;
-                  return (
-                    <TableRow key={idx} className="border-b border-gray-300 hover:bg-gray-100 transition-colors">
-                      <TableCell className="font-medium text-gray-700">{idx + 1}</TableCell>
-                      <TableCell className="font-semibold text-gray-700">{item.cliente}</TableCell>
-                      <TableCell className="text-right text-blue-600 font-medium">{formatCurrency(item.medicoes)}</TableCell>
-                      <TableCell className="text-right text-purple-600 font-medium">{formatCurrency(item.vendas)}</TableCell>
-                      <TableCell className="text-right font-semibold text-green-600">{formatCurrency(item.total)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-300">
-                            <div
-                              className="h-full bg-green-600"
-                              style={{ width: `${percentual}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-semibold text-gray-700">{percentual.toFixed(1)}%</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-gray-500">
-                    Nenhum dado disponível
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RelatorioDespesas({ dados }: any) {
-  const despesasPorCategoria = useMemo(() => {
-    const map = new Map<string, number>();
-    (dados.despesas || []).forEach((d: any) => {
-      const categoria = d.categoria || "Sem categoria";
-      map.set(categoria, (map.get(categoria) || 0) + (Number(d.valor) || 0));
-    });
-    return Array.from(map.entries()).map(([categoria, valor]) => ({ categoria, valor }));
-  }, [dados]);
-
-  const totalDespesas = despesasPorCategoria.reduce((sum: number, d: any) => sum + d.valor, 0);
-  const {
-    sortedItems: despesasOrdenadas,
-    sortKey,
-    sortDirection,
-    toggleSort,
-  } = useSortableData(despesasPorCategoria);
-
-  return (
-    <Card className="border border-gray-600">
-      <CardHeader className="pb-0">
-        <CardTitle className="text-base">Despesas por Categoria</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="space-y-2 p-2">
-          <div className="flex justify-end">
-            <SortableListControls
-              options={[
-                { label: "Categoria", key: "categoria", getValue: (item: any) => item.categoria },
-                { label: "Valor", key: "valor", getValue: (item: any) => item.valor },
-              ]}
-              sortKey={sortKey}
-              direction={sortDirection}
-              onSort={toggleSort}
-            />
-          </div>
-          {despesasPorCategoria.length > 0 ? (
-            despesasOrdenadas.map((item: any, idx: number) => {
-              const percentual = totalDespesas > 0 ? (item.valor / totalDespesas) * 100 : 0;
-              return (
-                <div key={idx} className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-700">{item.categoria}</span>
-                    <span className="text-sm font-semibold text-red-600">{formatCurrency(item.valor)}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-gray-300">
-                    <div className="h-full bg-red-600" style={{ width: `${percentual}%` }} />
-                  </div>
-                  <p className="text-xs text-gray-600">{percentual.toFixed(1)}% do total</p>
-                </div>
-              );
-            })
-          ) : (
-            <p className="text-center text-gray-500">Nenhum dado disponível</p>
           )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RelatorioFrota({ dados }: any) {
-  const total = (dados.equipamentos || []).length;
-  const disponivel = (dados.equipamentos || []).filter((e: any) => e.status === "disponível" || e.status === "disponivel").length;
-  const manutencao = (dados.equipamentos || []).filter((e: any) => e.status === "manutenção" || e.status === "manutencao").length;
-
-  return (
-    <Card className="border border-gray-600">
-      <CardHeader className="pb-0">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Truck className="h-4 w-4" />
-          Status da Frota
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 p-2">
-          <div className="rounded-xl bg-blue-100 border border-blue-600 p-3 space-y-1">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Total Veículos</p>
-              <Truck className="h-4 w-4 text-blue-600" />
-            </div>
-            <p className="text-3xl font-bold text-blue-600">{total}</p>
-            <div className="h-1 bg-blue-300 rounded-full overflow-hidden">
-              <div className="h-full w-full bg-blue-600 rounded-full" style={{ width: "100%" }} />
-            </div>
-          </div>
-          <div className="rounded-xl bg-green-100 border border-green-600 p-3 space-y-1">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-green-600">Disponíveis</p>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </div>
-            <p className="text-3xl font-bold text-green-600">{disponivel}</p>
-            <div className="h-1 bg-green-300 rounded-full overflow-hidden">
-              <div className="h-full bg-green-600 rounded-full" style={{ width: `${total > 0 ? (disponivel / total) * 100 : 0}%` }} />
-            </div>
-            <p className="text-xs text-green-600">{total > 0 ? ((disponivel / total) * 100).toFixed(1) : 0}% da frota</p>
-          </div>
-          <div className="rounded-xl bg-orange-100 border border-orange-600 p-3 space-y-1">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">Manutenção</p>
-              <TrendingDown className="h-4 w-4 text-orange-600" />
-            </div>
-            <p className="text-3xl font-bold text-orange-600">{manutencao}</p>
-            <div className="h-1 bg-orange-300 rounded-full overflow-hidden">
-              <div className="h-full bg-orange-600 rounded-full" style={{ width: `${total > 0 ? (manutencao / total) * 100 : 0}%` }} />
-            </div>
-            <p className="text-xs text-orange-600">{total > 0 ? ((manutencao / total) * 100).toFixed(1) : 0}% da frota</p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RelatorioClientes({ dados }: any) {
-  const clientes = dados.clientes || [];
-  const {
-    sortedItems: clientesOrdenados,
-    sortKey,
-    sortDirection,
-    toggleSort,
-  } = useSortableData(clientes);
-
-  return (
-    <Card className="border-2 border-gray-600">
-      <CardHeader className="pb-0">
-        <CardTitle className="text-base">Clientes – Resumo</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto p-2">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-b-2 border-gray-600">
-                <TableHead className="text-xs font-semibold uppercase text-gray-700">#</TableHead>
-                <SortableTableHead label="Cliente" sortKey="cliente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(cliente: any) => cliente.nome || cliente.razao_social} />
-                <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Contratos</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Rec. Medições</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Rec. Vendas</TableHead>
-                <TableHead className="text-xs font-semibold uppercase text-gray-700 text-right">Total Geral</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clientes.length > 0 ? (
-                clientesOrdenados.slice(0, 10).map((cliente: any, idx: number) => (
-                  <TableRow key={idx} className="border-b border-gray-300 hover:bg-gray-100 transition-colors">
-                    <TableCell className="font-medium text-gray-700">{idx + 1}</TableCell>
-                    <TableCell className="font-semibold text-gray-700">{cliente.nome || cliente.razao_social || "-"}</TableCell>
-                    <TableCell className="text-right text-gray-600">0</TableCell>
-                    <TableCell className="text-right text-blue-600 font-medium">R$ 0,00</TableCell>
-                    <TableCell className="text-right text-purple-600 font-medium">R$ 0,00</TableCell>
-                    <TableCell className="text-right font-semibold text-green-600">R$ 0,00</TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-6 text-center text-gray-500">
-                    Nenhum cliente registrado
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RelatorioResultadoGeral({ metricas, dados }: any) {
-  const receitaTotal =
-    (dados.vendas || []).reduce((sum: number, v: any) => sum + (Number(v.valor || v.total) || 0), 0) +
-    (dados.medicoes || []).reduce((sum: number, m: any) => sum + (Number(m.valor || m.total) || 0), 0);
-
-  const despesasTotal = (dados.despesas || []).reduce((sum: number, d: any) => sum + (Number(d.valor) || 0), 0);
-
-  const nfCompras = (dados.despesas || []).reduce((sum: number, d: any) => sum + (Number(d.valor) || 0), 0);
-
-  const saldo = receitaTotal - despesasTotal - nfCompras;
-  const isSaldo = saldo >= 0;
-
-  return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border bg-green-100 border-green-200 dark:border-green-600 overflow-hidden">
-          <CardContent className="bg-linear-to-br pt-5">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-green-600 dark:text-green-600">Receitas Totais</p>
-                <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-600" />
-              </div>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-600">{formatCurrency(receitaTotal)}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-red-600 overflow-hidden bg-linear-to-br bg-red-100 ">
-          <CardContent className="pt-5">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-red-600 ">Custos OS</p>
-                <TrendingDown className="h-5 w-5 text-red-600" />
-              </div>
-              <p className="text-2xl font-bold text-red-600 ">{formatCurrency(despesasTotal)}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-orange-600 bg-orange-100 overflow-hidden">
-          <CardContent className="pt-5">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">NF/Compras</p>
-                <DollarSign className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{formatCurrency(nfCompras)}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={`border overflow-hidden ${isSaldo ? "border-green-600" : "border-red-600"} 
-                        ${isSaldo ? " bg-green-100" : " bg-red-100 "}`}>
-          <CardContent className={`pt-5`}>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className={`text-xs font-semibold uppercase tracking-wider ${isSaldo ? "text-green-600 " : "text-red-600 "}`}>
-                  Resultado Geral
-                </p>
-                <Wallet className={`h-5 w-5 ${isSaldo ? "text-green-600" : "text-red-600 "}`} />
-              </div>
-              <p className={`text-2xl font-bold ${isSaldo ? "text-green-600 " : "text-red-600"}`}>
-                {formatCurrency(saldo)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        </main>
       </div>
-
-      <Card className="border-2 border-gray-600">
-        <CardHeader className="pb-0">
-          <CardTitle className="text-base">Fórmula de Cálculo</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="space-y-0 rounded-xl border border-gray-600 p-2 bg-gray-100">
-            <div className="flex items-center justify-between gap-3 py-1">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-semibold text-gray-700">Receitas</span>
-              </div>
-              <div className="text-lg font-bold text-green-600">{formatCurrency(receitaTotal)}</div>
-            </div>
-            <div className="h-px bg-gray-400 my-0"></div>
-            <div className="flex items-center justify-between gap-3 py-1">
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-600" />
-                <span className="text-sm font-semibold text-gray-700">Custos OS</span>
-              </div>
-              <div className="text-lg font-bold text-red-600">{formatCurrency(despesasTotal)}</div>
-            </div>
-            <div className="h-px bg-gray-400 my-0"></div>
-            <div className="flex items-center justify-between gap-3 py-1">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-orange-600" />
-                <span className="text-sm font-semibold text-gray-700">NF/Compras</span>
-              </div>
-              <div className="text-lg font-bold text-orange-600">{formatCurrency(nfCompras)}</div>
-            </div>
-            <div className="h-px bg-gray-400 rounded-full my-0"></div>
-            <div className={`flex items-center justify-between gap-3 py-1 px-2 rounded-lg ${isSaldo ? "bg-green-100 border border-green-600" : "bg-red-100 border border-red-600"}`}>
-              <div className="flex items-center gap-2">
-                <Wallet className={`h-4 w-4 ${isSaldo ? "text-green-600" : "text-red-600"}`} />
-                <span className={`text-xs font-bold ${isSaldo ? "text-green-600" : "text-red-600"}`}>Resultado</span>
-              </div>
-              <div className={`text-base font-bold ${isSaldo ? "text-green-600" : "text-red-600"}`}>
-                {formatCurrency(saldo)}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
