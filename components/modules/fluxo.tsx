@@ -46,8 +46,32 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro, formatCurrency } from "@/lib/utils";
 import { ContasBancarias } from "@/lib/types";
+import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
+
+type LinhaFluxo = {
+  id: string | number;
+  numero?: string | null;
+  num_desp?: string | null;
+  cliente?: string | null;
+  descricao?: string | null;
+  fornecedor?: string | null;
+  valor_total?: number | string | null;
+  valor?: number | string | null;
+  valor_pago?: number | string | null;
+  data_recebimento?: string | null;
+  data_pagamento?: string | null;
+};
+
+type FluxoMes = {
+  mes: string;
+  entradas: LinhaFluxo[];
+  saidas: LinhaFluxo[];
+  totais: { entradas: number; saidas: number; saldo: number; aPagar: number; aReceber: number };
+  anterior: { mes: string; recebido: number; pago: number };
+  pagosSemData: { quantidade: number; total: number };
+};
 
 export function Fluxo() {
   const [contas, setContas] = useState<ContasBancarias[]>([]);
@@ -59,7 +83,13 @@ export function Fluxo() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | number | null>(null);
-  const [mesAno, setMesAno] = useState("2026-09");
+  const [mesAno, setMesAno] = useState(() => new Date().toISOString().slice(0, 7));
+  const [fluxo, setFluxo] = useState<FluxoMes | null>(null);
+  const [acerto, setAcerto] = useState<ContasBancarias | null>(null);
+  const [acertoSaldo, setAcertoSaldo] = useState("");
+  const [acertoMotivo, setAcertoMotivo] = useState("");
+  const [acertoSenha, setAcertoSenha] = useState("");
+  const [acertando, setAcertando] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -76,6 +106,41 @@ export function Fluxo() {
   useEffect(() => {
     fetchContas();
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/fluxo?mes=${mesAno}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((dados) => setFluxo(dados?.totais ? dados : null))
+      .catch((erro) => console.error("Erro ao carregar fluxo:", erro));
+  }, [mesAno, contas]);
+
+  const abrirAcerto = (conta: ContasBancarias) => {
+    setAcerto(conta);
+    setAcertoSaldo(String(conta.saldo ?? 0));
+    setAcertoMotivo("");
+    setAcertoSenha("");
+  };
+
+  const confirmarAcerto = async () => {
+    if (!acerto) return;
+    if (!Number.isFinite(Number(acertoSaldo)) || acertoSaldo === "") return alert("Informe o novo saldo.");
+    if (acertoMotivo.trim().length < 5) return alert("Informe o motivo do acerto (mínimo 5 caracteres).");
+    if (!acertoSenha) return alert("Digite sua senha para confirmar.");
+    setAcertando(true);
+    try {
+      await chamarApi(`/api/contas-bancarias/${acerto.id}/acerto`, "POST", {
+        novo_saldo: Number(acertoSaldo),
+        motivo: acertoMotivo,
+        senha: acertoSenha,
+      });
+      setAcerto(null);
+      await fetchContas();
+    } catch (erro) {
+      alert(mensagemErro(erro));
+    } finally {
+      setAcertando(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
     banco: "",
@@ -147,28 +212,23 @@ export function Fluxo() {
   };
 
   const handleSave = async () => {
-    const payload = {
-      ...formData,
-      saldo: Number(formData.saldo) || 0,
-      saldo_polpanca: Number(formData.saldo_polpanca) || 0,
-    };
-
-    if (editingConta) {
-      await fetch(`/api/contas-bancarias/${editingConta.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/contas-bancarias", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    const { saldo, saldo_polpanca, ...dadosCadastrais } = formData;
+    try {
+      if (editingConta) {
+        // O saldo só muda por pagamentos, recebimentos ou pelo botão Acerto (senha + motivo).
+        await chamarApi(`/api/contas-bancarias/${editingConta.id}`, "PUT", dadosCadastrais);
+      } else {
+        await chamarApi("/api/contas-bancarias", "POST", {
+          ...dadosCadastrais,
+          saldo: Number(saldo) || 0,
+          saldo_polpanca: Number(saldo_polpanca) || 0,
+        });
+      }
+      await fetchContas();
+      setDialogOpen(false);
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível salvar a conta bancária."));
     }
-
-    await fetchContas();
-    setDialogOpen(false);
   };
 
   const handleDelete = async (id: string | number) => {
@@ -318,6 +378,7 @@ export function Fluxo() {
                               variant="outline"
                               size="sm"
                               className="h-7 text-[11px] bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                              onClick={() => abrirAcerto(c)}
                             >
                               Acerto
                             </Button>
@@ -384,7 +445,8 @@ export function Fluxo() {
                 </SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: 12 }, (_, i) => {
-                    const date = new Date(2026, 8 - i, 1); // começa em set/2026
+                    const hoje = new Date();
+                    const date = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
                     const val = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
                     return (
                       <SelectItem key={val} value={val}>
@@ -405,7 +467,7 @@ export function Fluxo() {
                   Entradas do Mês
                 </p>
                 <p className="text-2xl font-black text-emerald-600 mt-1">
-                  R$ 0,00
+                  {formatCurrency(fluxo?.totais.entradas ?? 0)}
                 </p>
               </CardContent>
             </Card>
@@ -415,7 +477,7 @@ export function Fluxo() {
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                   Saídas do Mês
                 </p>
-                <p className="text-2xl font-black text-red-600 mt-1">R$ 0,00</p>
+                <p className="text-2xl font-black text-red-600 mt-1">{formatCurrency(fluxo?.totais.saidas ?? 0)}</p>
               </CardContent>
             </Card>
 
@@ -424,8 +486,8 @@ export function Fluxo() {
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                   Saldo do Mês
                 </p>
-                <p className="text-2xl font-black text-emerald-600 mt-1">
-                  R$ 0,00
+                <p className={`text-2xl font-black mt-1 ${(fluxo?.totais.saldo ?? 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                  {formatCurrency(fluxo?.totais.saldo ?? 0)}
                 </p>
               </CardContent>
             </Card>
@@ -436,7 +498,7 @@ export function Fluxo() {
                   A Pagar no Mês
                 </p>
                 <p className="text-2xl font-black text-red-600 mt-1">
-                  R$ 140.233,58
+                  {formatCurrency(fluxo?.totais.aPagar ?? 0)}
                 </p>
               </CardContent>
             </Card>
@@ -447,29 +509,30 @@ export function Fluxo() {
             <div className="flex items-center gap-2">
               <CalendarCheck className="h-4 w-4 text-muted-foreground" />
               <span>
-                Mês anterior (2026-08) — Recebido{" "}
-                <strong className="text-emerald-600">R$ 154.403,48</strong> ·
-                Pago <strong className="text-red-600">R$ 437.350,23</strong>
+                Mês anterior ({fluxo?.anterior.mes ?? "-"}) — Recebido{" "}
+                <strong className="text-emerald-600">{formatCurrency(fluxo?.anterior.recebido ?? 0)}</strong> ·
+                Pago <strong className="text-red-600">{formatCurrency(fluxo?.anterior.pago ?? 0)}</strong>
               </span>
             </div>
             <div>
               Este mês — Recebido{" "}
-              <strong className="text-emerald-600">R$ 0,00</strong> · Pago{" "}
-              <strong className="text-red-600">R$ 0,00</strong> · A pagar{" "}
-              <strong className="text-red-600">R$ 140.233,58</strong>
+              <strong className="text-emerald-600">{formatCurrency(fluxo?.totais.entradas ?? 0)}</strong> · Pago{" "}
+              <strong className="text-red-600">{formatCurrency(fluxo?.totais.saidas ?? 0)}</strong> · A receber{" "}
+              <strong className="text-emerald-600">{formatCurrency(fluxo?.totais.aReceber ?? 0)}</strong> · A pagar{" "}
+              <strong className="text-red-600">{formatCurrency(fluxo?.totais.aPagar ?? 0)}</strong>
             </div>
           </div>
 
-          <div className="p-3 bg-blue-900 text-white rounded-lg text-xs flex items-center gap-2">
-            <Info className="h-4 w-4 text-blue-300 shrink-0" />
-            <span>
-              <strong>7 lançamento(s)</strong> constam como pagos mas{" "}
-              <strong>não têm a data do pagamento guardada</strong> (R$ 2.074,00
-              no total). Por isso não entram no mês — fluxo de caixa é pela data
-              em que o dinheiro andou. Eles continuam inteiros nas telas de
-              Contas a Pagar e Contas a Receber.
-            </span>
-          </div>
+          {fluxo && fluxo.pagosSemData.quantidade > 0 && (
+            <div className="p-3 bg-blue-900 text-white rounded-lg text-xs flex items-center gap-2">
+              <Info className="h-4 w-4 text-blue-300 shrink-0" />
+              <span>
+                <strong>{fluxo.pagosSemData.quantidade} lançamento(s)</strong> constam como pagos mas{" "}
+                <strong>não têm a data do pagamento guardada</strong> ({formatCurrency(fluxo.pagosSemData.total)} no
+                total). Por isso não entram no mês — o fluxo de caixa é pela data em que o dinheiro andou.
+              </span>
+            </div>
+          )}
 
           {/* Tabelas de Entradas e Saídas lado a lado */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -479,8 +542,24 @@ export function Fluxo() {
                   <TrendingUp className="h-4 w-4 text-emerald-500" /> Entradas
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 text-xs text-muted-foreground">
-                Nada recebido neste mês ainda
+              <CardContent className="p-4 text-xs">
+                {!fluxo?.entradas.length ? (
+                  <span className="text-muted-foreground">Nada recebido neste mês ainda</span>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {fluxo.entradas.map((linha) => (
+                      <li key={linha.id} className="flex items-center justify-between gap-2 py-2">
+                        <span>
+                          <span className="font-mono text-muted-foreground">{linha.numero}</span> {linha.cliente}
+                          <span className="block text-[11px] text-muted-foreground">
+                            {linha.data_recebimento?.slice(0, 10).split("-").reverse().join("/")}
+                          </span>
+                        </span>
+                        <strong className="text-emerald-600">{formatCurrency(Number(linha.valor_total) || 0)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
 
@@ -490,8 +569,24 @@ export function Fluxo() {
                   <TrendingDown className="h-4 w-4 text-red-500" /> Saídas
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 text-xs text-muted-foreground">
-                Nada pago neste mês ainda
+              <CardContent className="p-4 text-xs">
+                {!fluxo?.saidas.length ? (
+                  <span className="text-muted-foreground">Nada pago neste mês ainda</span>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {fluxo.saidas.map((linha) => (
+                      <li key={linha.id} className="flex items-center justify-between gap-2 py-2">
+                        <span>
+                          <span className="font-mono text-muted-foreground">{linha.num_desp}</span> {linha.descricao}
+                          <span className="block text-[11px] text-muted-foreground">
+                            {linha.data_pagamento?.slice(0, 10).split("-").reverse().join("/")}
+                          </span>
+                        </span>
+                        <strong className="text-red-600">{formatCurrency(Number(linha.valor_pago ?? linha.valor) || 0)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -592,11 +687,15 @@ export function Fluxo() {
                   type="number"
                   step="0.01"
                   value={formData.saldo}
+                  disabled={!!editingConta}
                   onChange={(e) =>
                     setFormData({ ...formData, saldo: e.target.value })
                   }
                   className="bg-input border-border"
                 />
+                {editingConta && (
+                  <p className="text-[11px] text-muted-foreground">Para corrigir o saldo use o botão Acerto.</p>
+                )}
               </div>
             </div>
 
@@ -607,6 +706,7 @@ export function Fluxo() {
                 type="number"
                 step="0.01"
                 value={formData.saldo_polpanca}
+                disabled={!!editingConta}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
@@ -629,6 +729,47 @@ export function Fluxo() {
               {editingConta ? "Salvar" : "Cadastrar"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!acerto} onOpenChange={(aberto) => !aberto && setAcerto(null)}>
+        <DialogContent className="bg-card border-border max-w-md">
+          {acerto && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-foreground">Acerto de saldo — {acerto.nome}</DialogTitle>
+                <DialogDescription>
+                  Saldo atual {formatCurrency(Number(acerto.saldo) || 0)}. O acerto exige senha e motivo e fica
+                  registrado na auditoria.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Novo saldo (R$)</Label>
+                  <Input type="number" step="0.01" value={acertoSaldo} onChange={(e) => setAcertoSaldo(e.target.value)} className="bg-input border-border" />
+                  {Number.isFinite(Number(acertoSaldo)) && acertoSaldo !== "" && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Diferença: {formatCurrency(Number(acertoSaldo) - (Number(acerto.saldo) || 0))}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Motivo do acerto</Label>
+                  <Input value={acertoMotivo} onChange={(e) => setAcertoMotivo(e.target.value)} placeholder="Ex.: diferença de tarifa não lançada" className="bg-input border-border" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sua senha</Label>
+                  <Input type="password" autoComplete="current-password" value={acertoSenha} onChange={(e) => setAcertoSenha(e.target.value)} className="bg-input border-border" />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setAcerto(null)}>Cancelar</Button>
+                  <Button onClick={confirmarAcerto} disabled={acertando}>
+                    {acertando ? "Confirmando..." : "Confirmar acerto"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

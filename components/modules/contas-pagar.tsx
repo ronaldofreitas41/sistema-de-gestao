@@ -27,7 +27,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Receipt, Plus, Search, Edit, Trash2, FileText, Menu, X } from "lucide-react";
+import { Receipt, Plus, Search, Edit, Trash2, Menu, X, CheckCircle2, RotateCcw } from "lucide-react";
+import { ContaBancariaSelect } from "@/components/ui/conta-bancaria-select";
+import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { Sidebar } from "@/components/layout/sidebar";
 import { PlacaInput } from "@/components/ui/placa-input";
 import { Despesa } from "@/lib/types";
@@ -65,6 +67,13 @@ export function ContasPagar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [placas, setPlacas] = useState<string[]>([]);
+  const [parcelas, setParcelas] = useState<{ valor: string; data_vencimento: string }[]>([{ valor: "", data_vencimento: "" }]);
+  const [baixa, setBaixa] = useState<{ tipo: "pagar" | "estornar"; despesa: Despesa } | null>(null);
+  const [baixaConta, setBaixaConta] = useState("");
+  const [baixaValor, setBaixaValor] = useState("");
+  const [baixaData, setBaixaData] = useState("");
+  const [baixaMotivo, setBaixaMotivo] = useState("");
+  const [processando, setProcessando] = useState(false);
 
   async function fetchDespesas() {
     try {
@@ -83,19 +92,13 @@ export function ContasPagar() {
 
   const [formData, setFormData] = useState({
     descricao: "",
-    categoria: "",
+    categoria: "Geral",
     fornecedor: "",
     data_competencia: "",
     data_vencimento: "",
-    data_pagamento: "",
     valor: "",
-    status_disp: "pendente",
     observacoes: "",
-    conta_banco_id: "",
-    conta_banco: "",
     placa: "",
-    antigo: false,
-    num_desp: "",
   });
 
   const filteredDespesas = despesas.filter((d) => {
@@ -137,18 +140,23 @@ export function ContasPagar() {
       fornecedor: "",
       data_competencia: "",
       data_vencimento: "",
-      data_pagamento: "",
       valor: "",
-      status_disp: "pendente",
       observacoes: "",
-      conta_banco_id: "",
-      conta_banco: "",
       placa: "",
-      antigo: false,
-      num_desp: "",
     });
+    setParcelas([{ valor: "", data_vencimento: "" }]);
     setDialogOpen(true);
   };
+
+  const alterarQuantidadeParcelas = (quantidade: number) => {
+    const total = Math.min(Math.max(quantidade || 1, 1), 60);
+    setParcelas((atual) =>
+      Array.from({ length: total }, (_, i) => atual[i] ?? { valor: "", data_vencimento: "" }),
+    );
+  };
+
+  const atualizarParcela = (indice: number, campo: "valor" | "data_vencimento", valor: string) =>
+    setParcelas((atual) => atual.map((p, i) => (i === indice ? { ...p, [campo]: valor } : p)));
 
   const openEditDespesa = (despesa: Despesa) => {
     setEditingDespesa(despesa);
@@ -156,58 +164,72 @@ export function ContasPagar() {
       descricao: despesa.descricao || "",
       categoria: despesa.categoria || "Geral",
       fornecedor: despesa.fornecedor || "",
-      data_competencia: despesa.data_competencia
-        ? despesa.data_competencia.split("T")[0]
-        : "",
-      data_vencimento: despesa.data_vencimento
-        ? despesa.data_vencimento.split("T")[0]
-        : "",
-      data_pagamento: despesa.data_pagamento
-        ? despesa.data_pagamento.split("T")[0]
-        : "",
+      data_competencia: despesa.data_competencia ? despesa.data_competencia.split("T")[0] : "",
+      data_vencimento: despesa.data_vencimento ? despesa.data_vencimento.split("T")[0] : "",
       valor: despesa.valor || "",
-      status_disp: despesa.status_disp || "pendente",
       observacoes: despesa.observacoes || "",
-      conta_banco_id: despesa.conta_banco_id || "",
-      conta_banco: despesa.conta_banco || "",
       placa: despesa.placa || "",
-      antigo: despesa.antigo ?? false,
-      num_desp: despesa.num_desp || "",
     });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    const payload = {
-      ...formData,
-      valor: formData.valor,
-      data_competencia: formData.data_competencia
-        ? new Date(formData.data_competencia).toISOString()
-        : null,
-      data_vencimento: formData.data_vencimento
-        ? new Date(formData.data_vencimento).toISOString()
-        : null,
-      data_pagamento: formData.data_pagamento
-        ? new Date(formData.data_pagamento).toISOString()
-        : null,
-    };
-
-    if (editingDespesa) {
-      await fetch(`/api/despesas/${editingDespesa.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/despesas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    if (!formData.descricao.trim()) return alert("Informe a descrição.");
+    try {
+      if (editingDespesa) {
+        await chamarApi(`/api/despesas/${editingDespesa.id}`, "PUT", {
+          ...formData,
+          data_competencia: formData.data_competencia ? new Date(formData.data_competencia).toISOString() : null,
+          data_vencimento: formData.data_vencimento ? new Date(formData.data_vencimento).toISOString() : null,
+        });
+      } else {
+        const lista = parcelas.length > 1
+          ? parcelas
+          : [{ valor: formData.valor, data_vencimento: formData.data_vencimento }];
+        if (lista.some((p) => !(Number(p.valor) > 0) || !p.data_vencimento)) {
+          return alert("Informe valor e vencimento de todos os pagamentos.");
+        }
+        await chamarApi("/api/despesas", "POST", {
+          ...formData,
+          parcelas: lista.map((p) => ({ valor: Number(p.valor), data_vencimento: p.data_vencimento })),
+        });
+      }
+      await fetchDespesas();
+      setDialogOpen(false);
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível salvar a despesa."));
     }
+  };
 
-    await fetchDespesas();
-    setDialogOpen(false);
+  const abrirBaixa = (tipo: "pagar" | "estornar", despesa: Despesa) => {
+    setBaixa({ tipo, despesa });
+    setBaixaConta("");
+    setBaixaValor(String(despesa.valor_pago ?? despesa.valor ?? ""));
+    setBaixaData(new Date().toISOString().slice(0, 10));
+    setBaixaMotivo("");
+  };
+
+  const confirmarBaixa = async () => {
+    if (!baixa) return;
+    if (baixa.tipo === "pagar" && !baixaConta) return alert("Selecione de qual conta sai o recurso.");
+    if (baixa.tipo === "pagar" && !(Number(baixaValor) > 0)) return alert("Informe o valor pago.");
+    if (baixa.tipo === "estornar" && baixaMotivo.trim().length < 5) return alert("Informe o motivo (mínimo 5 caracteres).");
+    setProcessando(true);
+    try {
+      await chamarApi(`/api/despesas/${baixa.despesa.id}/acao`, "POST", {
+        acao: baixa.tipo,
+        conta_banco_id: baixaConta,
+        valor_pago: Number(baixaValor),
+        data_pagamento: baixaData,
+        motivo: baixaMotivo,
+      });
+      setBaixa(null);
+      await fetchDespesas();
+    } catch (erro) {
+      alert(mensagemErro(erro));
+    } finally {
+      setProcessando(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -217,6 +239,8 @@ export function ContasPagar() {
       await deleteRegistro(`/api/despesas/${id}`);
       setDespesas((prev) => prev.filter((d) => d.id !== id));
       await fetchDespesas();
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível excluir a despesa."));
     } finally {
       setDeletingId(null);
     }
@@ -374,6 +398,11 @@ export function ContasPagar() {
                     </TableCell>
                     <TableCell className="font-medium text-primary">
                       {formatCurrency(despesa.valor)}
+                      {despesa.status_disp === "pago" && despesa.valor_pago != null && Number(despesa.valor_pago) !== Number(despesa.valor) && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          pago {formatCurrency(despesa.valor_pago)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       <span
@@ -388,24 +417,48 @@ export function ContasPagar() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-100"
-                          onClick={() => openEditDespesa(despesa)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-100"
-                          disabled={deletingId !== null}
-                          onClick={() => handleDelete(despesa.id)}
-                        >
-                          {deletingId === despesa.id && <span className="absolute bottom-0 left-1 h-0.5 w-6 animate-pulse bg-current" />}
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {despesa.status_disp !== "pago" ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Pagar (informar conta)"
+                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-100"
+                            onClick={() => abrirBaixa("pagar", despesa)}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Estornar pagamento"
+                            className="h-8 w-8 text-amber-600 hover:bg-amber-100"
+                            onClick={() => abrirBaixa("estornar", despesa)}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {despesa.status_disp !== "pago" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-100"
+                            onClick={() => openEditDespesa(despesa)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {despesa.status_disp !== "pago" && !despesa.medicao_id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-100"
+                            disabled={deletingId !== null}
+                            onClick={() => handleDelete(despesa.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -439,164 +492,116 @@ export function ContasPagar() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-1">
-            <div className="space-y-2">
-              <Label htmlFor="num_desp" className="text-foreground">
-                Número da Despesa
-              </Label>
-              <div className="relative">
-                <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="num_desp"
-                  value={formData.num_desp}
-                  onChange={(e) =>
-                    setFormData({ ...formData, num_desp: e.target.value })
-                  }
-                  className="pl-9 bg-input border-border"
-                />
-              </div>
-            </div>
+            {!editingDespesa && (
+              <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                O número da despesa é gerado automaticamente. Para pagar, use o botão de pagamento na lista
+                (será pedida a conta de onde sai o recurso).
+              </p>
+            )}
 
             <div className="space-y-2">
-              <Label htmlFor="descricao" className="text-foreground">
-                Descrição
-              </Label>
+              <Label htmlFor="descricao" className="text-foreground">Descrição</Label>
               <Input
                 id="descricao"
                 value={formData.descricao}
-                onChange={(e) =>
-                  setFormData({ ...formData, descricao: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                 className="bg-input border-border"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="categoria" className="text-foreground">
-                  Categoria
-                </Label>
+                <Label htmlFor="categoria" className="text-foreground">Categoria</Label>
                 <Input
                   id="categoria"
                   value={formData.categoria}
-                  onChange={(e) =>
-                    setFormData({ ...formData, categoria: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
                   className="bg-input border-border"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="fornecedor" className="text-foreground">
-                  Fornecedor
-                </Label>
+                <Label htmlFor="fornecedor" className="text-foreground">Fornecedor</Label>
                 <Input
                   id="fornecedor"
                   value={formData.fornecedor}
-                  onChange={(e) =>
-                    setFormData({ ...formData, fornecedor: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, fornecedor: e.target.value })}
                   className="bg-input border-border"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {!editingDespesa && (
               <div className="space-y-2">
-                <Label htmlFor="valor" className="text-foreground">
-                  Valor (R$)
-                </Label>
+                <Label className="text-foreground">Quantidade de pagamentos</Label>
                 <Input
-                  id="valor"
                   type="number"
-                  step="0.01"
-                  value={formData.valor}
-                  onChange={(e) =>
-                    setFormData({ ...formData, valor: e.target.value })
-                  }
+                  min="1"
+                  max="60"
+                  value={parcelas.length}
+                  onChange={(e) => alterarQuantidadeParcelas(Number(e.target.value))}
                   className="bg-input border-border"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="status_disp" className="text-foreground">
-                  Status
-                </Label>
-                <Select
-                  value={formData.status_disp}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      status_disp: value ?? "pendente",
-                    })
-                  }
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendente">Pendente</SelectItem>
-                    <SelectItem value="pago">Pago</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-4">
+            {!editingDespesa && parcelas.length > 1 ? (
               <div className="space-y-2">
-                <Label htmlFor="data_vencimento" className="text-foreground">
-                  Vencimento
-                </Label>
-                <Input
-                  id="data_vencimento"
-                  type="date"
-                  value={formData.data_vencimento}
-                  onChange={(e) =>
-                    setFormData({ ...formData, data_vencimento: e.target.value })
-                  }
-                  className="bg-input border-border"
-                />
+                {parcelas.map((parcela, indice) => (
+                  <div key={indice} className="grid grid-cols-[auto_1fr_1fr] items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground">{indice + 1}/{parcelas.length}</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Valor (R$)"
+                      value={parcela.valor}
+                      onChange={(e) => atualizarParcela(indice, "valor", e.target.value)}
+                      className="bg-input border-border"
+                    />
+                    <Input
+                      type="date"
+                      value={parcela.data_vencimento}
+                      onChange={(e) => atualizarParcela(indice, "data_vencimento", e.target.value)}
+                      className="bg-input border-border"
+                    />
+                  </div>
+                ))}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="data_pagamento" className="text-foreground">
-                  Data Pagamento
-                </Label>
-                <Input
-                  id="data_pagamento"
-                  type="date"
-                  value={formData.data_pagamento}
-                  onChange={(e) =>
-                    setFormData({ ...formData, data_pagamento: e.target.value })
-                  }
-                  className="bg-input border-border"
-                />
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="valor" className="text-foreground">Valor (R$)</Label>
+                  <Input
+                    id="valor"
+                    type="number"
+                    step="0.01"
+                    value={formData.valor}
+                    onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
+                    className="bg-input border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="data_vencimento" className="text-foreground">Vencimento</Label>
+                  <Input
+                    id="data_vencimento"
+                    type="date"
+                    value={formData.data_vencimento}
+                    onChange={(e) => setFormData({ ...formData, data_vencimento: e.target.value })}
+                    className="bg-input border-border"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="conta_banco" className="text-foreground">
-                  Conta Banco
-                </Label>
-                <Input
-                  id="conta_banco"
-                  value={formData.conta_banco}
-                  onChange={(e) =>
-                    setFormData({ ...formData, conta_banco: e.target.value })
-                  }
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="placa" className="text-foreground">
-                  Placa
-                </Label>
-                <PlacaInput
-                  id="placa"
-                  value={formData.placa}
-                  options={placas}
-                  onValueChange={(placa) => setFormData({ ...formData, placa })}
-                  placeholder="Selecione ou digite a placa..."
-                  className="bg-input border-border"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="placa" className="text-foreground">Placa</Label>
+              <PlacaInput
+                id="placa"
+                value={formData.placa}
+                options={placas}
+                onValueChange={(placa) => setFormData({ ...formData, placa })}
+                placeholder="Selecione ou digite a placa..."
+                className="bg-input border-border"
+              />
             </div>
           </div>
 
@@ -611,6 +616,55 @@ export function ContasPagar() {
               {editingDespesa ? "Salvar" : "Cadastrar"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!baixa} onOpenChange={(aberto) => !aberto && setBaixa(null)}>
+        <DialogContent className="bg-card border-border max-w-md">
+          {baixa && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-foreground">
+                  {baixa.tipo === "pagar" ? "Pagar despesa" : "Estornar pagamento"}
+                </DialogTitle>
+                <DialogDescription>
+                  {baixa.despesa.num_desp} — {baixa.despesa.descricao} — {formatCurrency(baixa.despesa.valor)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                {baixa.tipo === "pagar" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>De qual conta sai o recurso?</Label>
+                      <ContaBancariaSelect value={baixaConta} onChange={setBaixaConta} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Valor pago (R$)</Label>
+                        <Input type="number" step="0.01" value={baixaValor} onChange={(e) => setBaixaValor(e.target.value)} className="bg-input border-border" />
+                        <p className="text-[11px] text-muted-foreground">Pode diferir do previsto (juros, multa, variação).</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Data do pagamento</Label>
+                        <Input type="date" value={baixaData} onChange={(e) => setBaixaData(e.target.value)} className="bg-input border-border" />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Motivo do estorno (auditoria)</Label>
+                    <Input value={baixaMotivo} onChange={(e) => setBaixaMotivo(e.target.value)} className="bg-input border-border" />
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setBaixa(null)}>Cancelar</Button>
+                  <Button onClick={confirmarBaixa} disabled={processando}>
+                    {processando ? "Processando..." : baixa.tipo === "pagar" ? "Confirmar pagamento" : "Estornar"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

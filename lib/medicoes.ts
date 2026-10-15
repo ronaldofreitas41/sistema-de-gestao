@@ -3,6 +3,8 @@ export type PlacaMedicao = {
   valor: number;
   valor_calculado?: number;
   dias_trabalhados?: number;
+  horas_trabalhadas?: number;
+  valor_parceiro?: number;
 };
 
 export function obterPlacasMedicao(placas: unknown): PlacaMedicao[] {
@@ -26,6 +28,12 @@ export function obterPlacasMedicao(placas: unknown): PlacaMedicao[] {
     const diasTrabalhados = "dias_trabalhados" in item
       ? Number(item.dias_trabalhados)
       : undefined;
+    const horasTrabalhadas = "horas_trabalhadas" in item
+      ? Number(item.horas_trabalhadas)
+      : undefined;
+    const valorParceiro = "valor_parceiro" in item
+      ? Number(item.valor_parceiro)
+      : undefined;
     return [{
       placa,
       valor: Number.isFinite(valor) ? valor : 0,
@@ -34,6 +42,12 @@ export function obterPlacasMedicao(placas: unknown): PlacaMedicao[] {
         : {}),
       ...(diasTrabalhados !== undefined && Number.isFinite(diasTrabalhados)
         ? { dias_trabalhados: diasTrabalhados }
+        : {}),
+      ...(horasTrabalhadas !== undefined && Number.isFinite(horasTrabalhadas)
+        ? { horas_trabalhadas: horasTrabalhadas }
+        : {}),
+      ...(valorParceiro !== undefined && Number.isFinite(valorParceiro)
+        ? { valor_parceiro: valorParceiro }
         : {}),
     }];
   });
@@ -93,12 +107,17 @@ export function calcularPlacasMedicao(
     const diasTrabalhados = "dias_trabalhados" in item
       ? Number(item.dias_trabalhados)
       : diasTrabalhadosPadrao;
+    const horasTrabalhadas = "horas_trabalhadas" in item
+      ? Number(item.horas_trabalhadas)
+      : horas;
     if (
       !placa ||
       !Number.isFinite(valor) ||
       valor < 0 ||
       !Number.isFinite(diasTrabalhados) ||
-      diasTrabalhados < 0
+      diasTrabalhados < 0 ||
+      !Number.isFinite(horasTrabalhadas) ||
+      horasTrabalhadas < 0
     ) {
       throw new TypeError("Informe uma placa e um valor válido para cada veículo.");
     }
@@ -110,11 +129,17 @@ export function calcularPlacasMedicao(
       ...(tipoCobranca === "Valor Mensal"
         ? { dias_trabalhados: diasTrabalhados }
         : {}),
+      ...(tipoCobranca === "Valor por Hora"
+        ? { horas_trabalhadas: horasTrabalhadas }
+        : {}),
+      ...("valor_parceiro" in item && Number.isFinite(Number(item.valor_parceiro))
+        ? { valor_parceiro: Number(item.valor_parceiro) }
+        : {}),
       valor_calculado: calcularValorPlaca(
         valorArredondado,
         tipoCobranca,
         diasMes,
-        tipoCobranca === "Valor Mensal" ? diasTrabalhados : horas,
+        tipoCobranca === "Valor Mensal" ? diasTrabalhados : horasTrabalhadas,
       ),
     };
   });
@@ -124,3 +149,38 @@ export function calcularPlacasMedicao(
   ) / 100;
   return { placas: detalhadas, total, detalhadas: true };
 }
+
+export type VendaAjuste = { total?: unknown; sinal_medicao?: unknown };
+
+export function ajusteVendas(vendas: unknown): number {
+  if (!Array.isArray(vendas)) return 0;
+  return vendas.reduce((soma: number, venda: VendaAjuste) => {
+    const valor = Number(venda?.total) || 0;
+    return soma + (venda?.sinal_medicao === "-" ? -1 : 1) * valor;
+  }, 0);
+}
+
+const arredondar = (valor: number) => Math.round((valor + Number.EPSILON) * 100) / 100;
+
+/**
+ * Total da medição: (locação + excedente) − desconto% ± vendas.
+ * O desconto incide apenas sobre locação + excedente, nunca sobre as vendas.
+ */
+export function totalMedicao(
+  subtotalPlacas: number,
+  excedente: number,
+  descontoPercentual: number,
+  vendas: unknown,
+) {
+  const bruto = subtotalPlacas + excedente;
+  const desconto = arredondar(bruto * (Math.min(Math.max(descontoPercentual, 0), 100) / 100));
+  const vendasValor = arredondar(ajusteVendas(vendas));
+  return {
+    bruto: arredondar(bruto),
+    desconto,
+    vendas: vendasValor,
+    total: arredondar(bruto - desconto + vendasValor),
+  };
+}
+
+export const TIPOS_COBRANCA_NOVOS = ["Valor por Hora", "Valor Mensal"] as const;

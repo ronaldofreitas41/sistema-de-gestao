@@ -1,29 +1,13 @@
 import { NextRequest } from "next/server";
-import { getById, update } from "@/lib/crud-prisma";
-import { calcularPlacasMedicao, contarDiasPeriodoMedicao } from "@/lib/medicoes";
-import { prisma } from "@/lib/prisma";
+import { getById } from "@/lib/crud-prisma";
+import {
+  atualizarMedicao,
+  excluirMedicao,
+  respostaErro,
+  serializar,
+} from "@/lib/medicao-service";
 
 const TABLE = "mh3_medicoes";
-const FIELDS = [
-  "placas",
-  "tipo_cobranca",
-  "dias_mes",
-  "valor",
-  "terceiro",
-  "valor_terceiro",
-  "horas_extras",
-  "data_medicao",
-  "parceiro",
-  "observacoes",
-  "status",
-  "periodo",
-  "valor_hora_extra",
-  "conta_recebimento_id",
-  "obs_internas",
-  "cliente_id",
-  "empresa_id",
-  "vendas",
-];
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -32,133 +16,39 @@ export async function GET(request: NextRequest, { params }: Context) {
   return getById(TABLE, id, request);
 }
 
-export async function PUT(request: NextRequest, { params }: Context) {
+async function editar(request: NextRequest, { params }: Context) {
   const { id } = await params;
-  return atualizarMedicao(request, id);
-}
-
-export async function PATCH(request: NextRequest, { params }: Context) {
-  const { id } = await params;
-  return atualizarMedicao(request, id);
-}
-
-async function atualizarMedicao(request: NextRequest, id: string) {
-  let body: unknown;
+  if (!/^\d+$/.test(id)) {
+    return Response.json({ error: "Identificador da medição inválido." }, { status: 400 });
+  }
+  let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
-
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return Response.json({ error: "O conteúdo enviado é inválido." }, { status: 400 });
   }
-
-  let dados;
   try {
-    const registro = body as Record<string, unknown>;
-    if (registro.terceiro) {
-      if (typeof registro.empresa_id !== "string" || !/^\d+$/.test(registro.empresa_id)) {
-        return Response.json({ error: "Selecione a empresa da medição de terceiro." }, { status: 400 });
-      }
-      const empresa = await prisma.mh3_empresas.findUnique({
-        where: { id: BigInt(registro.empresa_id) },
-        select: { id: true, ativo: true },
-      });
-      if (!empresa) {
-        return Response.json({ error: "A empresa selecionada não existe." }, { status: 400 });
-      }
-    } else {
-      registro.empresa_id = null;
-    }
-    dados = bodyComValoresCalculados(registro);
-  } catch (error) {
-    return Response.json({
-      error: error instanceof Error ? error.message : "Os valores das placas são inválidos.",
-    }, { status: 400 });
+    return Response.json(serializar(await atualizarMedicao(BigInt(id), body, request)));
+  } catch (erro) {
+    return respostaErro(erro);
   }
-  return update(TABLE, FIELDS, id, dados, request);
 }
 
-function bodyComValoresCalculados(body: Record<string, unknown>) {
-  if (!Array.isArray(body.placas)) return body;
-
-  const periodo = typeof body.periodo === "string" ? body.periodo : "";
-  const diasInformados = Number(body.dias_mes);
-  const diasMes = body.tipo_cobranca === "Valor Mensal"
-    ? diasInformados > 0 ? diasInformados : contarDiasPeriodoMedicao(periodo) || 0
-    : 0;
-  let calculoPlacas: ReturnType<typeof calcularPlacasMedicao>;
-  try {
-    calculoPlacas = calcularPlacasMedicao(
-      body.placas,
-      String(body.tipo_cobranca || ""),
-      diasMes,
-      Number(body.horas_extras) || 0,
-      Number(body.dias_trabalhados) || 0,
-    );
-  } catch (error) {
-    throw new Error(
-      error instanceof Error ? error.message : "A lista de placas ou seus valores é inválida.",
-    );
-  }
-
-  if (!calculoPlacas.detalhadas) return body;
-
-  const ajusteVendas = Array.isArray(body.vendas)
-    ? body.vendas.reduce((total: number, venda: unknown) => {
-        if (!venda || typeof venda !== "object") return total;
-        const registro = venda as { total?: unknown; sinal_medicao?: unknown };
-        const valorVenda = Number(registro.total) || 0;
-        return total + (registro.sinal_medicao === "-" ? -1 : 1) * valorVenda;
-      }, 0)
-    : 0;
-
-  return {
-    ...body,
-    placas: calculoPlacas.placas,
-    dias_mes: body.tipo_cobranca === "Valor Mensal" ? diasMes || null : null,
-    valor: calculoPlacas.total + (Number(body.valor_sem_placa) || 0) + ajusteVendas,
-  };
-}
+export const PUT = editar;
+export const PATCH = editar;
 
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
   if (!/^\d+$/.test(id)) {
     return Response.json({ error: "Identificador da medição inválido." }, { status: 400 });
   }
-
-  const medicaoId = BigInt(id);
-  const medicaoIdTexto = medicaoId.toString();
-  const observacaoVinculo = `Lançamento automático da medição ${medicaoIdTexto}.`;
-
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.mh3_contas_receber.deleteMany({
-        where: { observacoes: observacaoVinculo },
-      });
-      await tx.mh3_despesas.deleteMany({
-        where: {
-          num_desp: `MED - ${medicaoIdTexto}`,
-          categoria: "Medição de terceiro",
-          observacoes: observacaoVinculo,
-        },
-      });
-      await tx.mh3_medicoes.delete({
-        where: { id: medicaoId },
-      });
-    });
-
-    return Response.json({ message: "Medição e lançamentos vinculados excluídos com sucesso." });
-  } catch (error) {
-    console.error("Erro ao excluir medição e lançamentos vinculados:", error);
-    const code = (error as { code?: string })?.code;
-    if (code === "P2025") {
-      return Response.json({ error: "Medição não encontrada." }, { status: 404 });
-    }
-    return Response.json(
-      { error: "Não foi possível excluir a medição e seus lançamentos vinculados." },
-      { status: 500 },
-    );
+    await excluirMedicao(BigInt(id), request);
+    return Response.json({ message: "Medição excluída com sucesso." });
+  } catch (erro) {
+    return respostaErro(erro);
   }
 }

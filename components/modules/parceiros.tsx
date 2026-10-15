@@ -22,6 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Users, Plus, Search, Edit, Trash2, Menu, X, User, MapPin, Phone, Mail, Building, CreditCard } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { Parceiro } from "@/lib/types";
 import { deleteRegistro } from "@/lib/utils";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
@@ -63,6 +64,12 @@ export function Parceiros() {
     cep: "",
     observacoes: "",
     pix: "",
+    banco: "",
+    agencia: "",
+    conta: "",
+    tipo_conta: "Corrente",
+    titular: "",
+    documento_titular: "",
   });
 
   const filteredParceiros = parceiros.filter((p) => {
@@ -101,6 +108,12 @@ export function Parceiros() {
       cep: "",
       observacoes: "",
       pix: "",
+      banco: "",
+      agencia: "",
+      conta: "",
+      tipo_conta: "Corrente",
+      titular: "",
+      documento_titular: "",
     });
     setDialogOpen(true);
   };
@@ -118,29 +131,31 @@ export function Parceiros() {
       cep: parceiro.cep || "",
       observacoes: parceiro.observacoes || "",
       pix: parceiro.pix || "",
+      banco: parceiro.banco || "",
+      agencia: parceiro.agencia || "",
+      conta: parceiro.conta || "",
+      tipo_conta: parceiro.tipo_conta || "Corrente",
+      titular: parceiro.titular || "",
+      documento_titular: parceiro.documento_titular || "",
     });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    const payload = { ...formData };
-
-    if (editingParceiro) {
-      await fetch(`/api/parceiros/${editingParceiro.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/parceiros", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    if (!formData.nome.trim()) return alert("Informe o nome do parceiro.");
+    if (!formData.cnpj.trim()) return alert("Informe o CNPJ/CPF do parceiro.");
+    const payload = { ...formData, tipo_cadastro: "parceiro" };
+    try {
+      await chamarApi(
+        editingParceiro ? `/api/parceiros/${editingParceiro.id}` : "/api/parceiros",
+        editingParceiro ? "PUT" : "POST",
+        payload,
+      );
+      await fetchParceiros();
+      setDialogOpen(false);
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível salvar o parceiro."));
     }
-
-    await fetchParceiros();
-    setDialogOpen(false);
   };
 
   const handleDelete = async (id: string | number) => {
@@ -410,6 +425,36 @@ export function Parceiros() {
                   }
                   className="pl-9 bg-input border-border"
                 />
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <p className="text-sm font-semibold text-foreground">Dados bancários</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="banco" className="text-foreground">Banco</Label>
+                  <Input id="banco" value={formData.banco} onChange={(e) => setFormData({ ...formData, banco: e.target.value })} className="bg-input border-border" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tipo_conta" className="text-foreground">Tipo de conta</Label>
+                  <Input id="tipo_conta" value={formData.tipo_conta} onChange={(e) => setFormData({ ...formData, tipo_conta: e.target.value })} placeholder="Corrente / Poupança" className="bg-input border-border" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="agencia_parceiro" className="text-foreground">Agência</Label>
+                  <Input id="agencia_parceiro" value={formData.agencia} onChange={(e) => setFormData({ ...formData, agencia: e.target.value })} className="bg-input border-border" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="conta_parceiro" className="text-foreground">Conta</Label>
+                  <Input id="conta_parceiro" value={formData.conta} onChange={(e) => setFormData({ ...formData, conta: e.target.value })} className="bg-input border-border" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="titular" className="text-foreground">Titular</Label>
+                  <Input id="titular" value={formData.titular} onChange={(e) => setFormData({ ...formData, titular: e.target.value })} className="bg-input border-border" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="documento_titular" className="text-foreground">CPF/CNPJ do titular</Label>
+                  <Input id="documento_titular" value={formData.documento_titular} onChange={(e) => setFormData({ ...formData, documento_titular: e.target.value })} className="bg-input border-border" />
+                </div>
               </div>
             </div>
 

@@ -13,6 +13,12 @@ const FIELDS = [
   "agencia",
 ];
 
+// Saldo muda só por pagamentos, recebimentos ou acerto (senha + motivo).
+function semSaldo(body: Record<string, unknown>) {
+  const { saldo: _saldo, saldo_polpanca: _poup, ...resto } = body;
+  return resto;
+}
+
 type Context = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: Context) {
@@ -23,7 +29,7 @@ export async function GET(request: NextRequest, { params }: Context) {
 export async function PUT(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    return update(TABLE, FIELDS, id, await request.json(), request);
+    return update(TABLE, FIELDS, id, semSaldo(await request.json()), request);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }
@@ -32,7 +38,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
 export async function PATCH(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    return update(TABLE, FIELDS, id, await request.json(), request);
+    return update(TABLE, FIELDS, id, semSaldo(await request.json()), request);
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
   }

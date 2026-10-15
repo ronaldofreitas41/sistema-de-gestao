@@ -63,6 +63,12 @@ export interface Despesa {
   placa: string | null;
   antigo: boolean;
   num_desp: string | null;
+  valor_pago?: string | number | null;
+  medicao_id?: string | null;
+  grupo_parcela?: string | null;
+  parcela_num?: number | null;
+  parcela_total?: number | null;
+  origem?: string | null;
 }
 
 export type Permissoes = Record<string, boolean>;
@@ -325,8 +331,17 @@ export interface Medicao {
   data_medicao: string;
   parceiro?: string;
   observacoes?: string;
-  status: "pendente" | "pago" | "cancelado";
+  status: "aguardando" | "aprovado" | "cancelado" | string;
   periodo: string;
+  numero?: string | null;
+  modalidade?: "frota" | "parceria" | string;
+  papel?: "contratante" | "parceiro" | string;
+  medicao_principal_id?: string | null;
+  data_vencimento?: string | null;
+  desconto_percentual?: number | string | null;
+  corretor_nome?: string | null;
+  corretor_valor?: number | string | null;
+  valor_excedente?: number | string | null;
   conta_recebimento_id?: string;
   obs_internas?: string;
   cliente: string;
@@ -343,6 +358,13 @@ export interface ContaReceber {
   data_emissao?: string | null;
   criado_em?: string | null;
   atualizado_em?: string | null;
+  numero?: string | null;
+  data_vencimento?: string | null;
+  vencimento_original?: string | null;
+  data_recebimento?: string | null;
+  conta_banco_id?: string | null;
+  medicao_id?: string | null;
+  prejuizo_id?: string | null;
 }
 
 export interface Parceiro {
@@ -356,7 +378,14 @@ cidade: string;
 estado: string;
 cep: string;
 observacoes: string;
-pix: string;  
+pix: string;
+banco?: string | null;
+agencia?: string | null;
+conta?: string | null;
+tipo_conta?: string | null;
+titular?: string | null;
+documento_titular?: string | null;
+tipo_cadastro?: string | null;
 }
 
 export interface LinhaTurno {

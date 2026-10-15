@@ -174,6 +174,12 @@ model mh3_dados {
 }
 
 model mh3_despesas {
+  valor_pago     Decimal? @db.Decimal(14, 2)
+  medicao_id     BigInt?
+  grupo_parcela  String?  @db.VarChar(40)
+  parcela_num    Int?
+  parcela_total  Int?
+  origem         String?  @db.VarChar(40)
   id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   descricao        String?   @db.VarChar(255)
   categoria        String?   @db.VarChar(100)
@@ -231,6 +237,8 @@ model mh3_email_eventos {
 }
 
 model mh3_empresas {
+  cor_primaria   String? @db.VarChar(9)
+  cor_secundaria String? @db.VarChar(9)
   id                 BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
   nome               String              @db.VarChar(150)
   razao_social       String?             @db.VarChar(200)
@@ -438,6 +446,16 @@ model mh3_manutencoes {
 }
 
 model mh3_medicoes {
+  modalidade           String              @default("frota") @db.VarChar(20)
+  papel                String              @default("contratante") @db.VarChar(20)
+  medicao_principal_id BigInt?
+  data_vencimento      DateTime?           @db.Date
+  desconto_percentual  Decimal             @default(0.00) @db.Decimal(5, 2)
+  corretor_nome        String?             @db.VarChar(150)
+  corretor_valor       Decimal             @default(0.00) @db.Decimal(12, 2)
+  valor_excedente      Decimal             @default(0.00) @db.Decimal(12, 2)
+  aprovado_em          DateTime?           @db.DateTime(0)
+  aprovado_por         String?             @db.VarChar(150)
   numero String? @db.VarChar(30)
   id                   BigInt              @id @default(autoincrement())
   placas               Json
@@ -450,7 +468,7 @@ model mh3_medicoes {
   data_medicao         DateTime            @db.DateTime(0)
   parceiro             String?             @db.VarChar(255)
   observacoes          String?             @db.Text
-  status               mh3_medicoes_status @default(pendente)
+  status               mh3_medicoes_status @default(aguardando)
   periodo              String?             @db.VarChar(45)
   valor_hora_extra     Decimal?            @db.Decimal(10, 2)
   conta_recebimento_id BigInt?
@@ -465,6 +483,12 @@ model mh3_medicoes {
 }
 
 model mh3_contas_receber {
+  data_vencimento     DateTime? @db.Date
+  vencimento_original DateTime? @db.Date
+  data_recebimento    DateTime? @db.Date
+  conta_banco_id      String?   @db.VarChar(100)
+  medicao_id          BigInt?
+  prejuizo_id         BigInt?
   numero String? @db.VarChar(30)
   id            String    @id @db.VarChar(36)
   contrato_id   String?   @db.VarChar(36)
@@ -568,6 +592,10 @@ model mh3_prazos {
 }
 
 model mh3_prejuizos {
+  conta_receber_id     String?   @db.VarChar(36)
+  cliente              String?   @db.VarChar(255)
+  vencimento_original  DateTime? @db.Date
+  negociado_em         DateTime? @db.DateTime(0)
   numero String? @db.VarChar(30)
   id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
   equipamento_id   BigInt?           @db.UnsignedBigInt
@@ -761,33 +789,44 @@ model mh3_vendas {
 }
 
 model mh3_movimentacoes_bancarias {
+  saldo_anterior Decimal? @db.Decimal(14, 2)
+  saldo_novo     Decimal? @db.Decimal(14, 2)
+  ref_tipo       String?  @db.VarChar(30)
+  ref_id         String?  @db.VarChar(60)
   id          BigInt   @id @default(autoincrement())
   data        DateTime @db.DateTime(0)
   funcionario String?  @db.VarChar(100)
   usuario     String?  @db.VarChar(45)
   tipo        String?  @db.VarChar(45)
   valor       Decimal? @db.Decimal(14, 2)
-  motivo      String?  @db.VarChar(45)
+  motivo         String?  @db.VarChar(255)
   conta_id    BigInt?
 }
 
 model mh3_parceiros {
+  banco             String? @db.VarChar(80)
+  agencia           String? @db.VarChar(20)
+  conta             String? @db.VarChar(30)
+  tipo_conta        String? @db.VarChar(20)
+  titular           String? @db.VarChar(150)
+  documento_titular String? @db.VarChar(30)
+  tipo_cadastro     String? @db.VarChar(20)
   id          BigInt  @id @default(autoincrement())
-  nome        String  @db.VarChar(45)
-  cnpj        String  @db.VarChar(45)
-  email       String? @db.VarChar(45)
-  telefone    String? @db.VarChar(45)
-  endereco    String? @db.VarChar(45)
-  cidade      String? @db.VarChar(45)
-  estado      String? @db.VarChar(45)
-  cep         String? @db.VarChar(45)
-  observacoes String? @db.VarChar(45)
-  pix         String? @db.VarChar(45)
+  nome String @db.VarChar(150)
+  cnpj String @db.VarChar(30)
+  email String? @db.VarChar(150)
+  telefone String? @db.VarChar(30)
+  endereco String? @db.VarChar(255)
+  cidade String? @db.VarChar(100)
+  estado String? @db.VarChar(2)
+  cep String? @db.VarChar(10)
+  observacoes String? @db.Text
+  pix String? @db.VarChar(150)
 }
 
 enum mh3_medicoes_status {
-  pendente
-  pago
+  aguardando
+  aprovado
   cancelado
 }
 

@@ -12,6 +12,8 @@ const FIELDS = [
   "status",
   "observacoes",
   "data_emissao",
+  "data_vencimento",
+  "vencimento_original",
 ];
 
 

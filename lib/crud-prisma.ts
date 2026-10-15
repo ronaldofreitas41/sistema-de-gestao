@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 import { auditar, descreverAlteracoes, NUMERACAO, proximoNumero } from "./audit";
@@ -242,6 +243,12 @@ export async function create(
 
     if (!Object.keys(data).length) {
       return json({ error: "Nenhum campo válido foi enviado." }, 400);
+    }
+
+    // Tabelas com id texto sem valor padrão (contas a receber, pneus, vendas...)
+    // falhavam ao criar porque o id não estava entre os campos permitidos.
+    if (getFieldMetadata(table, "id")?.type === "String" && !data.id) {
+      data.id = randomUUID().replace(/-/g, "").slice(0, 20);
     }
 
     const numeracao = NUMERACAO[table];
