@@ -500,7 +500,6 @@ export function Medicoes() {
     if (!form.empresa_id) return alert("Selecione a empresa do grupo.");
     if (!form.modalidade) return alert("Informe se a medição é com parceria ou com frota cadastrada.");
     if (!form.placas.length) return alert("Adicione ao menos uma placa.");
-    if (!form.data_vencimento) return alert("Informe o vencimento da medição.");
     if (form.placas.some((p) => !tipoDaPlaca(p))) return alert("Informe se cada placa é por hora ou mensal.");
     if (form.placas.some((p) => !(Number(p.quantidade) > 0))) {
       return alert("Informe as horas ou os dias trabalhados de cada placa.");
@@ -509,7 +508,6 @@ export function Medicoes() {
     const tipoMedicao = tiposUsados.length > 1 ? "Misto" : tiposUsados[0];
     if (ehParceria) {
       if (!form.parceiro.trim()) return alert("Informe o parceiro.");
-      if (!form.parceiro_vencimento) return alert("Informe o vencimento da medição do parceiro.");
     }
 
     const payload = {
@@ -900,7 +898,7 @@ export function Medicoes() {
               <Input type="date" value={form.data_medicao} onChange={(e) => campo("data_medicao", e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Vencimento (contratante) <span className="text-destructive">*</span></Label>
+              <Label>Vencimento (contratante)</Label>
               <Input type="date" value={form.data_vencimento} onChange={(e) => campo("data_vencimento", e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -1155,7 +1153,7 @@ export function Medicoes() {
                     <Input value={form.parceiro} onChange={(e) => campo("parceiro", e.target.value)} placeholder="Ou digite o parceiro" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Vencimento (parceiro) <span className="text-destructive">*</span></Label>
+                    <Label>Vencimento (parceiro)</Label>
                     <Input type="date" value={form.parceiro_vencimento} onChange={(e) => campo("parceiro_vencimento", e.target.value)} />
                   </div>
                   <div className="space-y-2">

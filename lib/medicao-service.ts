@@ -95,7 +95,6 @@ async function prepararMedicoes(tx: Tx, body: Dados, ignorarIds: bigint[], legad
 
   const dataMedicao = dataSomente(body.data_medicao) ?? new Date();
   const vencimento = dataSomente(body.data_vencimento);
-  if (!vencimento) throw new ErroNegocio(400, "Informe o vencimento da medição.");
 
   if (tipo === "Misto" && modalidade === "parceria") {
     throw new ErroNegocio(400, "Medição com parceiro aceita apenas um tipo de contrato (hora ou mensal).");
@@ -192,7 +191,6 @@ async function prepararMedicoes(tx: Tx, body: Dados, ignorarIds: bigint[], legad
   const nomeParceiro = String(dadosParceiro.parceiro || "").trim();
   if (!nomeParceiro) throw new ErroNegocio(400, "Informe o parceiro da medição.");
   const vencimentoParceiro = dataSomente(dadosParceiro.data_vencimento);
-  if (!vencimentoParceiro) throw new ErroNegocio(400, "Informe o vencimento da medição do parceiro.");
   const desconto = num(dadosParceiro.desconto_percentual);
   if (desconto < 0 || desconto > 100) throw new ErroNegocio(400, "O desconto deve estar entre 0% e 100%.");
 
