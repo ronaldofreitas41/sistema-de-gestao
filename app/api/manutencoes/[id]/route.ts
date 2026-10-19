@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getById } from "@/lib/crud-prisma";
 import { atualizarOS, excluirOS } from "@/lib/os-service";
 import { respostaErro, serializar } from "@/lib/medicao-service";
+import { validarAutorizacaoExclusao } from "@/lib/permissoes-server";
 
 const TABLE = "mh3_manutencoes";
 
@@ -33,6 +34,8 @@ export const PATCH = editar;
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
+    const erroAutorizacao = await validarAutorizacaoExclusao(request);
+    if (erroAutorizacao) return erroAutorizacao;
     await excluirOS(id, request);
     return Response.json({ message: "OS excluída com sucesso." });
   } catch (erro) {

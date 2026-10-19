@@ -5,6 +5,10 @@ export type PlacaMedicao = {
   dias_trabalhados?: number;
   horas_trabalhadas?: number;
   valor_parceiro?: number;
+  /** Modalidade da placa; permite misturar hora e mensal numa mesma medição. */
+  tipo_cobranca?: string;
+  equipamento?: string;
+  horas_contratadas?: number;
 };
 
 export function obterPlacasMedicao(placas: unknown): PlacaMedicao[] {
@@ -34,9 +38,23 @@ export function obterPlacasMedicao(placas: unknown): PlacaMedicao[] {
     const valorParceiro = "valor_parceiro" in item
       ? Number(item.valor_parceiro)
       : undefined;
+    const tipoPlaca = "tipo_cobranca" in item && typeof item.tipo_cobranca === "string"
+      ? item.tipo_cobranca
+      : undefined;
+    const equipamento = "equipamento" in item && typeof item.equipamento === "string"
+      ? item.equipamento
+      : undefined;
+    const horasContratadas = "horas_contratadas" in item
+      ? Number(item.horas_contratadas)
+      : undefined;
     return [{
       placa,
       valor: Number.isFinite(valor) ? valor : 0,
+      ...(tipoPlaca ? { tipo_cobranca: tipoPlaca } : {}),
+      ...(equipamento ? { equipamento } : {}),
+      ...(horasContratadas !== undefined && Number.isFinite(horasContratadas)
+        ? { horas_contratadas: horasContratadas }
+        : {}),
       ...(valorCalculado !== undefined && Number.isFinite(valorCalculado)
         ? { valor_calculado: valorCalculado }
         : {}),
@@ -103,6 +121,9 @@ export function calcularPlacasMedicao(
     }
 
     const placa = item.placa.trim().toUpperCase();
+    const tipoItem = "tipo_cobranca" in item && typeof item.tipo_cobranca === "string" && item.tipo_cobranca
+      ? item.tipo_cobranca
+      : tipoCobranca;
     const valor = "valor" in item ? Number(item.valor) : 0;
     const diasTrabalhados = "dias_trabalhados" in item
       ? Number(item.dias_trabalhados)
@@ -126,10 +147,17 @@ export function calcularPlacasMedicao(
     return {
       placa,
       valor: valorArredondado,
-      ...(tipoCobranca === "Valor Mensal"
+      tipo_cobranca: tipoItem,
+      ..."equipamento" in item && typeof item.equipamento === "string" && item.equipamento
+        ? { equipamento: item.equipamento }
+        : {},
+      ..."horas_contratadas" in item && Number.isFinite(Number(item.horas_contratadas))
+        ? { horas_contratadas: Number(item.horas_contratadas) }
+        : {},
+      ...(tipoItem === "Valor Mensal"
         ? { dias_trabalhados: diasTrabalhados }
         : {}),
-      ...(tipoCobranca === "Valor por Hora"
+      ...(tipoItem === "Valor por Hora"
         ? { horas_trabalhadas: horasTrabalhadas }
         : {}),
       ...("valor_parceiro" in item && Number.isFinite(Number(item.valor_parceiro))
@@ -137,9 +165,9 @@ export function calcularPlacasMedicao(
         : {}),
       valor_calculado: calcularValorPlaca(
         valorArredondado,
-        tipoCobranca,
+        tipoItem,
         diasMes,
-        tipoCobranca === "Valor Mensal" ? diasTrabalhados : horasTrabalhadas,
+        tipoItem === "Valor Mensal" ? diasTrabalhados : horasTrabalhadas,
       ),
     };
   });

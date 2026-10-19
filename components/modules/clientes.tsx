@@ -147,7 +147,7 @@ export function Clientes() {
     if (deletingId !== null) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/clientes/${id}`);
+      if (!(await deleteRegistro(`/api/clientes/${id}`))) return;
       setClientes((prev) => prev.filter((c) => c.id !== id));
       await fetchClientes();
     } finally {

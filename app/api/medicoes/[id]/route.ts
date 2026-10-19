@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getById } from "@/lib/crud-prisma";
+import { validarAutorizacaoExclusao } from "@/lib/permissoes-server";
 import {
   atualizarMedicao,
   excluirMedicao,
@@ -46,6 +47,8 @@ export async function DELETE(request: NextRequest, { params }: Context) {
     return Response.json({ error: "Identificador da medição inválido." }, { status: 400 });
   }
   try {
+    const erroAutorizacao = await validarAutorizacaoExclusao(request);
+    if (erroAutorizacao) return erroAutorizacao;
     await excluirMedicao(BigInt(id), request);
     return Response.json({ message: "Medição excluída com sucesso." });
   } catch (erro) {

@@ -273,7 +273,7 @@ export function Funcionarios() {
     }
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/funcionarios/${id}`);
+      if (!(await deleteRegistro(`/api/funcionarios/${id}`))) return;
       setFuncionarios((prev) =>
         prev.filter((funcionario) => String(funcionario.id) !== String(id)),
       );

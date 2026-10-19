@@ -235,7 +235,7 @@ export function Fluxo() {
     if (deletingId !== null) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/contas-bancarias/${id}`);
+      if (!(await deleteRegistro(`/api/contas-bancarias/${id}`))) return;
       setContas((prev) => prev.filter((c) => c.id !== id));
       await fetchContas();
     } finally {

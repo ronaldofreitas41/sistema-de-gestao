@@ -170,18 +170,13 @@ function getPhotos(value: unknown): PhotoEntry[] {
 }
 
 export async function printManutencaoPDF(os: ManutencaoPDF) {
-  const printWindow = window.open("about:blank", "_blank");
-  if (!printWindow) {
-    alert("Permita a abertura de uma nova janela para imprimir a O.S.");
-    return;
-  }
-
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   const red: Rgb = [190, 0, 0];
   const dark: Rgb = [45, 45, 45];
   const gray: Rgb = [145, 145, 145];
   const light: Rgb = [226, 228, 230];
-  const pageWidth = 210;
+  const pageWidth = 297;
+  const limiteConteudo = 183;
   const margin = 14;
   const contentWidth = pageWidth - margin * 2;
 
@@ -223,22 +218,22 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
 
   const drawFooter = (page: number, total: number) => {
     doc.setFillColor(28, 28, 28);
-    doc.rect(0, 270, pageWidth, 18, "F");
+    doc.rect(0, 186, pageWidth, 18, "F");
     doc.setFont("helvetica", "bolditalic");
     doc.setFontSize(10);
     doc.setTextColor(245, 245, 245);
-    doc.text("MH3 RENTAL LTDA", pageWidth / 2, 277, { align: "center" });
+    doc.text("MH3 RENTAL LTDA", pageWidth / 2, 193, { align: "center" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(220, 220, 220);
-    doc.text("CNPJ: 26.881.195/0001-10 · Rodovia BR 381, km 361 — João Monlevade/MG", pageWidth / 2, 282, { align: "center" });
-    doc.text("(31) 99977-6105 · comercial@mh3rental.com.br", pageWidth / 2, 286, { align: "center" });
+    doc.text("CNPJ: 26.881.195/0001-10 · Rodovia BR 381, km 361 — João Monlevade/MG", pageWidth / 2, 198, { align: "center" });
+    doc.text("(31) 99977-6105 · comercial@mh3rental.com.br", pageWidth / 2, 202, { align: "center" });
     doc.setFillColor(255, 255, 255);
-    doc.rect(0, 288, pageWidth, 9, "F");
+    doc.rect(0, 204, pageWidth, 6, "F");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...gray);
-    doc.text(`Pág. ${page} de ${total}`, pageWidth - margin, 294, { align: "right" });
+    doc.text(`Pág. ${page} de ${total}`, pageWidth - margin, 208.5, { align: "right" });
   };
 
   const fields: [string, string][] = [
@@ -289,7 +284,7 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
 
   let currentY = 97;
   const drawSection = (title: string) => {
-    if (currentY + 13 > 270) {
+    if (currentY + 13 > limiteConteudo) {
       doc.addPage();
       currentY = 18;
     }
@@ -304,7 +299,7 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
 
   drawSection(`Checklist (${checklist.filter((item) => item.completed).length}/${checklist.length})`);
   const checklistHeight = Math.max(14, checklist.length * 6.5 + 7);
-  if (currentY + checklistHeight > 270) {
+  if (currentY + checklistHeight > limiteConteudo) {
     doc.addPage();
     currentY = 18;
   }
@@ -358,7 +353,7 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
     body: productRows,
     foot: [["", "", "TOTAL", formatCurrency(total)]],
     theme: "grid",
-    margin: { left: margin, right: margin, bottom: 26 },
+    margin: { left: margin, right: margin, bottom: 30 },
     styles: {
       font: "helvetica",
       fontSize: 8.5,
@@ -393,7 +388,7 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
     drawSection("Observações");
     const observationLines = doc.splitTextToSize(os.ob, contentWidth - 8);
     const observationHeight = Math.max(13, observationLines.length * 4.5 + 7);
-    if (currentY + observationHeight > 266) {
+    if (currentY + observationHeight > limiteConteudo - 4) {
       doc.addPage();
       currentY = 18;
       drawSection("Observações");
@@ -413,13 +408,13 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
     { label: "", source: "" },
     { label: "", source: "" },
   ];
-  const photoColumns = 2;
+  const photoColumns = 3;
   const photoGap = 3;
   const photoWidth = (contentWidth - photoGap) / photoColumns;
   for (let index = 0; index < photoRows.length; index += photoColumns) {
     const row = photoRows.slice(index, index + photoColumns);
     const height = row.some((photo) => photo.source) ? 43 : 11;
-    if (currentY + height > 266) {
+    if (currentY + height > limiteConteudo - 4) {
       doc.addPage();
       currentY = 18;
     }
@@ -467,6 +462,5 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
   }
 
   doc.setProperties({ title: `Ordem de Serviço ${os.osNum || os.id}` });
-  doc.autoPrint();
-  printWindow.location.href = doc.output("bloburl").toString();
+  doc.save(`OS-${os.osNum || os.id}.pdf`);
 }

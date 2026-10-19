@@ -1,37 +1,25 @@
 import { NextRequest } from "next/server";
-import { create, list } from "@/lib/crud-prisma";
+import { respostaErro, serializar } from "@/lib/medicao-service";
+import { criarVenda, listarVendas } from "@/lib/venda-service";
 
-const TABLE = "mh3_vendas";
-const FIELDS = [
-  "numero",
-  "cliente",
-  "data",
-  "documento",
-  "tipo_documento",
-  "contato",
-  "pagamento",
-  "observacoes",
-  "sub_total",
-  "desconto",
-  "total",
-  "status",
-  "faturada",
-  "vencimento",
-  "avaria",
-  "em_medicao",
-  "sinal_medicao",
-  "placa_medicao",
-];
-const SEARCH_FIELDS = ["numero", "vendedor", "forma_pagamento", "status"];
-
-export async function GET(request: NextRequest) {
-  return list(TABLE, request, SEARCH_FIELDS);
+export async function GET() {
+  try {
+    return Response.json({ data: serializar(await listarVendas()) });
+  } catch (erro) {
+    return respostaErro(erro);
+  }
 }
 
 export async function POST(request: NextRequest) {
+  let body: Record<string, unknown>;
   try {
-    return create(TABLE, FIELDS, await request.json(), request);
+    body = await request.json();
   } catch {
     return Response.json({ error: "JSON inválido." }, { status: 400 });
+  }
+  try {
+    return Response.json(serializar(await criarVenda(body, request)), { status: 201 });
+  } catch (erro) {
+    return respostaErro(erro);
   }
 }

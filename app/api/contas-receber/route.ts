@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { create, list } from "@/lib/crud-prisma";
+import { list } from "@/lib/crud-prisma";
 
 const TABLE = "mh3_contas_receber";
 
@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
   return list(TABLE, request, FIELDS);
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    return create(TABLE, FIELDS, await request.json(), request);
-  } catch {
-    return Response.json({ error: "JSON inválido." }, { status: 400 });
-  }
+// Contas a receber nascem apenas da aprovação de uma medição ou do faturamento de uma venda.
+export async function POST() {
+  return Response.json(
+    { error: "Lançamento manual desativado. A conta a receber é gerada ao aprovar uma medição ou faturar uma venda." },
+    { status: 405 },
+  );
 }

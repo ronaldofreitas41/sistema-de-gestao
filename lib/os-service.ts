@@ -9,6 +9,11 @@ type Dados = Record<string, any>;
 export const TIPOS_OS = ["PREVENTIVA", "TROCA DE PNEUS", "MANUTENÇÃO"] as const;
 export const STATUS_OS = ["aberta", "finalizada"] as const;
 
+/** Data de hoje (AAAA-MM-DD) no fuso de Brasília, para a entrada da OS não "virar o dia" à noite. */
+function hojeBrasilia() {
+  return new Date(`${new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date())}T00:00:00.000Z`);
+}
+
 function extrairNumeroOs(osNum?: string | null) {
   const resultado = osNum?.match(/(\d+)\s*$/);
   return resultado ? Number.parseInt(resultado[1], 10) : 0;
@@ -19,7 +24,7 @@ const formatarNumeroOs = (numero: number) => `OS - ${String(numero).padStart(5, 
 function normalizarTipo(valor: unknown) {
   const texto = String(valor ?? "").trim().toUpperCase().replace("MANUTENCAO", "MANUTENÇÃO");
   if (!TIPOS_OS.includes(texto as (typeof TIPOS_OS)[number])) {
-    throw new ErroNegocio(400, "Selecione o tipo da OS: Preventiva, Troca de pneus ou Manutenção.");
+    throw new ErroNegocio(400, "Selecione o tipo da OS: Preventiva, Manutenção/Corretiva ou Troca de pneus.");
   }
   return texto;
 }
@@ -96,8 +101,15 @@ export async function criarOS(body: Dados, request?: Request) {
     const { dados, pneus } = await montarDados(body, tx);
     const todas = await tx.mh3_manutencoes.findMany({ select: { osNum: true } });
     const maior = todas.reduce((m, r) => Math.max(m, extrairNumeroOs(r.osNum)), 0);
+    // A entrada é a data de criação e o responsável é quem abriu a OS; nenhum dos dois vem do formulário.
     const criada = await tx.mh3_manutencoes.create({
-      data: { id: crypto.randomUUID(), osNum: formatarNumeroOs(maior + 1), ...dados },
+      data: {
+        id: crypto.randomUUID(),
+        osNum: formatarNumeroOs(maior + 1),
+        ...dados,
+        en: hojeBrasilia(),
+        resp: ator.nome,
+      },
     });
     await retirarPneusParaOS(tx, pneus.map((p) => p.pneu_id), { id: criada.id, osNum: criada.osNum, placa: dados.placa }, ator.nome);
     return criada;
@@ -117,7 +129,9 @@ export async function atualizarOS(id: string, body: Dados, request?: Request) {
   const resultado = await prisma.$transaction(async (tx) => {
     const atual = await tx.mh3_manutencoes.findUnique({ where: { id } });
     if (!atual) throw new ErroNegocio(404, "OS não encontrada.");
-    const { dados, pneus } = await montarDados(body, tx);
+    const { dados: dadosForm, pneus } = await montarDados(body, tx);
+    // Entrada e responsável ficam como foram gravados na criação.
+    const { en: _entrada, resp: _responsavel, ...dados } = dadosForm;
 
     const anteriores: string[] = Array.isArray(atual.pneus)
       ? (atual.pneus as { pneu_id?: string }[]).map((p) => String(p.pneu_id))
@@ -138,6 +152,32 @@ export async function atualizarOS(id: string, body: Dados, request?: Request) {
     modulo: "mh3_manutencoes",
     registroId: id,
     descricao: `${resultado.atualizada.osNum} — ${resultado.atualizada.placa} (${resultado.statusAnterior} → ${resultado.atualizada.status})`,
+  });
+  return resultado.atualizada;
+}
+
+/** Troca o status da OS direto na lista; ao finalizar sem data de saída, registra a saída de hoje. */
+export async function alterarStatusOS(id: string, novoStatus: unknown, request?: Request) {
+  const status = normalizarStatus(novoStatus);
+  const resultado = await prisma.$transaction(async (tx) => {
+    const atual = await tx.mh3_manutencoes.findUnique({ where: { id } });
+    if (!atual) throw new ErroNegocio(404, "OS não encontrada.");
+    const atualizada = await tx.mh3_manutencoes.update({
+      where: { id },
+      data: {
+        status,
+        finStatus: status,
+        sa: status === "finalizada" ? atual.sa ?? hojeBrasilia() : null,
+      },
+    });
+    return { atualizada, statusAnterior: atual.status };
+  });
+  await auditar({
+    request,
+    acao: "STATUS_OS",
+    modulo: "mh3_manutencoes",
+    registroId: id,
+    descricao: `${resultado.atualizada.osNum} — ${resultado.atualizada.placa} (${resultado.statusAnterior} → ${status})`,
   });
   return resultado.atualizada;
 }

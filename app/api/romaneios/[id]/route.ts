@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { exigirPermissao } from "@/lib/permissoes-server";
+import { exigirPermissao, validarAutorizacaoExclusao } from "@/lib/permissoes-server";
 import { respostaErro, serializar } from "@/lib/medicao-service";
 import { excluirRomaneio, retornarRomaneio } from "@/lib/pneus-service";
 
@@ -28,7 +28,8 @@ export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
   if (!/^\d+$/.test(id)) return Response.json({ error: "Romaneio inválido." }, { status: 400 });
   try {
-    await exigirPermissao(request, "pneus-romaneio", "excluir romaneios");
+    const erroAutorizacao = await validarAutorizacaoExclusao(request);
+    if (erroAutorizacao) return erroAutorizacao;
     await excluirRomaneio(BigInt(id), request);
     return Response.json({ message: "Romaneio excluído." });
   } catch (erro) {

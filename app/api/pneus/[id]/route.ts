@@ -36,7 +36,6 @@ export const PATCH = editar;
 export async function DELETE(request: NextRequest, { params }: Context) {
   const { id } = await params;
   try {
-    await exigirPermissao(request, "pneus-excluir", "excluir pneus");
     const pneu = await prisma.mh3_pneus.findUnique({ where: { id } });
     if (pneu && pneu.situacao !== "estoque") {
       throw new ErroNegocio(409, "Apenas pneus em estoque podem ser excluídos. Para descartar use a saída por inutilização.");

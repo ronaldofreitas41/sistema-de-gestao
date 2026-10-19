@@ -196,7 +196,7 @@ const handleSave = async () => {
     if (deletingId) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/usuarios/${id}`);
+      if (!(await deleteRegistro(`/api/usuarios/${id}`))) return;
       setUsuarios((prev) => prev.filter((u) => u.id !== id));
       await fetchUsuarios();
     } finally {

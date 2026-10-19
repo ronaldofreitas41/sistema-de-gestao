@@ -236,7 +236,7 @@ export function ContasPagar() {
     if (deletingId) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/despesas/${id}`);
+      if (!(await deleteRegistro(`/api/despesas/${id}`))) return;
       setDespesas((prev) => prev.filter((d) => d.id !== id));
       await fetchDespesas();
     } catch (erro) {

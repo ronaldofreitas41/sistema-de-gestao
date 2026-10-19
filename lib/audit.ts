@@ -30,6 +30,16 @@ type EntradaAuditoria = {
 export async function auditar({ request, acao, modulo, registroId, descricao }: EntradaAuditoria) {
   try {
     const ator = await obterAtor(request);
+    let descricaoFinal = descricao ?? "";
+    if (acao === "EXCLUIR" && request) {
+      try {
+        const corpo = await request.clone().json();
+        const autorizador = typeof corpo?.login === "string" ? corpo.login.trim() : "";
+        if (autorizador) descricaoFinal = `${descricaoFinal} | Autorizado por ${autorizador}`;
+      } catch {
+        // A exclusão já foi autorizada; nem todo fluxo legado envia dados adicionais.
+      }
+    }
     const idNumerico = registroId != null && /^\d+$/.test(String(registroId))
       ? BigInt(String(registroId))
       : null;
@@ -41,8 +51,8 @@ export async function auditar({ request, acao, modulo, registroId, descricao }: 
         modulo,
         registro_id: idNumerico,
         descricao: (registroId != null && idNumerico === null
-          ? `[${registroId}] ${descricao ?? ""}`
-          : descricao ?? "").slice(0, 60000),
+          ? `[${registroId}] ${descricaoFinal}`
+          : descricaoFinal).slice(0, 60000),
         ip: obterIp(request),
       },
     });
@@ -73,6 +83,7 @@ export const NUMERACAO: Record<string, { campo: string; prefixo: string }> = {
   mh3_implementos: { campo: "numero", prefixo: "IMP" },
   mh3_romaneios: { campo: "numero", prefixo: "ROM" },
   mh3_pneus: { campo: "codigo", prefixo: "PNE" },
+  mh3_vendas: { campo: "numero", prefixo: "VD" },
 };
 
 /** Compara dois registros e descreve apenas os campos alterados. */

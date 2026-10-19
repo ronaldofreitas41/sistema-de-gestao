@@ -131,7 +131,7 @@ export function Empresas() {
     if (!confirm("Deseja realmente excluir esta empresa?")) return;
     setExcluindo(id);
     try {
-      await deleteRegistro(`/api/empresas/${id}`);
+      if (!(await deleteRegistro(`/api/empresas/${id}`))) return;
       await carregar();
     } finally {
       setExcluindo(null);

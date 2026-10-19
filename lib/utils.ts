@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { ApiResponse, Cliente, Permissoes } from "./types";
+import { requestDeleteAuthorization } from "./delete-authorization-client";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,6 +16,10 @@ export function formatCurrency(value: number) {
 
 export function formatDate(value: unknown) {
   if (!value) return "—";
+
+  // Datas sem hora (ou à meia-noite UTC) são formatadas pelo texto para não recuar um dia no fuso do Brasil.
+  const soData = String(value).match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?Z?)?$/);
+  if (soData) return `${soData[3]}/${soData[2]}/${soData[1]}`;
 
   const date = new Date(String(value));
 
@@ -214,10 +219,15 @@ export async function getNomesClientes(): Promise<string[]> {
   }
 }
 
-export async function deleteRegistro(url: string) {
+export async function deleteRegistro(url: string): Promise<boolean> {
+  const autorizacao = await requestDeleteAuthorization();
+  if (!autorizacao) return false;
+
   const response = await fetch(url, {
     method: "DELETE",
     credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(autorizacao),
   });
 
   if (!response.ok) {
@@ -225,7 +235,7 @@ export async function deleteRegistro(url: string) {
     throw new Error(data?.error || "Não foi possível excluir o registro.");
   }
 
-  return response;
+  return true;
 }
 
 export async function getPlacas(): Promise<string[]> {
@@ -256,5 +266,4 @@ export async function getPlacas(): Promise<string[]> {
     return [];
   }
 }
-
 

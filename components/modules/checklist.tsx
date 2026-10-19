@@ -121,7 +121,7 @@ export function ComponenteChecklist() {
     if (deletingId) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/checklists/${id}`);
+      if (!(await deleteRegistro(`/api/checklists/${id}`))) return;
       setModelos((current) => current.filter((modelo) => modelo.id !== id));
       setItens((current) => current.filter((item) => item.checklist_id !== id));
     } finally {
@@ -144,7 +144,7 @@ export function ComponenteChecklist() {
   }
 
   async function handleDeleteItem(id: string) {
-    await deleteRegistro(`/api/checklist-itens/${id}`);
+    if (!(await deleteRegistro(`/api/checklist-itens/${id}`))) return;
     setItens((current) => current.filter((item) => item.id !== id));
   }
 

@@ -5,9 +5,7 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
-  Edit,
   Menu,
-  Plus,
   Receipt,
   RotateCcw,
   Search,
@@ -45,19 +43,10 @@ import {
 } from "@/components/ui/table";
 import { ContaReceber } from "@/lib/types";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
 import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
 
 const hojeISO = () => new Date().toISOString().slice(0, 10);
-
-const vazio = {
-  cliente: "",
-  competencia: new Date().toISOString().slice(0, 7),
-  valor_total: "",
-  observacoes: "",
-  data_emissao: hojeISO(),
-  data_vencimento: hojeISO(),
-};
 
 type Acao = "receber" | "remarcar" | "atrasado" | "retornar_medicao" | "estornar";
 
@@ -111,9 +100,6 @@ export function ContasReceber() {
   const [contas, setContas] = useState<ContaReceber[]>([]);
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("abertas");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<ContaReceber | null>(null);
-  const [form, setForm] = useState(vazio);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -133,52 +119,10 @@ export function ContasReceber() {
     carregar();
   }, []);
 
-  function novaConta() {
-    setEditing(null);
-    setForm({ ...vazio, data_emissao: hojeISO(), data_vencimento: hojeISO() });
-    setDialogOpen(true);
-  }
-  function editar(conta: ContaReceber) {
-    setEditing(conta);
-    setForm({
-      cliente: conta.cliente || "",
-      competencia: conta.competencia || "",
-      valor_total: String(conta.valor_total || ""),
-      observacoes: conta.observacoes || "",
-      data_emissao: conta.data_emissao?.slice(0, 10) || "",
-      data_vencimento: conta.data_vencimento?.slice(0, 10) || "",
-    });
-    setDialogOpen(true);
-  }
-
-  async function salvar() {
-    if (!form.cliente.trim()) return alert("Informe o cliente.");
-    if (!(Number(form.valor_total) > 0)) return alert("Informe o valor da conta.");
-    if (!form.data_vencimento) return alert("Informe o vencimento.");
-    try {
-      await chamarApi(
-        editing ? `/api/contas-receber/${editing.id}` : "/api/contas-receber",
-        editing ? "PUT" : "POST",
-        {
-          ...form,
-          status: undefined,
-          valor_total: Number(form.valor_total) || 0,
-          data_emissao: new Date(form.data_emissao || hojeISO()).toISOString(),
-          data_vencimento: new Date(form.data_vencimento).toISOString(),
-          ...(editing ? {} : { status: "pendente", vencimento_original: form.data_vencimento }),
-        },
-      );
-      await carregar();
-      setDialogOpen(false);
-    } catch (erro) {
-      alert(mensagemErro(erro, "Não foi possível salvar a conta."));
-    }
-  }
-
   async function excluir(id: string) {
     setDeletingId(id);
     try {
-      await chamarApi(`/api/contas-receber/${id}`, "DELETE");
+      if (!(await deleteRegistro(`/api/contas-receber/${id}`))) return;
       await carregar();
     } catch (erro) {
       alert(mensagemErro(erro, "Não foi possível excluir a conta."));
@@ -227,7 +171,7 @@ export function ContasReceber() {
           : status === filtroStatus;
     return (
       passaStatus &&
-      `${conta.numero || ""} ${conta.cliente || ""} ${conta.competencia || ""} ${status}`
+      `${conta.numero || ""} ${conta.cliente || ""} ${conta.observacoes || ""} ${conta.competencia || ""} ${status}`
         .toLowerCase()
         .includes(busca.toLowerCase())
     );
@@ -239,8 +183,6 @@ export function ContasReceber() {
     toggleSort,
   } = useSortableData(filtradas);
   const totalAberto = filtradas.reduce((t, c) => t + (Number(c.valor_total) || 0), 0);
-  const setField = (field: keyof typeof form, value: string) =>
-    setForm((current) => ({ ...current, [field]: value }));
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -276,10 +218,9 @@ export function ContasReceber() {
             </button>
             <h1 className="text-lg font-bold sm:text-2xl">Contas a receber</h1>
           </div>
-          <Button onClick={novaConta}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova conta
-          </Button>
+          <p className="hidden max-w-sm text-right text-xs text-muted-foreground md:block">
+            As contas são geradas automaticamente ao aprovar uma medição ou faturar uma venda.
+          </p>
         </header>
         <main className="mx-auto w-full max-w-375 space-y-6 p-4 sm:p-6 lg:p-9">
           <Card>
@@ -288,7 +229,7 @@ export function ContasReceber() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Buscar por número, cliente ou competência..."
+                  placeholder="Buscar por lançamento, descrição, parceiro/contratante ou competência..."
                   value={busca}
                   onChange={(event) => setBusca(event.target.value)}
                 />
@@ -319,8 +260,9 @@ export function ContasReceber() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <SortableTableHead<ContaReceber> label="Nº" sortKey="numero" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.numero} />
-                      <SortableTableHead<ContaReceber> label="Cliente" sortKey="cliente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.cliente} />
+                      <SortableTableHead<ContaReceber> label="Lançamento" sortKey="numero" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.numero} />
+                      <SortableTableHead<ContaReceber> label="Descrição" sortKey="observacoes" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.observacoes} />
+                      <SortableTableHead<ContaReceber> label="Contratante / Parceiro" sortKey="cliente" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.cliente} />
                       <SortableTableHead<ContaReceber> label="Competência" sortKey="competencia" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.competencia} />
                       <SortableTableHead<ContaReceber> label="Vencimento" sortKey="data_vencimento" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => conta.data_vencimento} />
                       <SortableTableHead<ContaReceber> label="Valor" sortKey="valor_total" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(conta) => Number(conta.valor_total) || 0} />
@@ -338,7 +280,13 @@ export function ContasReceber() {
                         conta.vencimento_original.slice(0, 10) !== conta.data_vencimento.slice(0, 10);
                       return (
                         <TableRow key={conta.id}>
-                          <TableCell className="font-mono text-xs">{conta.numero || "-"}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {conta.numero || "-"}
+                            <span className="block font-sans text-[11px] text-muted-foreground">
+                              {conta.medicao_id ? "Origem: medição" : conta.venda_id ? "Origem: venda" : conta.prejuizo_id ? "Origem: renegociação" : "Lançamento antigo"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="max-w-xs text-xs">{conta.observacoes || "-"}</TableCell>
                           <TableCell className="font-medium">{conta.cliente || "-"}</TableCell>
                           <TableCell>{conta.competencia || "-"}</TableCell>
                           <TableCell>
@@ -380,15 +328,10 @@ export function ContasReceber() {
                                   <RotateCcw className="h-4 w-4 text-amber-600" />
                                 </Button>
                               )}
-                              {status === "pendente" && !conta.medicao_id && (
-                                <>
-                                  <Button variant="ghost" size="icon" onClick={() => editar(conta)}>
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" disabled={deletingId === conta.id} onClick={() => excluir(conta.id)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </>
+                              {status === "pendente" && !conta.medicao_id && !conta.venda_id && !conta.prejuizo_id && (
+                                <Button variant="ghost" size="icon" title="Excluir lançamento antigo" disabled={deletingId === conta.id} onClick={() => excluir(conta.id)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
                               )}
                             </div>
                           </TableCell>
@@ -402,49 +345,6 @@ export function ContasReceber() {
           </Card>
         </main>
       </div>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Editar conta a receber" : "Nova conta a receber"}</DialogTitle>
-            <DialogDescription>
-              O número é gerado automaticamente. Contas de medições são criadas ao aprovar a medição.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Cliente</Label>
-              <Input value={form.cliente} onChange={(e) => setField("cliente", e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Competência</Label>
-                <Input type="month" value={form.competencia} onChange={(e) => setField("competencia", e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Valor total</Label>
-                <Input type="number" step="0.01" value={form.valor_total} onChange={(e) => setField("valor_total", e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Emissão</Label>
-                <Input type="date" value={form.data_emissao} onChange={(e) => setField("data_emissao", e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Vencimento</Label>
-                <Input type="date" value={form.data_vencimento} onChange={(e) => setField("data_vencimento", e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Observações</Label>
-              <Input value={form.observacoes} onChange={(e) => setField("observacoes", e.target.value)} />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={salvar}>Salvar</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!acao} onOpenChange={(aberto) => !aberto && setAcao(null)}>
         <DialogContent>

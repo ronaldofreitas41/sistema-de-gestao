@@ -8,6 +8,7 @@ import {
   FileDown,
   ImagePlus,
   Menu,
+  MessageCircle,
   Plus,
   PackagePlus,
   Search,
@@ -58,6 +59,8 @@ import {
 import { printManutencaoPDF } from "@/lib/pdf/pdfManutencao";
 import { ManutencaoApi } from "@/lib/types";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
+import { StatusSelect } from "@/components/ui/status-select";
+import { compartilharWhatsApp } from "@/lib/whatsapp";
 
 
 type Equipamento = {
@@ -193,31 +196,20 @@ function formatarNumeroOs(numero: number) {
   return `OS - ${String(numero).padStart(5, "0")}`;
 }
 
-function BadgeStatus({ status }: { status?: string | null }) {
+const OPCOES_STATUS_OS = [
+  { value: "aberta", label: "Em aberto", cor: "bg-amber-100 text-amber-800" },
+  { value: "finalizada", label: "Finalizada", cor: "bg-emerald-100 text-emerald-800" },
+];
+
+const ROTULO_TIPO_OS: Record<string, string> = {
+  PREVENTIVA: "Preventiva",
+  "MANUTENÇÃO": "Manutenção / Corretiva",
+  "TROCA DE PNEUS": "Troca de pneus",
+};
+
+function statusDaOS(status?: string | null) {
   const valor = normalizarStatus(status);
-
-  const estilos: Record<string, string> = {
-    finalizada: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    pago: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    concluido: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    concluída: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    pendente: "bg-amber-100 text-amber-700 border-amber-200",
-    aberto: "bg-amber-100 text-amber-700 border-amber-200",
-    aberta: "bg-amber-100 text-amber-700 border-amber-200",
-    cancelado: "bg-destructive/10 text-destructive border-destructive/20",
-    cancelada: "bg-destructive/10 text-destructive border-destructive/20",
-  };
-
-  const classe =
-    estilos[valor] || "bg-muted text-muted-foreground border-border";
-
-  return (
-    <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${classe}`}
-    >
-      {valor === "aberta" ? "Em aberto" : valor === "finalizada" ? "Finalizada" : status || "Em aberto"}
-    </span>
-  );
+  return ["finalizada", "pago", "concluido", "concluída"].includes(valor) ? "finalizada" : "aberta";
 }
 
 export function Manutencoes() {
@@ -239,6 +231,19 @@ export function Manutencoes() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [carregandoDetalheId, setCarregandoDetalheId] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [usuarioLogado, setUsuarioLogado] = useState("");
+
+  useEffect(() => {
+    try {
+      const salvo = sessionStorage.getItem("mh3_usuario");
+      if (salvo) {
+        const usuario = JSON.parse(salvo);
+        setUsuarioLogado(usuario?.nome || usuario?.login || "");
+      }
+    } catch (error) {
+      console.error("Erro ao ler o usuário logado:", error);
+    }
+  }, []);
   const [carregandoEquipamentos, setCarregandoEquipamentos] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState<AbaManutencao>("geral");
   const [modelosChecklist, setModelosChecklist] = useState<ModeloChecklist[]>([]);
@@ -422,6 +427,24 @@ export function Manutencoes() {
     setDialogOpen(true);
   }
 
+  async function alterarStatus(manutencao: ManutencaoApi, status: string) {
+    await chamarApi(`/api/manutencoes/${manutencao.id}/status`, "POST", { status });
+    await carregar();
+  }
+
+  function enviarWhatsApp(manutencao: ManutencaoApi) {
+    compartilharWhatsApp(
+      [
+        `*${manutencao.osNum}* — MH3 Rental`,
+        `Veículo: ${manutencao.placa || "-"} ${manutencao.eqLbl ? `(${manutencao.eqLbl})` : ""}`.trim(),
+        `Tipo: ${(manutencao.tipo && ROTULO_TIPO_OS[manutencao.tipo]) || manutencao.tipo || "-"}`,
+        `Entrada: ${formatarData(manutencao.en)}`,
+        `Status: ${statusDaOS(manutencao.status) === "finalizada" ? "Finalizada" : "Em aberto"}`,
+        "Segue o PDF da O.S. em anexo.",
+      ].join("\n"),
+    );
+  }
+
   async function gerarPdf(manutencao: ManutencaoApi) {
     setCarregandoDetalheId(manutencao.id);
     try {
@@ -559,7 +582,7 @@ export function Manutencoes() {
     setDeletingId(id);
 
     try {
-      await deleteRegistro(`/api/manutencoes/${id}`);
+      if (!(await deleteRegistro(`/api/manutencoes/${id}`))) return;
       await carregar();
       await carregarPneus();
     } catch (erro) {
@@ -695,7 +718,7 @@ export function Manutencoes() {
                     </TableCell>
 
                     <TableCell className="text-xs">
-                      {manutencao.tipo || "-"}
+                      {(manutencao.tipo && ROTULO_TIPO_OS[manutencao.tipo]) || manutencao.tipo || "-"}
                     </TableCell>
 
                     <TableCell className="text-xs font-semibold text-emerald-700">
@@ -703,7 +726,11 @@ export function Manutencoes() {
                     </TableCell>
 
                     <TableCell>
-                      <BadgeStatus status={manutencao.status} />
+                      <StatusSelect
+                        value={statusDaOS(manutencao.status)}
+                        opcoes={OPCOES_STATUS_OS}
+                        onChange={(novo) => alterarStatus(manutencao, novo)}
+                      />
                     </TableCell>
 
                     <TableCell className="text-right">
@@ -719,6 +746,18 @@ export function Manutencoes() {
                           onClick={() => gerarPdf(manutencao)}
                         >
                           <FileDown className="h-3.5 w-3.5" />
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          title="Compartilhar no WhatsApp"
+                          aria-label="Compartilhar no WhatsApp"
+                          className="h-8 w-8 text-emerald-600"
+                          onClick={() => enviarWhatsApp(manutencao)}
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
                         </Button>
 
                         <Button
@@ -972,9 +1011,9 @@ export function Manutencoes() {
                   <Select value={form.tipo} onValueChange={(value) => alterarCampo("tipo", value)}>
                     <SelectTrigger className="h-10 bg-muted/20"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="PREVENTIVA">Preventiva (revisão, troca de óleo...)</SelectItem>
+                      <SelectItem value="PREVENTIVA">Preventiva</SelectItem>
+                      <SelectItem value="MANUTENÇÃO">Manutenção / Corretiva</SelectItem>
                       <SelectItem value="TROCA DE PNEUS">Troca de pneus</SelectItem>
-                      <SelectItem value="MANUTENÇÃO">Manutenção</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1033,8 +1072,8 @@ export function Manutencoes() {
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Entrada</Label>
-                  <Input type="date" value={form.en} onChange={(event) => alterarCampo("en", event.target.value)} className="h-10 bg-muted/20" />
+                  <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Entrada (data de criação)</Label>
+                  <Input type="date" value={form.en} readOnly disabled title="A data de entrada é a da criação da OS e não pode ser alterada." className="h-10 bg-muted/20" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Saída (conclusão)</Label>
@@ -1080,8 +1119,8 @@ export function Manutencoes() {
                 </div>
 
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Responsável</Label>
-                  <Input value={form.resp} onChange={(event) => alterarCampo("resp", event.target.value)} className="h-10 bg-muted/20" placeholder="Nome do responsável" />
+                  <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Responsável (usuário que criou a OS)</Label>
+                  <Input value={editing ? form.resp : usuarioLogado} readOnly disabled title="O responsável é o usuário que criou a OS." className="h-10 bg-muted/20" />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Observações</Label>

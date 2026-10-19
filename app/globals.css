@@ -48,3 +48,10 @@
     color: var(--foreground);
   }
 }
+/* Toda impressão do sistema sai em paisagem. */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+}

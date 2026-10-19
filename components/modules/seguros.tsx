@@ -32,8 +32,15 @@ import { AlertTriangle, Edit, Menu, Plus, Search, ShieldCheck, Trash2, X } from 
 import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro, formatDate, getPlacas } from "@/lib/utils";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
+import { StatusSelect } from "@/components/ui/status-select";
 import { PageSizeSelect, PaginationControls, paginate } from "@/components/ui/pagination";
 import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
+
+const OPCOES_STATUS = [
+  { value: "Ativo", label: "Ativo", cor: "bg-emerald-100 text-emerald-800" },
+  { value: "Vencido", label: "Vencido", cor: "bg-amber-100 text-amber-800" },
+  { value: "Cancelado", label: "Cancelado", cor: "bg-slate-200 text-slate-700" },
+];
 
 type SeguroApi = {
   id: string | number;
@@ -163,11 +170,24 @@ export function ComponenteSeguros() {
     }
   }
 
+  async function alterarStatus(seguro: SeguroApi, status: string) {
+    await chamarApi(`/api/seguros/${seguro.id}`, "PATCH", {
+      seguradora: seguro.seguradora,
+      numero_apolice: seguro.numero_apolice,
+      data_inicio: seguro.data_inicio,
+      data_fim: seguro.data_fim,
+      observacoes: seguro.observacoes,
+      placas: seguro.placas ?? [],
+      status,
+    });
+    await carregar();
+  }
+
   async function excluir(id: string | number) {
     if (deletingId !== null || !confirm("Excluir esta apólice?")) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/seguros/${id}`);
+      if (!(await deleteRegistro(`/api/seguros/${id}`))) return;
       await carregar();
     } catch (erro) {
       alert(mensagemErro(erro, "Não foi possível excluir a apólice."));
@@ -266,7 +286,13 @@ export function ComponenteSeguros() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-xs">{s.status}</TableCell>
+                          <TableCell className="text-xs">
+                            <StatusSelect
+                              value={s.status || "Ativo"}
+                              opcoes={OPCOES_STATUS}
+                              onChange={(novo) => alterarStatus(s, novo)}
+                            />
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => editar(s)}>

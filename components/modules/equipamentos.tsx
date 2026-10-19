@@ -271,7 +271,7 @@ export function Equipamentos() {
     if (!confirm("Excluir este veículo da frota?")) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/equipamentos/${id}`);
+      if (!(await deleteRegistro(`/api/equipamentos/${id}`))) return;
       await carregar();
     } catch (erro) {
       alert(mensagemErro(erro, "Não foi possível excluir o veículo."));
@@ -333,7 +333,7 @@ export function Equipamentos() {
   async function excluirImplemento(id: string | number) {
     if (!confirm("Excluir este implemento?")) return;
     try {
-      await deleteRegistro(`/api/implementos/${id}`);
+      if (!(await deleteRegistro(`/api/implementos/${id}`))) return;
       await carregar();
     } catch (erro) {
       alert(mensagemErro(erro, "Não foi possível excluir o implemento."));

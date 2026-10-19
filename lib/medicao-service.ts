@@ -17,7 +17,8 @@ export class ErroNegocio extends Error {
   }
 }
 
-const TIPOS_VALIDOS = ["Valor por Hora", "Valor Mensal", "Valor Direito"];
+const TIPOS_VALIDOS = ["Valor por Hora", "Valor Mensal", "Valor Direito", "Misto"];
+const TIPOS_PLACA = ["Valor por Hora", "Valor Mensal"];
 const num = (valor: unknown) => Number(valor) || 0;
 const arredondar = (valor: number) => Math.round((valor + Number.EPSILON) * 100) / 100;
 const dataSomente = (valor: unknown) => {
@@ -96,9 +97,16 @@ async function prepararMedicoes(tx: Tx, body: Dados, ignorarIds: bigint[], legad
   const vencimento = dataSomente(body.data_vencimento);
   if (!vencimento) throw new ErroNegocio(400, "Informe o vencimento da medição.");
 
+  if (tipo === "Misto" && modalidade === "parceria") {
+    throw new ErroNegocio(400, "Medição com parceiro aceita apenas um tipo de contrato (hora ou mensal).");
+  }
+
   const periodo = String(body.periodo || dataMedicao.toISOString().slice(0, 7));
   let diasMes: number | null = null;
-  if (tipo === "Valor Mensal") {
+  const algumaMensal = Array.isArray(body.placas) && body.placas.some(
+    (p: Dados) => p && typeof p === "object" && p.tipo_cobranca === "Valor Mensal",
+  );
+  if (tipo === "Valor Mensal" || (tipo === "Misto" && algumaMensal)) {
     diasMes = num(body.dias_mes) || contarDiasPeriodoMedicao(periodo);
     if (!diasMes || diasMes < 28 || diasMes > 31) {
       throw new ErroNegocio(400, "Informe os dias do mês (30 ou 31).");
@@ -112,6 +120,10 @@ async function prepararMedicoes(tx: Tx, body: Dados, ignorarIds: bigint[], legad
     if (!item || typeof item.placa !== "string" || !item.placa.trim()) {
       throw new ErroNegocio(400, "Uma ou mais placas estão inválidas.");
     }
+    if (tipo === "Misto" && !TIPOS_PLACA.includes(String(item.tipo_cobranca))) {
+      throw new ErroNegocio(400, `Informe se a placa ${item.placa} é por hora ou mensal.`);
+    }
+    if (tipo !== "Misto") delete item.tipo_cobranca;
     return { ...item, placa: normalizarPlaca(item.placa) } as Dados & { placa: string };
   });
 
@@ -152,6 +164,8 @@ async function prepararMedicoes(tx: Tx, body: Dados, ignorarIds: bigint[], legad
     valor: totais.total,
     terceiro: modalidade === "parceria",
     valor_terceiro: 0,
+    obra: body.obra ? String(body.obra).slice(0, 150) : null,
+    cliente_nome: body.cliente_nome ? String(body.cliente_nome).slice(0, 255) : null,
     horas_extras: horasGlobais,
     valor_excedente: excedente,
     data_medicao: dataMedicao,
@@ -317,6 +331,26 @@ export async function excluirMedicao(id: bigint, request?: Request) {
   });
 }
 
+function formatarPeriodo(periodo: string | null) {
+  const intervalo = periodo?.match(/^(\d{4})-(\d{2})-(\d{2})\s*(?:a|até)\s*(\d{4})-(\d{2})-(\d{2})$/i);
+  if (intervalo) return `${intervalo[3]}/${intervalo[2]}/${intervalo[1]} a ${intervalo[6]}/${intervalo[5]}/${intervalo[4]}`;
+  return periodo ?? "";
+}
+
+/** Texto que identifica o lançamento em Contas a Receber / Pagar. */
+function descricaoMedicao(
+  medicao: { numero: string | null; obra: string | null; periodo: string | null },
+  papel: "Contratante" | "Parceiro",
+  nome: string,
+) {
+  return [
+    `Medição ${medicao.numero}`,
+    `${papel}: ${nome}`,
+    medicao.obra ? `Obra: ${medicao.obra}` : "",
+    medicao.periodo ? `Período: ${formatarPeriodo(medicao.periodo)}` : "",
+  ].filter(Boolean).join(" · ");
+}
+
 function textoPlacas(placas: unknown) {
   if (!Array.isArray(placas)) return null;
   const lista = placas
@@ -373,7 +407,7 @@ export async function aprovarMedicao(id: bigint, request?: Request) {
     if (medicao.papel === "parceiro") {
       await tx.mh3_despesas.create({
         data: {
-          descricao: `Medição ${medicao.numero} — parceiro ${medicao.parceiro ?? ""}`.trim(),
+          descricao: descricaoMedicao(medicao, "Parceiro", medicao.parceiro ?? "").slice(0, 255),
           categoria: "Medição de parceiro",
           fornecedor: medicao.parceiro,
           data_competencia: medicao.data_medicao,
@@ -390,15 +424,16 @@ export async function aprovarMedicao(id: bigint, request?: Request) {
       const cliente = medicao.cliente_id && /^\d+$/.test(medicao.cliente_id)
         ? await tx.mh3_clientes.findUnique({ where: { id: BigInt(medicao.cliente_id) }, select: { nome: true } })
         : null;
+      const nomeContratante = medicao.cliente_nome?.trim() || cliente?.nome || medicao.parceiro || "Medição";
       await tx.mh3_contas_receber.create({
         data: {
           id: crypto.randomUUID(),
           numero: await proximoNumero("REC", tx),
-          cliente: cliente?.nome || medicao.parceiro || "Medição",
+          cliente: nomeContratante,
           competencia: (medicao.periodo ?? medicao.data_medicao.toISOString()).slice(0, 7),
           valor_total: medicao.valor,
           status: "pendente",
-          observacoes: `Medição ${medicao.numero}`,
+          observacoes: descricaoMedicao(medicao, "Contratante", nomeContratante),
           data_emissao: medicao.data_medicao,
           data_vencimento: vencimento,
           vencimento_original: vencimento,

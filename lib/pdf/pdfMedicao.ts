@@ -1,266 +1,320 @@
-import { obterPlacasMedicao } from "@/lib/medicoes";
-import { corHex } from "@/lib/pdf/cores";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { obterPlacasMedicao, type PlacaMedicao } from "@/lib/medicoes";
+import { corEmpresaRgb, type Rgb } from "@/lib/pdf/cores";
 
-function escaparHtml(valor: unknown): string {
-  return String(valor ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+const TIPO_HORA = "Valor por Hora";
+const TIPO_MENSAL = "Valor Mensal";
 
-function formatarValorPdf(valor: unknown): string {
-  return `R$ ${(Number(valor) || 0).toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
+const moeda = (valor: unknown) =>
+  `R$ ${(Number(valor) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-function formatarPeriodoPdf(periodo?: string | null): string {
+const dataBr = (data?: string | null) => {
+  const iso = String(data ?? "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : "-";
+};
+
+function formatarPeriodo(periodo?: string | null) {
   if (!periodo) return "-";
-
   const intervalo = periodo.match(/^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i);
-  if (intervalo) {
-    const formatarData = (data: string) => data.split("-").reverse().join("/");
-    return `${formatarData(intervalo[1])} a ${formatarData(intervalo[2])}`;
+  if (intervalo) return `${dataBr(intervalo[1])} a ${dataBr(intervalo[2])}`;
+  const mes = periodo.match(/^(\d{4})-(\d{2})$/);
+  if (mes) {
+    const ultimo = new Date(Number(mes[1]), Number(mes[2]), 0).getDate();
+    return `01/${mes[2]}/${mes[1]} a ${String(ultimo).padStart(2, "0")}/${mes[2]}/${mes[1]}`;
   }
-
-  const [ano, mes] = periodo.split("-");
-  if (!ano || !mes) return periodo;
-  const ultimoDia = new Date(Number(ano), Number(mes), 0).getDate();
-  return `${ano}-${mes}-01 a ${ano}-${mes}-${String(ultimoDia).padStart(2, "0")}`;
+  return periodo;
 }
 
-export function gerarPdfMedicao(
+function diasDoPeriodo(medicao: any) {
+  if (Number(medicao.dias_mes)) return Number(medicao.dias_mes);
+  const intervalo = String(medicao.periodo || "").match(/^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i);
+  if (!intervalo) return 30;
+  const dias = Math.floor((Date.parse(`${intervalo[2]}T00:00:00Z`) - Date.parse(`${intervalo[1]}T00:00:00Z`)) / 86_400_000) + 1;
+  return dias > 0 ? dias : 30;
+}
+
+function carregarImagem(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const imagem = new Image();
+    imagem.onload = () => resolve(imagem);
+    imagem.onerror = () => resolve(null);
+    imagem.src = src;
+  });
+}
+
+/**
+ * Resumo da medição em PDF paisagem, baixado direto no computador.
+ * `tipo` da medição (contratante ou parceiro) define o título; as placas podem misturar hora e mensal.
+ */
+export async function gerarPdfMedicao(
   medicao: any,
-  tipoDocumento: "cliente" | "terceiro" = "cliente",
+  equipamentosPorPlaca: Record<string, string> = {},
 ) {
-  const placasDetalhadas = Array.isArray(medicao.placas) && medicao.placas.length > 0 &&
-    medicao.placas.every(
-      (placa: unknown) => placa && typeof placa === "object" &&
-        "valor_calculado" in placa && Number.isFinite(Number(placa.valor_calculado)),
-    );
-  const placasMedicao = obterPlacasMedicao(medicao.placas);
-  const placas = placasMedicao.map((placa) => placa.placa).join(", ") || "-";
-  const ehTerceiro = medicao.terceiro === true;
-  const empresa = ehTerceiro && medicao.empresa ? medicao.empresa : null;
-  const logoEmpresa = typeof empresa?.logo === "string" && empresa.logo.startsWith("data:image/")
-    ? empresa.logo
-    : null;
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+  const pageWidth = 297;
+  const pageHeight = 210;
+  const margin = 14;
+  const rodapeAltura = 24;
+  const limite = pageHeight - rodapeAltura - 4;
+
+  const empresa = medicao.empresa ?? null;
+  const principal: Rgb = corEmpresaRgb(empresa?.cor_primaria, [201, 0, 0]);
+  const secundaria: Rgb = corEmpresaRgb(empresa?.cor_secundaria, [25, 25, 25]);
+  const escuro: Rgb = [45, 45, 45];
+  const cinza: Rgb = [110, 110, 110];
+  const linha: Rgb = [226, 228, 230];
+
+  const ehParceiro = medicao.papel === "parceiro";
   const nomeEmpresa = empresa?.razao_social || empresa?.nome || "MH3 RENTAL LTDA";
-  const cnpjEmpresa = empresa ? empresa.cnpj || "-" : "26.881.195/0001-10";
-  const enderecoEmpresa = empresa
+  const cnpj = empresa ? empresa.cnpj || "-" : "26.881.195/0001-10";
+  const endereco = empresa
     ? [empresa.endereco, [empresa.cidade, empresa.estado].filter(Boolean).join("/")].filter(Boolean).join(" · ")
     : "Rodovia BR 381, km 361 – João Monlevade/MG";
-  const contatoEmpresa = empresa
+  const contato = empresa
     ? [empresa.telefone, empresa.email].filter(Boolean).join(" · ")
-    : "(31) 99977-6105 · Noninho · comercial@mh3rental.com.br";
-  const corPrimaria = corHex(empresa?.cor_primaria, "#c90000");
-  const corSecundaria = corHex(empresa?.cor_secundaria, "#191919");
-  const parceiro = medicao.parceiro || "-";
-  const cliente = medicao.cliente || "-";
-  const periodo = formatarPeriodoPdf(medicao.periodo);
-  const vendas = Array.isArray(medicao.vendas) ? medicao.vendas : [];
-  const valorAjusteVendas = vendas.reduce(
-    (total: number, venda: { total?: number | string; sinal_medicao?: string }) =>
-      total + (venda.sinal_medicao === "-" ? -1 : 1) * (Number(venda.total) || 0),
-    0,
-  );
-  const valorMedicao = Number(medicao.valor) || 0;
-  const valorLocacao = valorMedicao - valorAjusteVendas;
-  const valorTerceiro = Number(medicao.valor_terceiro) || 0;
-  const horasExtras = Number(medicao.horas_extras) || 0;
-  const valorHoraExtra = Number(
-    medicao.valor_hora_extra ?? medicao.valor_horas_extras ?? 0,
-  );
-  const tipoCobranca = medicao.tipo_cobranca ?? medicao.tipoCobranca;
-  const valorPorHora = tipoCobranca === "Valor por Hora";
-  const quantidadeHoras = valorPorHora ? horasExtras : 0;
-  const valorHora = quantidadeHoras > 0 ? valorLocacao / quantidadeHoras : 0;
-  const tipoCobrancaLabel = tipoCobranca === "Valor Direito"
-    ? "Valor Direto"
-    : tipoCobranca || "-";
-  const intervaloPeriodo = String(medicao.periodo || "").match(
-    /^(\d{4}-\d{2}-\d{2})\s*(?:a|até)\s*(\d{4}-\d{2}-\d{2})$/i,
-  );
-  const [anoPeriodo, mesPeriodo] = String(medicao.periodo || "").split("-").map(Number);
-  const diasIntervalo = intervaloPeriodo
-    ? Math.floor((Date.parse(`${intervaloPeriodo[2]}T00:00:00Z`) - Date.parse(`${intervaloPeriodo[1]}T00:00:00Z`)) / 86_400_000) + 1
-    : 0;
-  const diasNoMes = Number(medicao.dias_mes) || diasIntervalo || (anoPeriodo && mesPeriodo
-    ? new Date(anoPeriodo, mesPeriodo, 0).getDate()
-    : 0);
-  const diasTrabalhadosPorPlaca = placasDetalhadas
-    ? placasMedicao
-      .map((placa) => `${Number(placa.dias_trabalhados) || 0} dia(s)`)
-      .join("; ")
-    : "";
-  const dadosCobranca = `
-    <div><strong>Método de cobrança:</strong> ${escaparHtml(tipoCobrancaLabel)}</div>
-    ${valorPorHora ? `
-      <div><strong>Quantidade de horas:</strong> ${quantidadeHoras}h</div>
-      <div><strong>Valor da hora:</strong> ${formatarValorPdf(valorHora)}</div>
-    ` : ""}
-    ${tipoCobranca === "Valor Mensal" && diasNoMes ? `
-      <div><strong>Dias no mês:</strong> ${diasNoMes}</div>
-    ` : ""}
-    ${tipoCobranca === "Valor Mensal" && diasTrabalhadosPorPlaca ? `
-      <div><strong>Dias trabalhados:</strong> ${diasTrabalhadosPorPlaca}</div>
-    ` : ""}
-  `;
+    : "(31) 99977-6105 · comercial@mh3rental.com.br";
 
-  const totalHorasExtras = horasExtras * valorHoraExtra;
-  const valorCliente = valorMedicao + totalHorasExtras;
-  const documentoTerceiro = tipoDocumento === "terceiro";
-  const valorLiquido = documentoTerceiro ? valorTerceiro : valorCliente;
-  const dataEmissao = new Date().toLocaleDateString("pt-BR");
+  const logoOrigem = typeof empresa?.logo === "string" && empresa.logo.startsWith("data:image/")
+    ? empresa.logo
+    : "/placeholder-logo.png";
+  const logo = await carregarImagem(logoOrigem);
 
-  const linhas: string[] = documentoTerceiro
-    ? [`
-      <tr>
-        <td>Serviço de terceiro</td>
-        <td class="valor">${formatarValorPdf(valorTerceiro)}</td>
-      </tr>
-    `]
-    : placasDetalhadas
-      ? placasMedicao.map((placa) => {
-          const descricao = tipoCobranca === "Valor Mensal"
-            ? `Placa ${escaparHtml(placa.placa)} — ${formatarValorPdf(placa.valor)} ÷ ${diasNoMes} × ${placa.dias_trabalhados ?? 0} dia(s) trabalhado(s)`
-            : valorPorHora
-              ? `Placa ${escaparHtml(placa.placa)} — ${quantidadeHoras}h × ${formatarValorPdf(placa.valor)}/h`
-              : `Placa ${escaparHtml(placa.placa)} — valor direto`;
-          return `
-            <tr>
-              <td>${descricao}</td>
-              <td class="valor">${formatarValorPdf(placa.valor_calculado)}</td>
-            </tr>
-          `;
-        })
-      : [`
-      <tr>
-        <td>${valorPorHora
-          ? `Placa: ${escaparHtml(placas)} — ${quantidadeHoras}h × ${formatarValorPdf(valorHora)}`
-          : "Locação de equipamento | Valor mensal"}</td>
-        <td class="valor">${formatarValorPdf(valorLocacao)}</td>
-      </tr>
-    `];
+  const placas: PlacaMedicao[] = obterPlacasMedicao(medicao.placas);
+  const diasMes = diasDoPeriodo(medicao);
+  const tipoGeral = medicao.tipo_cobranca ?? medicao.tipoCobranca;
+  const tipoDe = (placa: PlacaMedicao) => placa.tipo_cobranca || (tipoGeral === "Misto" ? TIPO_MENSAL : tipoGeral);
+  const equipamentoDe = (placa: PlacaMedicao) =>
+    placa.equipamento || equipamentosPorPlaca[placa.placa.toUpperCase().replace(/\s+/g, "")] || "-";
 
-  if (!documentoTerceiro) {
-    for (const venda of vendas) {
-      const sinal = venda.sinal_medicao === "-" ? "-" : "+";
-      linhas.push(`
-        <tr>
-          <td>Venda ${escaparHtml(venda.numero || "")} — ${escaparHtml(venda.cliente || "")}${venda.placa_medicao ? ` (${escaparHtml(venda.placa_medicao)})` : ""}</td>
-          <td class="valor">${sinal} ${formatarValorPdf(venda.total)}</td>
-        </tr>
-      `);
+  const cabecalho = () => {
+    if (logo) {
+      const altura = 18;
+      const largura = Math.min((logo.naturalWidth / logo.naturalHeight) * altura, 60);
+      try {
+        doc.addImage(logo, "PNG", margin, 10, largura, altura);
+      } catch {
+        doc.addImage(logo, "JPEG", margin, 10, largura, altura);
+      }
+    } else {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(20);
+      doc.setTextColor(...principal);
+      doc.text(nomeEmpresa, margin, 22);
     }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(19);
+    doc.setTextColor(...principal);
+    doc.text(ehParceiro ? "RESUMO MEDIÇÃO PARCEIRO" : "RESUMO MEDIÇÃO", pageWidth - margin, 18, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...cinza);
+    doc.text(`Medição ${medicao.numero ?? medicao.id}`, pageWidth - margin, 25, { align: "right" });
+    doc.setDrawColor(...principal);
+    doc.setLineWidth(1);
+    doc.line(0, 32, pageWidth, 32);
+  };
+
+  const rodape = (pagina: number, total: number) => {
+    const topo = pageHeight - rodapeAltura;
+    doc.setFillColor(...secundaria);
+    doc.rect(0, topo, pageWidth, rodapeAltura, "F");
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(11);
+    doc.setTextColor(245, 245, 245);
+    doc.text(nomeEmpresa, pageWidth / 2, topo + 7, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(225, 225, 225);
+    doc.text(`CNPJ: ${cnpj}${endereco ? ` · ${endereco}` : ""}`, pageWidth / 2, topo + 12.5, { align: "center" });
+    if (contato) doc.text(contato, pageWidth / 2, topo + 17, { align: "center" });
+    doc.setFontSize(7);
+    doc.setTextColor(190, 190, 190);
+    doc.text(
+      `Emitido em ${new Date().toLocaleDateString("pt-BR")} · Pág. ${pagina} de ${total}`,
+      pageWidth - margin,
+      topo + 21,
+      { align: "right" },
+    );
+  };
+
+  cabecalho();
+  let y = 40;
+
+  // Dados logo abaixo do cabeçalho: contratante ou parceiro, período de apuração, obra e data.
+  const quemRotulo = ehParceiro ? "PARCEIRO" : "CONTRATANTE";
+  const quemNome = (ehParceiro ? medicao.parceiro : medicao.cliente) || "-";
+  const dados: [string, string][] = [
+    [quemRotulo, String(quemNome)],
+    ["PERÍODO DE APURAÇÃO", formatarPeriodo(medicao.periodo)],
+    ["OBRA", medicao.obra || "-"],
+    ["DATA", dataBr(medicao.data_medicao)],
+  ];
+  const larguraColuna = (pageWidth - margin * 2) / dados.length;
+  doc.setFillColor(250, 251, 252);
+  doc.setDrawColor(...linha);
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 18, 2, 2, "FD");
+  dados.forEach(([rotulo, valor], indice) => {
+    const x = margin + 5 + indice * larguraColuna;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...cinza);
+    doc.text(rotulo, x, y + 6.5);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...escuro);
+    doc.text(doc.splitTextToSize(valor, larguraColuna - 8).slice(0, 1), x, y + 13);
+  });
+  y += 24;
+
+  const estiloTabela = {
+    theme: "grid" as const,
+    margin: { left: margin, right: margin, bottom: rodapeAltura + 6, top: 38 },
+    styles: { font: "helvetica", fontSize: 9, textColor: escuro, cellPadding: 3, lineColor: linha, lineWidth: 0.25, valign: "middle" as const },
+    headStyles: { fillColor: principal, textColor: [255, 255, 255] as Rgb, fontStyle: "bold" as const, halign: "center" as const, fontSize: 8 },
+    footStyles: { fillColor: [255, 245, 246] as Rgb, textColor: principal, fontStyle: "bold" as const, halign: "right" as const },
+  };
+
+  const subtitulo = (texto: string) => {
+    if (y + 20 > limite) {
+      doc.addPage("a4", "landscape");
+      cabecalho();
+      y = 40;
+    }
+    doc.setFillColor(...principal);
+    doc.roundedRect(margin, y - 4, 1.5, 6, 0.7, 0.7, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(...principal);
+    doc.text(texto, margin + 4, y + 0.5);
+    y += 4;
+  };
+
+  const porHora = placas.filter((p) => tipoDe(p) === TIPO_HORA);
+  const mensais = placas.filter((p) => tipoDe(p) !== TIPO_HORA);
+  const totalHora = porHora.reduce((soma, p) => soma + (Number(p.valor_calculado) || 0), 0);
+  const totalMensal = mensais.reduce((soma, p) => soma + (Number(p.valor_calculado) || 0), 0);
+  const mostrarSubtotais = porHora.length > 0 && mensais.length > 0;
+
+  const ultimoY = () => (doc as any).lastAutoTable.finalY as number;
+
+  // CONTRATO POR HORA — EQUIPAMENTO · PLACA · HR CONTRATADA · VALOR HORA · HORAS TRABALHADAS · TOTAL A RECEBER
+  if (porHora.length) {
+    subtitulo("CONTRATO POR HORA");
+    autoTable(doc, {
+      ...estiloTabela,
+      startY: y,
+      head: [["EQUIPAMENTO", "PLACA", "HR CONTRATADA", "VALOR HORA", "HORAS TRABALHADAS", "TOTAL A RECEBER"]],
+      body: porHora.map((p) => [
+        equipamentoDe(p),
+        p.placa,
+        p.horas_contratadas ? `${p.horas_contratadas}` : "-",
+        moeda(p.valor),
+        `${p.horas_trabalhadas ?? 0}`,
+        moeda(p.valor_calculado),
+      ]),
+      ...(mostrarSubtotais ? { foot: [["", "", "", "", "SUBTOTAL HORA", moeda(totalHora)]] } : {}),
+      columnStyles: {
+        0: { cellWidth: "auto" },
+        1: { halign: "center", cellWidth: 30 },
+        2: { halign: "center", cellWidth: 32 },
+        3: { halign: "right", cellWidth: 32 },
+        4: { halign: "center", cellWidth: 40 },
+        5: { halign: "right", cellWidth: 42, fontStyle: "bold" },
+      },
+    });
+    y = ultimoY() + 9;
   }
 
-  if (!documentoTerceiro && horasExtras > 0 && valorHoraExtra > 0) {
-    linhas.push(`
-      <tr>
-        <td>Horas extras (${horasExtras} × ${formatarValorPdf(valorHoraExtra)})</td>
-        <td class="valor">${formatarValorPdf(totalHorasExtras)}</td>
-      </tr>
-    `);
+  // CONTRATO MENSAL — EQUIPAMENTO · PLACA · VALOR MENSAL · DIAS MÊS · DIAS TRABALHADOS · TOTAL A RECEBER
+  if (mensais.length) {
+    subtitulo("CONTRATO MENSAL");
+    autoTable(doc, {
+      ...estiloTabela,
+      startY: y,
+      head: [["EQUIPAMENTO", "PLACA", "VALOR MENSAL", "DIAS MÊS", "DIAS TRABALHADOS", "TOTAL A RECEBER"]],
+      body: mensais.map((p) => [
+        equipamentoDe(p),
+        p.placa,
+        moeda(p.valor),
+        `${diasMes}`,
+        `${p.dias_trabalhados ?? 0}`,
+        moeda(p.valor_calculado),
+      ]),
+      ...(mostrarSubtotais ? { foot: [["", "", "", "", "SUBTOTAL MENSAL", moeda(totalMensal)]] } : {}),
+      columnStyles: {
+        0: { cellWidth: "auto" },
+        1: { halign: "center", cellWidth: 30 },
+        2: { halign: "right", cellWidth: 36 },
+        3: { halign: "center", cellWidth: 28 },
+        4: { halign: "center", cellWidth: 40 },
+        5: { halign: "right", cellWidth: 42, fontStyle: "bold" },
+      },
+    });
+    y = ultimoY() + 9;
   }
 
-  const html = `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-      <head>
-        <meta charset="UTF-8" />
-        <title>${documentoTerceiro ? "Terceiro-" : ""}Medicao-${escaparHtml(medicao.periodo || medicao.id)}</title>
-        <style>
-          @page { size: A4; margin: 0; }
-          * { box-sizing: border-box; }
-          body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111827; background: #fff; font-size: 12px; }
-          .pagina { min-height: 297mm; display: flex; flex-direction: column; padding: 22mm 13mm 0; }
-          .topo { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 17px; border-bottom: 4px solid ${corPrimaria}; }
-          .logo { max-width: 180px; max-height: 70px; object-fit: contain; }
-          .logo-fallback { max-width: 180px; color: ${corPrimaria}; font-size: 18px; font-weight: 800; }
-          .titulo { text-align: right; color: ${corPrimaria}; }
-          .titulo h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 1px; }
-          .titulo p { margin: 8px 0 0; color: #6b7280; font-size: 10px; letter-spacing: 2px; }
-          .conteudo { padding-top: 45px; }
-          .secao { margin-bottom: 25px; }
-          .secao-titulo { margin: 0 0 12px; padding-left: 10px; border-left: 4px solid ${corPrimaria}; color: ${corPrimaria}; font-size: 14px; font-weight: 800; text-transform: uppercase; }
-          .dados { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; font-size: 12px; }
-          .dados strong { font-weight: 700; }
-          table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
-          thead th { padding: 12px; background: ${corPrimaria}; color: #fff; font-size: 10px; text-align: center; text-transform: uppercase; }
-          tbody td { padding: 14px 12px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
-          tbody tr:last-child td { border-bottom: none; }
-          tbody tr:nth-child(even) { background: #fafafa; }
-          td.valor { width: 34%; text-align: right; font-weight: 700; }
-          .total td { background: ${corPrimaria}14; color: ${corPrimaria}; font-size: 14px; font-weight: 800; }
-          .total td:first-child { text-align: right; }
-          .rodape { margin-top: auto; margin-left: -13mm; margin-right: -13mm; padding: 25px 15px 18px; background: ${corSecundaria}; color: #fff; text-align: center; }
-          .rodape .marca { margin-bottom: 14px; font-size: 24px; font-weight: 900; font-style: italic; }
-          .rodape p { margin: 8px 0 0; font-size: 11px; }
-          .pagina-numero { margin-top: 12px; color: #cbd5e1; font-size: 9px; text-align: right; }
-          @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } .pagina { min-height: 297mm; } }
-        </style>
-      </head>
-      <body>
-        <div class="pagina">
-          <header class="topo">
-            ${logoEmpresa
-              ? `<img class="logo" src="${escaparHtml(logoEmpresa)}" alt="${escaparHtml(nomeEmpresa)}" />`
-              : empresa
-                ? `<strong class="logo-fallback">${escaparHtml(nomeEmpresa)}</strong>`
-                : '<img class="logo" src="/placeholder-logo.png" alt="MH3" />'}
-            <div class="titulo">
-              <h1>${documentoTerceiro ? "MEDIÇÃO DE TERCEIRO" : "MEDIÇÃO"}</h1>
-              <p>${documentoTerceiro ? "REPASSE DE TERCEIRO" : "LOCAÇÃO DE EQUIPAMENTO"}</p>
-            </div>
-          </header>
-          <main class="conteudo">
-            <section class="secao">
-              <h2 class="secao-titulo">Dados da medição</h2>
-              <div class="dados">
-                <div><strong>Cliente:</strong> ${escaparHtml(cliente)}</div>
-                ${ehTerceiro ? `<div><strong>Parceiro:</strong> ${escaparHtml(parceiro)}</div>` : ""}
-                <div><strong>Veículo/Placa:</strong> ${escaparHtml(placas)}</div>
-                <div><strong>Período:</strong> ${escaparHtml(periodo)}</div>
-                <div><strong>Mês Ref.:</strong> ${escaparHtml(medicao.periodo || "-")}</div>
-                ${dadosCobranca}
-              </div>
-            </section>
-            <section class="secao">
-              <h2 class="secao-titulo">${documentoTerceiro ? "Valor do terceiro" : "Valor a pagar"}</h2>
-              <table>
-                <thead><tr><th>Descrição</th><th class="valor">Valor</th></tr></thead>
-                <tbody>
-                  ${linhas.join("")}
-                  <tr class="total">
-                    <td>${documentoTerceiro ? "VALOR DO TERCEIRO" : "VALOR LÍQUIDO A PAGAR"}</td>
-                    <td class="valor">${formatarValorPdf(valorLiquido)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-          </main>
-          <footer class="rodape">
-            <div class="marca">${escaparHtml(nomeEmpresa)}</div>
-            <p>CNPJ: ${escaparHtml(cnpjEmpresa)}${enderecoEmpresa ? ` · ${escaparHtml(enderecoEmpresa)}` : ""}</p>
-            ${contatoEmpresa ? `<p>${escaparHtml(contatoEmpresa)}</p>` : ""}
-            <div class="pagina-numero">Emitido em ${escaparHtml(dataEmissao)} · Página 1 de 1</div>
-          </footer>
-        </div>
-        <script>window.onload = function () { window.print(); };</script>
-      </body>
-    </html>
-  `;
-
-  const janela = window.open("", "_blank");
-  if (!janela) {
-    alert("Não foi possível abrir a janela do PDF. Verifique se o navegador bloqueou o pop-up.");
-    return;
+  if (!placas.length) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...cinza);
+    doc.text("Nenhuma placa informada nesta medição.", margin, y + 4);
+    y += 12;
   }
-  janela.document.open();
-  janela.document.write(html);
-  janela.document.close();
+
+  // Ajustes: excedente, vendas/avarias, desconto do parceiro e total.
+  const vendas: Array<{ numero?: string; cliente?: string; total?: number | string; sinal_medicao?: string; placa_medicao?: string }> =
+    Array.isArray(medicao.vendas) ? medicao.vendas : [];
+  const excedente = Number(medicao.valor_excedente) || 0;
+  const desconto = Number(medicao.desconto_percentual) || 0;
+  const subtotalPlacas = totalHora + totalMensal;
+  const bruto = subtotalPlacas + excedente;
+  const valorDesconto = Math.round(bruto * (Math.min(Math.max(desconto, 0), 100) / 100) * 100) / 100;
+
+  const ajustes: string[][] = [];
+  ajustes.push(["Subtotal das placas", moeda(subtotalPlacas)]);
+  if (excedente > 0) ajustes.push(["Excedente", `+ ${moeda(excedente)}`]);
+  if (valorDesconto > 0) ajustes.push([`Desconto (${desconto}%)`, `- ${moeda(valorDesconto)}`]);
+  for (const venda of vendas) {
+    const sinal = venda.sinal_medicao === "-" ? "-" : "+";
+    ajustes.push([
+      `Venda/avaria ${venda.numero ?? ""}${venda.placa_medicao ? ` (${venda.placa_medicao})` : ""}`.trim(),
+      `${sinal} ${moeda(venda.total)}`,
+    ]);
+  }
+
+  autoTable(doc, {
+    ...estiloTabela,
+    startY: y,
+    tableWidth: 110,
+    margin: { ...estiloTabela.margin, left: pageWidth - margin - 110 },
+    body: ajustes,
+    foot: [["TOTAL A RECEBER", moeda(medicao.valor)]],
+    showHead: false,
+    columnStyles: { 0: { cellWidth: "auto" }, 1: { halign: "right", cellWidth: 42, fontStyle: "bold" } },
+  });
+  y = ultimoY() + 8;
+
+  if (medicao.observacoes) {
+    if (y + 16 > limite) {
+      doc.addPage("a4", "landscape");
+      cabecalho();
+      y = 40;
+    }
+    subtitulo("OBSERVAÇÕES");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...escuro);
+    const linhas = doc.splitTextToSize(String(medicao.observacoes), pageWidth - margin * 2);
+    doc.text(linhas, margin, y + 4);
+  }
+
+  const total = doc.getNumberOfPages();
+  for (let pagina = 1; pagina <= total; pagina++) {
+    doc.setPage(pagina);
+    rodape(pagina, total);
+  }
+
+  doc.setProperties({ title: `Medição ${medicao.numero ?? medicao.id}` });
+  doc.save(`${ehParceiro ? "Medicao-Parceiro" : "Medicao"}-${medicao.numero ?? medicao.id}.pdf`);
 }

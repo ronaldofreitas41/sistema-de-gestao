@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 import { auditar, descreverAlteracoes, NUMERACAO, proximoNumero } from "./audit";
+import { validarAutorizacaoExclusao } from "./permissoes-server";
 
 /** Campo de data usado pelo filtro ?mes= em cada tabela. */
 const FILTRO_MES: Record<string, string> = {
@@ -394,6 +395,9 @@ export async function update(
 
 export async function remove(table: string, id: Id, request?: Request) {
   try {
+    const erroAutorizacao = await validarAutorizacaoExclusao(request);
+    if (erroAutorizacao) return erroAutorizacao;
+
     const delegate = getDelegate(table);
     const recordId = normalizeId(table, id);
 

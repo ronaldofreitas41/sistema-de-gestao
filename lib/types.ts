@@ -102,6 +102,7 @@ export interface Cliente {
 
 export interface Ajuda_Motorista {
   id: string;
+  numero?: string | null;
   empresa: string;
   motorista: string;
   telefone: string;
@@ -365,6 +366,7 @@ export interface ContaReceber {
   conta_banco_id?: string | null;
   medicao_id?: string | null;
   prejuizo_id?: string | null;
+  venda_id?: string | null;
 }
 
 export interface Parceiro {

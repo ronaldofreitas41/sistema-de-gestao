@@ -67,11 +67,31 @@ export function Sidebar({
   const [collapsedState, setCollapsedState] = useState(false);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [saindo, setSaindo] = useState(false);
+  const [pendenciasQtd, setPendenciasQtd] = useState(0);
 
   const collapsed = collapsedProp ?? collapsedState;
 
   // Guarda quais grupos estão abertos.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  // Alerta de pendências: soma tudo o que o usuário pode ver (ajudas, documentos, seguros, pneus, contas).
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/pendencias", { credentials: "include" })
+      .then((resposta) => (resposta.ok ? resposta.json() : null))
+      .then((dados) => {
+        if (!ativo || !dados) return;
+        const total = ["ajudas", "documentos", "seguros", "pneus", "romaneios", "despesas"].reduce(
+          (soma, chave) => soma + (Array.isArray(dados[chave]) ? dados[chave].length : 0),
+          0,
+        );
+        setPendenciasQtd(total);
+      })
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+    };
+  }, [pathname]);
 
   useEffect(() => {
     try {
@@ -358,6 +378,11 @@ export function Sidebar({
                                 <Icon className="h-4.5 w-4.5 shrink-0" />
 
                                 <span className="truncate">{item.label}</span>
+                                {item.href === "/pendencias" && pendenciasQtd > 0 && (
+                                  <span className="ml-auto rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                                    {pendenciasQtd}
+                                  </span>
+                                )}
                               </Link>
                             </li>
                           );
@@ -393,6 +418,9 @@ export function Sidebar({
                           )}
                         >
                           <Icon className="h-4.5 w-4.5" />
+                          {item.href === "/pendencias" && pendenciasQtd > 0 && (
+                            <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-600" />
+                          )}
 
                           <span className="pointer-events-none absolute left-15.5 z-50 hidden whitespace-nowrap rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground shadow-lg group-hover:block">
                             {item.label}

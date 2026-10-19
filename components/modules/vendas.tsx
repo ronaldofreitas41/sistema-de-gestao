@@ -29,17 +29,20 @@ import {
   X,
   FileText,
   Trash,
+  MessageCircle,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import {
   deleteRegistro,
   formatCurrency,
   formatDate,
-  formatarData,
   getNomesClientes,
   getPlacas,
 } from "@/lib/utils";
 import { SortableListControls, useSortableData } from "@/components/ui/sortable-table";
+import { StatusSelect, type OpcaoStatus } from "@/components/ui/status-select";
+import { chamarApi, mensagemErro } from "@/lib/api-client";
+import { compartilharWhatsApp } from "@/lib/whatsapp";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -90,32 +93,29 @@ function gerarId() {
   return Math.random().toString(36).slice(2, 15);
 }
 
+const OPCOES_STATUS: OpcaoStatus[] = [
+  { value: "pendente", label: "Pendente", cor: "bg-amber-100 text-amber-800" },
+  { value: "faturada", label: "Faturada", cor: "bg-emerald-100 text-emerald-800" },
+  { value: "cancelado", label: "Cancelada", cor: "bg-red-100 text-red-700" },
+];
+
 function statusLabel(venda: Venda) {
-  if (venda.faturada && venda.em_medicao)
-    return {
-      label: "Liquidada MED",
-      color: "bg-blue-100 text-blue-700 border-blue-200",
-    };
-  if (venda.faturada)
-    return {
-      label: "Faturada",
-      color: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    };
-  if (venda.em_medicao)
-    return {
-      label: "A Faturar",
-      color: "bg-amber-100 text-amber-700 border-amber-200",
-    };
-  if (venda.status === "cancelado")
-    return {
-      label: "Cancelada",
-      color: "bg-red-100 text-red-700 border-red-200",
-    };
-  return {
-    label: "Pendente",
-    color: "bg-gray-100 text-gray-600 border-gray-200",
-  };
+  const opcao = OPCOES_STATUS.find((o) => o.value === venda.status) ?? OPCOES_STATUS[0];
+  return { label: opcao.label, color: opcao.cor };
 }
+
+const mensagemWhatsApp = (v: Venda) =>
+  [
+    `*Venda ${v.numero}* — MH3 Rental`,
+    `Cliente: ${v.cliente}`,
+    `Data: ${formatDate(v.data)}`,
+    ...v.items.map((i) => `• ${i.desc} (${i.qtd} x ${formatCurrency(i.val)})`),
+    v.desconto > 0 ? `Desconto: ${formatCurrency(v.desconto)}` : "",
+    `*Total: ${formatCurrency(v.total)}*`,
+    v.pagamento ? `Pagamento: ${v.pagamento}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
@@ -171,7 +171,7 @@ export function Vendas() {
   // ── Fetch ──
   async function fetchVendas() {
     try {
-      const res = await fetch("/api/vendas");
+      const res = await fetch("/api/vendas", { credentials: "include" });
       const data = await res.json();
       setVendas(Array.isArray(data) ? data : data.data || []);
     } catch (e) {
@@ -199,10 +199,10 @@ export function Vendas() {
   // ── Totais calculados ──
   const totais = useMemo(() => {
     const pagas = vendas
-      .filter((v) => v.faturada)
+      .filter((v) => v.status === "faturada")
       .reduce((a, v) => a + v.total, 0);
     const pendentes = vendas
-      .filter((v) => !v.faturada)
+      .filter((v) => v.status === "pendente")
       .reduce((a, v) => a + v.total, 0);
     return { pagas, pendentes, total: vendas.length };
   }, [vendas]);
@@ -217,10 +217,7 @@ export function Vendas() {
         v.placa_medicao?.toLowerCase().includes(term);
       const matchStatus =
         filtroStatus === "todos" ||
-        (filtroStatus === "faturada" && v.faturada && !v.em_medicao) ||
-        (filtroStatus === "a_faturar" && !v.faturada && v.em_medicao) ||
-        (filtroStatus === "liquidada" && v.faturada && v.em_medicao) ||
-        (filtroStatus === "pendente" && !v.faturada && !v.em_medicao);
+        v.status === filtroStatus;
       return matchSearch && matchStatus;
     });
   }, [vendas, search, filtroStatus]);
@@ -290,26 +287,30 @@ export function Vendas() {
     setViewDialogOpen(true);
   };
 
+  const [salvando, setSalvando] = useState(false);
+
   const handleSave = async () => {
-    const payload = {
-      ...formData,
-      data: formData.data || new Date().toISOString().slice(0, 10),
-    };
-    if (editingVenda) {
-      await fetch(`/api/vendas/${editingVenda.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/vendas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    if (salvando) return;
+    if (!formData.cliente.trim()) return alert("Informe o cliente da venda.");
+    if (!formData.data) return alert("Informe a data da venda.");
+    if (formData.items.length === 0) return alert("Adicione ao menos um item à venda.");
+    if (formData.em_medicao && !formData.placa_medicao?.trim()) {
+      return alert("Informe a placa da medição.");
     }
-    await fetchVendas();
-    setDialogOpen(false);
+    setSalvando(true);
+    try {
+      await chamarApi(
+        editingVenda ? `/api/vendas/${editingVenda.id}` : "/api/vendas",
+        editingVenda ? "PUT" : "POST",
+        formData,
+      );
+      await fetchVendas();
+      setDialogOpen(false);
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível salvar a venda."));
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -317,19 +318,17 @@ export function Vendas() {
     if (deletingId) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/vendas/${id}`);
+      if (!(await deleteRegistro(`/api/vendas/${id}`))) return;
       setVendas((prev) => prev.filter((v) => v.id !== id));
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível excluir a venda."));
     } finally {
       setDeletingId(null);
     }
   };
 
-  const handleFaturar = async (v: Venda) => {
-    await fetch(`/api/vendas/${v.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...v, faturada: true }),
-    });
+  const alterarStatus = async (v: Venda, status: string) => {
+    await chamarApi(`/api/vendas/${v.id}/status`, "POST", { status });
     await fetchVendas();
   };
 
@@ -423,10 +422,9 @@ export function Vendas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos os status</SelectItem>
-                <SelectItem value="faturada">Faturada</SelectItem>
-                <SelectItem value="a_faturar">A Faturar</SelectItem>
-                <SelectItem value="liquidada">Liquidada MED</SelectItem>
                 <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="faturada">Faturada</SelectItem>
+                <SelectItem value="cancelado">Cancelada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -563,11 +561,7 @@ export function Vendas() {
 
                     {/* Data */}
                     <div className="text-xs text-muted-foreground">
-                      {v.data
-                        ? new Date(v.data + "T00:00:00").toLocaleDateString(
-                          "pt-BR",
-                        )
-                        : "-"}
+                      {formatDate(v.data)}
                     </div>
 
                     {/* Itens */}
@@ -608,11 +602,11 @@ export function Vendas() {
 
                     {/* Status badge */}
                     <div>
-                      <span
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.color}`}
-                      >
-                        • {st.label}
-                      </span>
+                      <StatusSelect
+                        value={v.status}
+                        opcoes={OPCOES_STATUS}
+                        onChange={(novo) => alterarStatus(v, novo)}
+                      />
                     </div>
 
                     {/* Ações */}
@@ -625,7 +619,7 @@ export function Vendas() {
                         <Eye className="h-3.5 w-3.5" />
                       </button>
 
-                      {!v.faturada && (
+                      {v.status === "pendente" && (
                         <button
                           onClick={() => openEdit(v)}
                           className="p-1.5 rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
@@ -635,14 +629,13 @@ export function Vendas() {
                         </button>
                       )}
 
-                      {!v.faturada && (
-                        <button
-                          onClick={() => handleFaturar(v)}
-                          className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 transition-colors"
-                        >
-                          Faturar
-                        </button>
-                      )}
+                      <button
+                        onClick={() => compartilharWhatsApp(mensagemWhatsApp(v), v.contato)}
+                        className="p-1.5 rounded text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                        title="Compartilhar no WhatsApp"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </button>
 
                       <button
                         onClick={() => handleDelete(v.id)}
@@ -682,9 +675,7 @@ export function Vendas() {
                 <div>
                   <span className="text-muted-foreground block">Data</span>
                   <strong>
-                    {new Date(
-                      selectedVenda.data + "T00:00:00",
-                    ).toLocaleDateString("pt-BR")}
+                    {formatDate(selectedVenda.data)}
                   </strong>
                 </div>
                 <div>
@@ -692,11 +683,7 @@ export function Vendas() {
                     Vencimento
                   </span>
                   <strong>
-                    {selectedVenda.vencimento
-                      ? new Date(
-                        selectedVenda.vencimento + "T00:00:00",
-                      ).toLocaleDateString("pt-BR")
-                      : "-"}
+                    {formatDate(selectedVenda.vencimento)}
                   </strong>
                 </div>
                 <div>
@@ -879,25 +866,12 @@ export function Vendas() {
                 )}
               </div>
               <div className="space-y-1">
-                <Label>CPF / CNPJ (PARA DOCUMENTO NÃO FISCAL)</Label>
-                <Input
-                  placeholder="000.000.000-00 OU 00.000.000/0001-00"
-                  value={formData.documento || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, documento: e.target.value })
-                  }
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1">
                 <Label>DATA</Label>
                 <Input
-                  type="text"
-                  maxLength={10}
-                  placeholder="DD/MM/AAAA"
+                  type="date"
                   value={formData.data}
                   onChange={(e) =>
-                    setFormData({ ...formData, data: formatarData(e.target.value) })
+                    setFormData({ ...formData, data: e.target.value })
                   }
                   className="bg-input border-border"
                 />
@@ -931,28 +905,22 @@ export function Vendas() {
                     <SelectItem value="Cartão">Cartão</SelectItem>
                     <SelectItem value="Prazo 30d">Prazo 30d</SelectItem>
                     <SelectItem value="Prazo 60d">Prazo 60d</SelectItem>
-                    <SelectItem value="+ Acrescentar em medição">
-                      + Acrescentar em medição
-                    </SelectItem>
-                    <SelectItem value="- Descontar em medição">
-                      - Descontar em medição
-                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label>VENCIMENTO (A PRAZO)</Label>
-                <Input
-                  type="text"
-                  maxLength={10}
-                  placeholder="DD/MM/AAAA"
-                  value={formData.vencimento || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, vencimento: formatarData(e.target.value) })
-                  }
-                  className="bg-input border-border"
-                />
-              </div>
+              {!formData.em_medicao && ["Boleto", "Prazo 30d", "Prazo 60d"].includes(formData.pagamento || "") && (
+                <div className="space-y-1">
+                  <Label>VENCIMENTO</Label>
+                  <Input
+                    type="date"
+                    value={formData.vencimento || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, vencimento: e.target.value })
+                    }
+                    className="bg-input border-border"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Medição */}
@@ -1291,9 +1259,10 @@ export function Vendas() {
             </Button>
             <Button
               onClick={handleSave}
+              disabled={salvando}
               className="bg-primary text-primary-foreground"
             >
-              {editingVenda ? "Salvar alterações" : "Cadastrar Venda"}
+              {salvando ? "Salvando..." : editingVenda ? "Salvar alterações" : "Cadastrar Venda"}
             </Button>
           </div>
         </DialogContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Menu, Search, X, RotateCcw, Download, Eye, Edit, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Menu, Search, X, RotateCcw, Download, FileDown, MessageCircle, Eye, Edit, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,16 +13,24 @@ import { SortableTableHead, useSortableData } from "@/components/ui/sortable-tab
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { formatarData } from "@/lib/utils";
+import { deleteRegistro, formatarData } from "@/lib/utils";
 import { AnexoFotos } from "../ui/anexo-fotos";
 import { fotosDoGrupo, gruposFotos, GRUPOS_FOTOS_LEGADOS } from "@/lib/common";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
+import { StatusSelect } from "@/components/ui/status-select";
+import { compartilharWhatsApp } from "@/lib/whatsapp";
 import { Mobilizacao } from "@/lib/types";
 import { generateMobilizacaoPDF } from "../../lib/pdf/pdfMobilizacao";
 
 
 
 type MobilizacaoForm = Omit<Mobilizacao, "id">;
+
+const OPCOES_STATUS = [
+  { value: "ativo", label: "Em andamento", cor: "bg-amber-100 text-amber-800" },
+  { value: "concluido", label: "Concluída", cor: "bg-emerald-100 text-emerald-800" },
+  { value: "arquivado", label: "Arquivada", cor: "bg-slate-200 text-slate-700" },
+];
 
 const formularioInicial: MobilizacaoForm = {
   equipamento_id: "",
@@ -84,6 +92,26 @@ export function Mobilizacoes() {
   const [visualizacaoOpen, setVisualizacaoOpen] = useState(false);
   const [fotosExpandidas, setFotosExpandidas] = useState(false);
 
+
+  async function alterarStatus(mobilizacao: Mobilizacao, status: string) {
+    await chamarApi(`/api/mobilizacoes/${mobilizacao.id}`, "PATCH", { status });
+    await carregar();
+  }
+
+  function enviarWhatsApp(mobilizacao: Mobilizacao) {
+    compartilharWhatsApp(
+      [
+        `*${mobilizacao.codigo || `Mobilização ${mobilizacao.id}`}* — MH3 Rental`,
+        `Tipo: ${mobilizacao.tipo ? mobilizacao.tipo.split("(")[0].trim() : "-"}`,
+        `Contratante: ${mobilizacao.contratante || "-"}`,
+        `Equipamento: ${mobilizacao.marca_modelo || mobilizacao.tipo_equipamento || "-"}`,
+        `Origem: ${mobilizacao.local_origem || "-"}`,
+        `Destino: ${mobilizacao.local_destino || "-"}`,
+        `Saída: ${mobilizacao.data ? String(mobilizacao.data).slice(0, 10).split("-").reverse().join("/") : "-"}`,
+        "Segue o PDF da mobilização em anexo.",
+      ].join("\n"),
+    );
+  }
 
   function visualizar(mobilizacao: Mobilizacao) {
     setVisualizando(mobilizacao);
@@ -426,6 +454,7 @@ export function Mobilizacoes() {
                       <SortableTableHead<Mobilizacao> label="Saída" sortKey="data" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.data} />
                       <SortableTableHead<Mobilizacao> label="Chegada" sortKey="data_chegada" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.data_chegada} />
                       <SortableTableHead<Mobilizacao> label="Ciclo" sortKey="ciclo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.ciclo || "Contínuo"} />
+                      <SortableTableHead<Mobilizacao> label="Status" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(item) => item.status || "ativo"} />
                       <TableHead className="text-right text-xs font-semibold uppercase">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -465,6 +494,13 @@ export function Mobilizacoes() {
                               {mobilizacao.ciclo || "Contínuo"}
                             </Badge>
                           </TableCell>
+                          <TableCell>
+                            <StatusSelect
+                              value={mobilizacao.status || "ativo"}
+                              opcoes={OPCOES_STATUS}
+                              onChange={(novo) => alterarStatus(mobilizacao, novo)}
+                            />
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               <Button
@@ -475,7 +511,17 @@ export function Mobilizacoes() {
                                 aria-label="Baixar PDF da mobilização"
                                 className="h-8 w-8 hover:bg-green-50 hover:text-green-600"
                               >
-                                <Download className="h-4 w-4" />
+                                <FileDown className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => enviarWhatsApp(mobilizacao)}
+                                title="Compartilhar no WhatsApp"
+                                aria-label="Compartilhar no WhatsApp"
+                                className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
+                              >
+                                <MessageCircle className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -500,7 +546,7 @@ export function Mobilizacoes() {
                                   if (!window.confirm("Deseja realmente excluir esta mobilização?")) return;
                                   try {
                                     setExcluindo(mobilizacao.id);
-                                    await fetch(`/api/mobilizacoes/${mobilizacao.id}`, { method: "DELETE" });
+                                    if (!(await deleteRegistro(`/api/mobilizacoes/${mobilizacao.id}`))) return;
                                     await carregar();
                                   } catch (error) {
                                     console.error("Erro ao excluir:", error);

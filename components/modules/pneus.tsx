@@ -20,7 +20,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Ban, Edit, Menu, Plus, Printer, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { usuarioLogado, usuarioPode } from "@/lib/permissoes-client";
 import { useSortableData } from "@/components/ui/sortable-table";
@@ -272,7 +272,7 @@ export function Pneus() {
   async function excluir(p: Pneu) {
     if (!confirm(`Excluir o pneu ${p.numero}?`)) return;
     try {
-      await chamarApi(`/api/pneus/${p.id}`, "DELETE");
+      if (!(await deleteRegistro(`/api/pneus/${p.id}`))) return;
       await carregarTudo();
     } catch (erro) {
       alert(mensagemErro(erro, "Não foi possível excluir o pneu."));
@@ -323,7 +323,7 @@ export function Pneus() {
       )
       .join("");
     const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Romaneio ${r.numero}</title>
-      <style>body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #999;padding:6px 8px;font-size:12px;text-align:left}th{background:#eee}.meta{font-size:13px;margin:2px 0}.ass{margin-top:60px;display:flex;gap:40px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;font-size:12px;text-align:center}</style></head>
+      <style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #999;padding:6px 8px;font-size:12px;text-align:left}th{background:#eee}.meta{font-size:13px;margin:2px 0}.ass{margin-top:60px;display:flex;gap:40px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;font-size:12px;text-align:center}</style></head>
       <body><h1>Romaneio de saída para reforma ${r.numero ?? ""}</h1>
       <p class="meta"><strong>Reformadora:</strong> ${r.reformadora ?? ""}</p>
       <p class="meta"><strong>Data de saída:</strong> ${formatDate(r.data_saida)} &nbsp; <strong>Previsão de retorno:</strong> ${formatDate(r.previsao_retorno)}</p>
@@ -371,7 +371,7 @@ export function Pneus() {
   async function excluirRomaneio(r: Romaneio) {
     if (!confirm(`Excluir o romaneio ${r.numero}?`)) return;
     try {
-      await chamarApi(`/api/romaneios/${r.id}`, "DELETE");
+      if (!(await deleteRegistro(`/api/romaneios/${r.id}`))) return;
       await carregarTudo();
     } catch (erro) {
       alert(mensagemErro(erro));
@@ -544,7 +544,7 @@ export function Pneus() {
                                   <Ban className="h-4 w-4" />
                                 </Button>
                               )}
-                              {pode("pneus-excluir") && p.situacao === "estoque" && (
+                              {p.situacao === "estoque" && (
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Excluir" onClick={() => excluir(p)}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -581,12 +581,10 @@ export function Pneus() {
                       </span>
                       <Button size="sm" variant="outline" onClick={() => imprimirRomaneio(r)}><Printer className="mr-1 h-4 w-4" /> Imprimir</Button>
                       {pode("pneus-romaneio") && r.status === "aberto" && (
-                        <>
-                          <Button size="sm" onClick={() => abrirRetorno(r)}><RotateCcw className="mr-1 h-4 w-4" /> Lançar retorno</Button>
-                          {r.itens.every((i) => !i.resultado) && (
-                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => excluirRomaneio(r)}><Trash2 className="h-4 w-4" /></Button>
-                          )}
-                        </>
+                        <Button size="sm" onClick={() => abrirRetorno(r)}><RotateCcw className="mr-1 h-4 w-4" /> Lançar retorno</Button>
+                      )}
+                      {r.status === "aberto" && r.itens.every((i) => !i.resultado) && (
+                        <Button size="sm" variant="ghost" className="text-destructive" aria-label="Excluir romaneio" onClick={() => excluirRomaneio(r)}><Trash2 className="h-4 w-4" /></Button>
                       )}
                     </div>
                   </div>

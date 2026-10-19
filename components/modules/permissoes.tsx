@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { PermissoesToggles } from "@/components/ui/permissoes-toggles";
 import { permissoesModulosPadrao } from "@/lib/common";
 import { normalizarPermissoes } from "@/lib/utils";
@@ -28,6 +29,7 @@ export function Permissoes() {
   useEffect(() => { carregar().catch(console.error); }, []);
 
   const usuarioSelecionado = usuarios.find((usuario) => String(usuario.id) === usuarioId);
+  const administradorSelecionado = usuarioSelecionado?.perfil?.toLowerCase() === "admin";
 
   useEffect(() => {
     setPermissoes({ ...permissoesModulosPadrao, ...normalizarPermissoes(usuarioSelecionado?.permissoes) });
@@ -53,5 +55,5 @@ export function Permissoes() {
     }
   }
 
-  return <div className="min-h-screen bg-background p-4 text-foreground sm:p-6 lg:p-9"><div className="mx-auto w-full max-w-4xl space-y-6"><div><p className="mb-1 text-sm font-medium text-primary">Configurações</p><h1 className="text-3xl font-bold tracking-tight">Permissões de usuários</h1><p className="mt-2 text-sm text-muted-foreground">Defina os módulos e ações disponíveis para cada usuário.</p></div><Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" />Usuário</CardTitle></CardHeader><CardContent><Label htmlFor="usuario">Selecionar usuário</Label><Select value={usuarioId} onValueChange={setUsuarioId}><SelectTrigger id="usuario" className="mt-2"><SelectValue placeholder="Selecione um usuário" /></SelectTrigger><SelectContent>{usuarios.map((usuario) => <SelectItem key={String(usuario.id)} value={String(usuario.id)}>{usuario.nome} ({usuario.login})</SelectItem>)}</SelectContent></Select></CardContent></Card><Card><CardHeader><CardTitle>Permissões de acesso</CardTitle></CardHeader><CardContent className="space-y-4"><PermissoesToggles permissoes={permissoes} onChange={setPermissoes} /><div className="flex justify-end"><Button onClick={salvar} disabled={!usuarioSelecionado || salvando}><Save className="mr-2 h-4 w-4" />{salvando ? "Salvando..." : "Salvar permissões"}</Button></div></CardContent></Card></div></div>;
+  return <div className="min-h-screen bg-background p-4 text-foreground sm:p-6 lg:p-9"><div className="mx-auto w-full max-w-4xl space-y-6"><div><p className="mb-1 text-sm font-medium text-primary">Configurações</p><h1 className="text-3xl font-bold tracking-tight">Permissões de usuários</h1><p className="mt-2 text-sm text-muted-foreground">Defina os módulos e ações disponíveis para cada usuário.</p></div><Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" />Usuário</CardTitle></CardHeader><CardContent><Label htmlFor="usuario">Selecionar usuário</Label><Select value={usuarioId} onValueChange={setUsuarioId}><SelectTrigger id="usuario" className="mt-2"><SelectValue placeholder="Selecione um usuário" /></SelectTrigger><SelectContent>{usuarios.map((usuario) => <SelectItem key={String(usuario.id)} value={String(usuario.id)}>{usuario.nome} ({usuario.login})</SelectItem>)}</SelectContent></Select></CardContent></Card><Card><CardHeader><CardTitle>Permissões de acesso</CardTitle></CardHeader><CardContent className="space-y-4"><PermissoesToggles permissoes={permissoes} onChange={setPermissoes} /><div className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-3"><div className="space-y-1"><Label htmlFor="permissao-exclusao-autorizar">Autorizar exclusões</Label><p className="text-sm text-muted-foreground">{administradorSelecionado ? "Administradores sempre podem autorizar exclusões." : "Permite que este usuário confirme exclusões com seu login e senha."}</p></div><Switch id="permissao-exclusao-autorizar" aria-label="Autorizar exclusões" checked={administradorSelecionado || permissoes["exclusao:autorizar"] === true} disabled={administradorSelecionado} onCheckedChange={(valor) => setPermissoes((atual) => ({ ...atual, "exclusao:autorizar": valor }))} /></div><div className="flex justify-end"><Button onClick={salvar} disabled={!usuarioSelecionado || salvando}><Save className="mr-2 h-4 w-4" />{salvando ? "Salvando..." : "Salvar permissões"}</Button></div></CardContent></Card></div></div>;
 }

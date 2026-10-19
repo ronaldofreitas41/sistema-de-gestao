@@ -253,8 +253,10 @@ export const permissoesModulosPadrao: Permissoes = Object.fromEntries(
     [`${resource}:excluir`, false],
   ]),
 );
+permissoesModulosPadrao["exclusao:autorizar"] = false;
 
 export const permissoesPadrao: Permissoes = {
+  "exclusao:autorizar": false,
   dash: false,
   whatsapp: false,
   adm: false,

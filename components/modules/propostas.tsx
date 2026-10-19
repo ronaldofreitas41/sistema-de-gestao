@@ -29,7 +29,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { StatusSelect } from "@/components/ui/status-select";
+import { chamarApi } from "@/lib/api-client";
+import { compartilharWhatsApp } from "@/lib/whatsapp";
 import {
+  MessageCircle,
   FileText,
   Plus,
   Search,
@@ -185,6 +189,39 @@ export function Propostas() {
       ...propostas.map((proposta) => extrairNumeroProposta(proposta.numero)),
       0,
     ) + 1;
+
+  const OPCOES_STATUS = [
+    { value: "analise", label: "Em análise", cor: "bg-amber-100 text-amber-800" },
+    { value: "aprovada", label: "Aprovada", cor: "bg-blue-100 text-blue-800" },
+    { value: "assinado", label: "Contrato assinado", cor: "bg-emerald-100 text-emerald-800" },
+  ];
+
+  const statusDaProposta = (proposta: Proposta) =>
+    proposta.ctAssinado ? "assinado" : proposta.aprovada ? "aprovada" : "analise";
+
+  async function alterarStatus(proposta: Proposta, status: string) {
+    await chamarApi(`/api/propostas/${proposta.id}`, "PATCH", {
+      aprovada: status === "aprovada" || status === "assinado",
+      ctAssinado: status === "assinado",
+    });
+    await fetchPropostas();
+  }
+
+  function enviarWhatsApp(proposta: Proposta) {
+    compartilharWhatsApp(
+      [
+        `*Proposta ${proposta.numero}* — ${proposta.emitente || "MH3 Rental"}`,
+        `Contratante: ${proposta.contratante || "-"}`,
+        proposta.obra ? `Obra: ${proposta.obra}` : "",
+        `Equipamento: ${[proposta.veiculo, proposta.modelo].filter(Boolean).join(" ") || "-"}`,
+        proposta.valorFechado
+          ? `Valor: R$ ${Number(proposta.valorFechado).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+          : "",
+        proposta.validade ? `Validade: ${proposta.validade}` : "",
+        "Segue o PDF da proposta em anexo.",
+      ].filter(Boolean).join("\n"),
+    );
+  }
 
   async function fetchPropostas() {
     try {
@@ -417,7 +454,7 @@ export function Propostas() {
     if (deletingId !== null) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/propostas/${id}`);
+      if (!(await deleteRegistro(`/api/propostas/${id}`))) return;
       setPropostas((prev) => prev.filter((p) => p.id !== id));
       await fetchPropostas();
     } finally {
@@ -565,6 +602,7 @@ export function Propostas() {
                         onSort={toggleSort}
                         getValue={(item) => item.valorFechado}
                       />
+                      <TableHead className="text-muted-foreground">Status</TableHead>
                       <TableHead className="text-muted-foreground text-right">
                         Ações
                       </TableHead>
@@ -604,8 +642,25 @@ export function Propostas() {
                             })}`
                             : "-"}
                         </TableCell>
+                        <TableCell>
+                          <StatusSelect
+                            value={statusDaProposta(proposta)}
+                            opcoes={OPCOES_STATUS}
+                            onChange={(novo) => alterarStatus(proposta, novo)}
+                          />
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Compartilhar no WhatsApp"
+                              aria-label="Compartilhar no WhatsApp"
+                              className="h-8 w-8 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700"
+                              onClick={() => enviarWhatsApp(proposta)}
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"

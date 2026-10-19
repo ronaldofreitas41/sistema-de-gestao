@@ -162,7 +162,7 @@ export function Parceiros() {
     if (deletingId !== null) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/parceiros/${id}`);
+      if (!(await deleteRegistro(`/api/parceiros/${id}`))) return;
       setParceiros((prev) => prev.filter((p) => p.id !== id));
       await fetchParceiros();
     } finally {

@@ -11,7 +11,7 @@ export async function generateMobilizacaoPDF(
   const doc = new jsPDF({
     unit: "mm",
     format: "a4",
-    orientation: "portrait",
+    orientation: "landscape",
   });
 
   // ============================================================
@@ -29,8 +29,8 @@ export async function generateMobilizacaoPDF(
 
   const margin = 14;
 
-  const pageWidth = 210;
-  const pageHeight = 297;
+  const pageWidth = 297;
+  const pageHeight = 210;
 
   const contentWidth =
     pageWidth - margin * 2;
@@ -182,7 +182,7 @@ export async function generateMobilizacaoPDF(
   const addPage = () => {
     doc.addPage(
       "a4",
-      "portrait"
+      "landscape"
     );
 
     currentY = 42;

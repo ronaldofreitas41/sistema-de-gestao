@@ -184,7 +184,7 @@ export function ComponenteEstoque() {
     if (deletingId) return;
     setDeletingId(codigo);
     try {
-      await deleteRegistro(`/api/estoque/${codigo}`);
+      if (!(await deleteRegistro(`/api/estoque/${codigo}`))) return;
       setItens((prev) => prev.filter((i) => i.codigo !== codigo));
       await fetchEstoque();
     } finally {

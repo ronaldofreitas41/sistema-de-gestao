@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,8 @@ import {
   Plus,
   Search,
   Edit,
+  Eye,
+  Siren,
   Trash2,
   Menu,
   X,
@@ -44,14 +47,28 @@ import {
 import { Sidebar } from "@/components/layout/sidebar";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { PlacaInput } from "@/components/ui/placa-input";
-import { Ajuda_Motorista, ContasBancarias, Despesa, Usuario } from "@/lib/types";
-import { deleteRegistro, fetchContas, formatCurrency, formatDate, formatPhone, formatarData, getPlacas } from "@/lib/utils";
+import { Ajuda_Motorista, Despesa, Usuario } from "@/lib/types";
+import { deleteRegistro, formatCurrency, formatDate, formatPhone, formatarData, getPlacas } from "@/lib/utils";
 import {
   PageSizeSelect,
   PaginationControls,
   paginate,
 } from "@/components/ui/pagination";
 import { SortableTableHead, useSortableData } from "@/components/ui/sortable-table";
+
+type OcorrenciaPendente = {
+  ajudaId: string;
+  mes: string;
+  vencimento: string;
+  diasParaVencer: number;
+  motorista?: string | null;
+  empresa?: string | null;
+  placa?: string | null;
+  valor: number;
+};
+
+const prazoTexto = (dias: number) =>
+  dias < 0 ? `vencida há ${-dias} dia(s)` : dias === 0 ? "vence hoje" : `vence em ${dias} dia(s)`;
 
 export function ComponenteAjudaMotorista() {
   const [ajudas, setAjudas] = useState<Ajuda_Motorista[]>([]);
@@ -65,9 +82,35 @@ export function ComponenteAjudaMotorista() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [usuarioLogado, setUsuarioLogado] = useState<Usuario | null>(null);
-  const [contas, setContas] = useState<ContasBancarias[]>([]);
   const [placas, setPlacas] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [visualizando, setVisualizando] = useState<Ajuda_Motorista | null>(null);
+  const [pendentes, setPendentes] = useState<OcorrenciaPendente[]>([]);
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+
+  async function carregarPendentes() {
+    try {
+      const res = await fetch("/api/pendencias", { credentials: "include" });
+      if (!res.ok) return;
+      const dados = await res.json();
+      setPendentes(Array.isArray(dados.ajudas) ? dados.ajudas : []);
+    } catch (error) {
+      console.error("Erro ao carregar pendências de ajuda:", error);
+    }
+  }
+
+  async function confirmarOcorrencia(item: OcorrenciaPendente) {
+    const chave = `${item.ajudaId}-${item.mes}`;
+    setConfirmando(chave);
+    try {
+      await chamarApi("/api/pendencias", "POST", { acao: "confirmar_ajuda", ajudaId: item.ajudaId, mes: item.mes });
+      await Promise.all([carregarPendentes(), fetchAjudas()]);
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível confirmar a ajuda."));
+    } finally {
+      setConfirmando(null);
+    }
+  }
 
   useEffect(() => {
     try {
@@ -95,13 +138,9 @@ export function ComponenteAjudaMotorista() {
 
   useEffect(() => {
     fetchAjudas();
-    fetchContas().then(setContas);
+    carregarPendentes();
     getPlacas().then(setPlacas);
   }, []);
-
-  useEffect(() => {
-    console.log("Contas carregadas:", contas);
-  }, [contas]);
 
   const [formData, setFormData] = useState({
     empresa: "",
@@ -109,9 +148,6 @@ export function ComponenteAjudaMotorista() {
     telefone: "",
     valor: "",
     data: "",
-    agencia: "",
-    conta: "",
-    contaBancaria: "",
     forma_pagamento: "",
     pix: "",
     observacoes: "",
@@ -119,7 +155,6 @@ export function ComponenteAjudaMotorista() {
     recorrente: false,
     confirma_user: "",
     despesa_id: "",
-    conta_banco_id: "",
   });
 
   const filteredAjudas = ajudas.filter((a) => {
@@ -157,9 +192,6 @@ export function ComponenteAjudaMotorista() {
       telefone: "",
       valor: "",
       data: "",
-      agencia: "",
-      conta: "",
-      contaBancaria: "",
       forma_pagamento: "PIX",
       pix: "",
       observacoes: "",
@@ -167,7 +199,6 @@ export function ComponenteAjudaMotorista() {
       recorrente: false,
       confirma_user: usuarioLogado?.nome || usuarioLogado?.login || "",
       despesa_id: "",
-      conta_banco_id: "",
     });
     setDialogOpen(true);
   };
@@ -180,9 +211,6 @@ export function ComponenteAjudaMotorista() {
       telefone: ajuda.telefone || "",
       valor: ajuda.valor ? String(ajuda.valor) : "",
       data: ajuda.data ? ajuda.data.split("T")[0] : "",
-      agencia: ajuda.agencia || "",
-      conta: ajuda.conta || "",
-      contaBancaria: ajuda.contaBancaria || ajuda.conta || "",
       forma_pagamento: ajuda.forma_pagamento || "PIX",
       pix: ajuda.pix || "",
       observacoes: ajuda.observacoes || "",
@@ -190,7 +218,6 @@ export function ComponenteAjudaMotorista() {
       recorrente: ajuda.recorrente ?? false,
       confirma_user: ajuda.confirma_user || "",
       despesa_id: ajuda.despesa_id || "",
-      conta_banco_id: ajuda.conta_banco_id || "",
     });
     setDialogOpen(true);
   };
@@ -225,7 +252,7 @@ export function ComponenteAjudaMotorista() {
     if (deletingId) return;
     setDeletingId(id);
     try {
-      await deleteRegistro(`/api/ajudas-motorista/${id}`);
+      if (!(await deleteRegistro(`/api/ajudas-motorista/${id}`))) return;
       setAjudas((prev) => prev.filter((a) => a.id !== id));
       await fetchAjudas();
     } finally {
@@ -295,6 +322,47 @@ export function ComponenteAjudaMotorista() {
         </header>
 
         <main className="mx-auto w-full max-w-375 space-y-6 p-4 sm:p-6 lg:p-9">
+          {/* Painel de alerta: ajudas recorrentes a confirmar */}
+          <section
+            className={`rounded-xl border p-4 ${
+              pendentes.length ? "border-amber-300 bg-amber-50" : "border-emerald-200 bg-emerald-50"
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Siren className={`h-4 w-4 ${pendentes.length ? "text-amber-600" : "text-emerald-600"}`} />
+                {pendentes.length
+                  ? `Pendências de ajuda de custo (${pendentes.length})`
+                  : "Nenhuma ajuda de custo pendente de confirmação"}
+              </h2>
+              <Link href="/pendencias" className="text-xs font-medium text-primary underline">
+                Ver painel de pendências
+              </Link>
+            </div>
+            {pendentes.length > 0 && (
+              <ul className="mt-3 divide-y divide-amber-200">
+                {pendentes.map((item) => {
+                  const chave = `${item.ajudaId}-${item.mes}`;
+                  return (
+                    <li key={chave} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm text-slate-900">
+                      <span>
+                        <strong>{item.motorista || "Motorista"}</strong>
+                        {item.empresa ? ` · ${item.empresa}` : ""}
+                        {item.placa ? ` · ${item.placa}` : ""} — {formatCurrency(item.valor)} —{" "}
+                        <span className={item.diasParaVencer < 0 ? "font-semibold text-red-600" : ""}>
+                          {formatDate(item.vencimento)} ({prazoTexto(item.diasParaVencer)})
+                        </span>
+                      </span>
+                      <Button size="sm" disabled={confirmando === chave} onClick={() => confirmarOcorrencia(item)}>
+                        {confirmando === chave ? "Confirmando..." : "Confirmar ajuda"}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
           {/* Filters */}
           <Card className="bg-card border-border">
             <CardContent className="pt-6">
@@ -392,6 +460,16 @@ export function ComponenteAjudaMotorista() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              title="Visualizar lançamento"
+                              aria-label="Visualizar lançamento"
+                              className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                              onClick={() => setVisualizando(ajuda)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-100"
                               onClick={() => openEditAjuda(ajuda)}
                             >
@@ -425,6 +503,48 @@ export function ComponenteAjudaMotorista() {
           </Card>
         </main>
       </div>
+
+      {/* Visualização (lupa) */}
+      <Dialog open={!!visualizando} onOpenChange={(aberto) => !aberto && setVisualizando(null)}>
+        <DialogContent className="bg-card border-border max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              Ajuda de custo {visualizando?.numero ?? ""}
+            </DialogTitle>
+            <DialogDescription>Detalhes do lançamento.</DialogDescription>
+          </DialogHeader>
+          {visualizando && (
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              {[
+                ["Motorista", visualizando.motorista],
+                ["Empresa", visualizando.empresa],
+                ["Placa", visualizando.placa],
+                ["Telefone", visualizando.telefone],
+                ["Data / vencimento", formatDate(visualizando.data)],
+                ["Valor", formatCurrency(Number(visualizando.valor) || 0)],
+                ["Forma de pagamento", visualizando.forma_pagamento],
+                ["Chave PIX", visualizando.pix],
+                ["Recorrente", visualizando.recorrente ? "Sim (todo mês)" : "Não"],
+                ["Confirmado por", visualizando.confirma_user],
+              ].map(([rotulo, valor]) => (
+                <div key={String(rotulo)}>
+                  <dt className="text-xs text-muted-foreground">{rotulo}</dt>
+                  <dd className="font-medium text-foreground">{valor || "-"}</dd>
+                </div>
+              ))}
+              {visualizando.observacoes && (
+                <div className="col-span-2">
+                  <dt className="text-xs text-muted-foreground">Observações</dt>
+                  <dd className="whitespace-pre-wrap font-medium text-foreground">{visualizando.observacoes}</dd>
+                </div>
+              )}
+            </dl>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setVisualizando(null)}>Fechar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal / Dialog de Cadastro/Edição */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -590,44 +710,6 @@ export function ComponenteAjudaMotorista() {
                     className="pl-9 bg-input border-border"
                   />
                 </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="contaBancaria" className="text-foreground">
-                  Conta Bancária / Agência
-                </Label>
-                <Select
-                  value={formData.conta_banco_id}
-                  onValueChange={(value) => {
-                    const contaSelecionada = contas.find(
-                      (contaBancaria) => contaBancaria.id === value,
-                    );
-
-                    setFormData({
-                      ...formData,
-                      contaBancaria: contaSelecionada?.conta || "",
-                      conta: contaSelecionada?.conta || "",
-                      agencia: contaSelecionada?.agencia || "",
-                      conta_banco_id: contaSelecionada?.id || "",
-                    });
-                  }}
-                >
-                  <SelectTrigger id="contaBancaria" className="bg-input border-border">
-                    <SelectValue placeholder="Selecione a conta bancária" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contas.map((contaBancaria) => (
-                      <SelectItem
-                        key={contaBancaria.id}
-                        value={contaBancaria.id}
-                      >
-                        {contaBancaria.nome || contaBancaria.banco} - Agência {contaBancaria.agencia} - Conta {contaBancaria.conta}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </div>
 

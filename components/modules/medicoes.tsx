@@ -2,15 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  BadgeCheck,
   Calculator,
   Edit,
   FileDown,
   Menu,
+  MessageCircle,
   Plus,
   Search,
   Trash2,
-  Undo2,
   X,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -51,7 +50,9 @@ import {
 } from "@/lib/medicoes";
 import { gerarPdfMedicao } from "@/lib/pdf/pdfMedicao";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
-import { formatCurrency, getPlacas } from "@/lib/utils";
+import { StatusSelect } from "@/components/ui/status-select";
+import { compartilharWhatsApp } from "@/lib/whatsapp";
+import { deleteRegistro, formatCurrency, getPlacas } from "@/lib/utils";
 
 const TIPO_HORA = "Valor por Hora";
 const TIPO_MENSAL = "Valor Mensal";
@@ -70,6 +71,8 @@ type VendaApi = VendaMedicao & { em_medicao: boolean; status?: string | null };
 type MedicaoApi = Omit<Medicao, "placas"> & {
   placas: Array<string | PlacaMedicao>;
   cliente_id?: string | number | null;
+  cliente_nome?: string | null;
+  obra?: string | null;
   empresa_id?: string | number | null;
   tipo_cobranca?: string | null;
   dias_mes?: string | number | null;
@@ -100,12 +103,28 @@ type PlacaForm = {
   valor: string;
   quantidade: string;
   valor_parceiro: string;
+  /** Modalidade da placa (só na frota; na parceria vale a do contrato). */
+  tipo: string;
+  equipamento: string;
+  horas_contratadas: string;
 };
+
+const placaVazia = (): PlacaForm => ({
+  placa: "",
+  valor: "",
+  quantidade: "",
+  valor_parceiro: "",
+  tipo: "",
+  equipamento: "",
+  horas_contratadas: "",
+});
 
 type FormState = {
   empresa_id: string;
   modalidade: "" | "frota" | "parceria";
   cliente_id: string;
+  cliente_nome: string;
+  obra: string;
   data_medicao: string;
   periodo_inicio: string;
   periodo_fim: string;
@@ -171,6 +190,8 @@ function formularioInicial(): FormState {
     empresa_id: "",
     modalidade: "",
     cliente_id: "",
+    cliente_nome: "",
+    obra: "",
     data_medicao: hojeISO(),
     periodo_inicio: intervalo.inicio,
     periodo_fim: intervalo.fim,
@@ -194,16 +215,10 @@ function formularioInicial(): FormState {
   };
 }
 
-const ROTULO_STATUS: Record<string, string> = {
-  aguardando: "Aguardando",
-  aprovado: "Aprovado",
-  cancelado: "Cancelado",
-};
-const COR_STATUS: Record<string, string> = {
-  aguardando: "bg-amber-100 text-amber-800",
-  aprovado: "bg-emerald-100 text-emerald-800",
-  cancelado: "bg-slate-200 text-slate-700",
-};
+const OPCOES_STATUS = [
+  { value: "aguardando", label: "Aguardando", cor: "bg-amber-100 text-amber-800" },
+  { value: "aprovado", label: "Aprovado", cor: "bg-emerald-100 text-emerald-800" },
+];
 
 function ListaVendas({
   titulo,
@@ -292,7 +307,8 @@ export function Medicoes() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MedicaoApi | null>(null);
   const [form, setForm] = useState<FormState>(formularioInicial);
-  const [novaPlaca, setNovaPlaca] = useState<PlacaForm>({ placa: "", valor: "", quantidade: "", valor_parceiro: "" });
+  const [novaPlaca, setNovaPlaca] = useState<PlacaForm>(placaVazia);
+  const [equipamentosPorPlaca, setEquipamentosPorPlaca] = useState<Record<string, string>>({});
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [processandoId, setProcessandoId] = useState<string | null>(null);
@@ -316,6 +332,18 @@ export function Medicoes() {
         })
         .catch((erro) => console.error(erro));
     carregarLista("/api/parceiros", setParceiros);
+    carregarLista("/api/equipamentos", (lista) =>
+      setEquipamentosPorPlaca(
+        Object.fromEntries(
+          lista
+            .filter((e) => e.placa)
+            .map((e) => [
+              String(e.placa).toUpperCase().replace(/\s+/g, ""),
+              [e.tipo, e.marca, e.modelo].filter(Boolean).join(" ") || "Equipamento",
+            ]),
+        ),
+      ),
+    );
     carregarLista("/api/clientes", setClientes);
     carregarLista("/api/empresas", setEmpresas);
     carregarLista("/api/vendas", setVendas);
@@ -324,18 +352,22 @@ export function Medicoes() {
   const campo = <K extends keyof FormState>(chave: K, valor: FormState[K]) =>
     setForm((atual) => ({ ...atual, [chave]: valor }));
 
-  const ehHora = form.tipo_cobranca === TIPO_HORA;
-  const ehMensal = form.tipo_cobranca === TIPO_MENSAL;
   const ehParceria = form.modalidade === "parceria";
   const diasMes = Number(form.dias_mes) || 30;
 
-  function valorLinha(valorUnitario: string, quantidade: string) {
-    if (!form.tipo_cobranca) return 0;
-    return calcularValorPlaca(Number(valorUnitario) || 0, form.tipo_cobranca, diasMes, Number(quantidade) || 0);
+  /** Na parceria vale o tipo único do contrato; na frota cada placa tem o seu. */
+  const tipoDaPlaca = (p: PlacaForm) => (ehParceria ? form.tipo_cobranca : p.tipo);
+  const tipoNova = tipoDaPlaca(novaPlaca);
+  const ehHora = tipoNova === TIPO_HORA;
+  const algumaMensal = tipoNova === TIPO_MENSAL || form.placas.some((p) => tipoDaPlaca(p) === TIPO_MENSAL);
+
+  function valorLinha(valorUnitario: string, quantidade: string, tipo: string) {
+    if (!tipo) return 0;
+    return calcularValorPlaca(Number(valorUnitario) || 0, tipo, diasMes, Number(quantidade) || 0);
   }
 
-  const subtotalContratante = form.placas.reduce((t, p) => t + valorLinha(p.valor, p.quantidade), 0);
-  const subtotalParceiro = form.placas.reduce((t, p) => t + valorLinha(p.valor_parceiro, p.quantidade), 0);
+  const subtotalContratante = form.placas.reduce((t, p) => t + valorLinha(p.valor, p.quantidade, tipoDaPlaca(p)), 0);
+  const subtotalParceiro = form.placas.reduce((t, p) => t + valorLinha(p.valor_parceiro, p.quantidade, tipoDaPlaca(p)), 0);
   const excedente = Number(form.valor_excedente) || 0;
   const totaisContratante = totalMedicao(subtotalContratante, excedente, 0, form.vendas);
   const totaisParceiro = totalMedicao(
@@ -379,30 +411,34 @@ export function Medicoes() {
 
   function alterarModalidade(valor: "frota" | "parceria") {
     setForm((atual) => ({ ...atual, modalidade: valor, placas: [] }));
-    setNovaPlaca({ placa: "", valor: "", quantidade: "", valor_parceiro: "" });
+    setNovaPlaca(placaVazia());
   }
 
   function adicionarPlaca() {
     const placa = novaPlaca.placa.trim().toUpperCase().replace(/\s+/g, "");
     if (!form.modalidade) return alert("Selecione primeiro se a medição é com frota ou com parceria.");
-    if (!form.tipo_cobranca) return alert("Selecione o tipo de lançamento (hora ou mensal).");
+    if (!tipoNova) {
+      return alert(ehParceria ? "Selecione o tipo de lançamento (hora ou mensal)." : "Selecione o tipo de contrato da placa (hora ou mensal).");
+    }
     if (!placa) return alert("Informe a placa.");
     if (form.modalidade === "frota" && !placasFrota.some((p) => p.toUpperCase().replace(/\s+/g, "") === placa)) {
       return alert("Para medição com frota, a placa deve estar cadastrada na frota.");
     }
     if (form.placas.some((p) => p.placa === placa)) return alert("Esta placa já foi adicionada.");
     if (!(Number(novaPlaca.valor) > 0)) return alert(ehHora ? "Informe o valor da hora." : "Informe o valor mensal.");
+    if (!(Number(novaPlaca.quantidade) > 0)) return alert(ehHora ? "Informe as horas trabalhadas." : "Informe os dias trabalhados.");
     if (ehParceria && !(Number(novaPlaca.valor_parceiro) >= 0 && novaPlaca.valor_parceiro !== "")) {
       return alert("Informe o valor do parceiro para esta placa.");
     }
-    setForm((atual) => ({ ...atual, placas: [...atual.placas, { ...novaPlaca, placa }] }));
-    setNovaPlaca({ placa: "", valor: "", quantidade: "", valor_parceiro: "" });
+    const equipamento = novaPlaca.equipamento.trim() || equipamentosPorPlaca[placa] || "";
+    setForm((atual) => ({ ...atual, placas: [...atual.placas, { ...novaPlaca, placa, tipo: tipoNova, equipamento }] }));
+    setNovaPlaca(placaVazia());
   }
 
   function novaMedicao() {
     setEditing(null);
     setForm(formularioInicial());
-    setNovaPlaca({ placa: "", valor: "", quantidade: "", valor_parceiro: "" });
+    setNovaPlaca(placaVazia());
     setDialogOpen(true);
   }
 
@@ -414,19 +450,27 @@ export function Medicoes() {
       (m) => m.papel === "parceiro" && String(m.medicao_principal_id) === String(principal.id),
     );
     const intervalo = separarPeriodo(principal.periodo);
-    const tipo = (principal.tipo_cobranca || "") as FormState["tipo_cobranca"];
+    const tipo = (principal.tipo_cobranca === "Misto" ? "" : principal.tipo_cobranca || "") as FormState["tipo_cobranca"];
     const placasParceiro = parceiro ? obterPlacasMedicao(parceiro.placas) : [];
-    const placas: PlacaForm[] = obterPlacasMedicao(principal.placas).map((p) => ({
-      placa: p.placa,
-      valor: String(p.valor ?? ""),
-      quantidade: String(tipo === TIPO_HORA ? p.horas_trabalhadas ?? "" : p.dias_trabalhados ?? ""),
-      valor_parceiro: String(placasParceiro.find((pp) => pp.placa === p.placa)?.valor ?? ""),
-    }));
+    const placas: PlacaForm[] = obterPlacasMedicao(principal.placas).map((p) => {
+      const tipoPlaca = p.tipo_cobranca || principal.tipo_cobranca || "";
+      return {
+        placa: p.placa,
+        valor: String(p.valor ?? ""),
+        quantidade: String(tipoPlaca === TIPO_HORA ? p.horas_trabalhadas ?? "" : p.dias_trabalhados ?? ""),
+        valor_parceiro: String(placasParceiro.find((pp) => pp.placa === p.placa)?.valor ?? ""),
+        tipo: tipoPlaca,
+        equipamento: p.equipamento || "",
+        horas_contratadas: p.horas_contratadas ? String(p.horas_contratadas) : "",
+      };
+    });
     setEditing(principal);
     setForm({
       empresa_id: principal.empresa_id == null ? "" : String(principal.empresa_id),
       modalidade: (principal.modalidade === "parceria" ? "parceria" : "frota"),
       cliente_id: principal.cliente_id == null ? "" : String(principal.cliente_id),
+      cliente_nome: principal.cliente_nome || "",
+      obra: principal.obra || "",
       data_medicao: principal.data_medicao?.slice(0, 10) || hojeISO(),
       periodo_inicio: intervalo.inicio,
       periodo_fim: intervalo.fim,
@@ -448,19 +492,21 @@ export function Medicoes() {
       parceiro_corretor_valor: Number(parceiro?.corretor_valor) ? String(parceiro?.corretor_valor) : "",
       parceiro_observacoes: parceiro?.observacoes || "",
     });
-    setNovaPlaca({ placa: "", valor: "", quantidade: "", valor_parceiro: "" });
+    setNovaPlaca(placaVazia());
     setDialogOpen(true);
   }
 
   async function salvar() {
     if (!form.empresa_id) return alert("Selecione a empresa do grupo.");
     if (!form.modalidade) return alert("Informe se a medição é com parceria ou com frota cadastrada.");
-    if (!form.tipo_cobranca) return alert("Selecione o tipo de lançamento: por hora ou mensal.");
     if (!form.placas.length) return alert("Adicione ao menos uma placa.");
     if (!form.data_vencimento) return alert("Informe o vencimento da medição.");
+    if (form.placas.some((p) => !tipoDaPlaca(p))) return alert("Informe se cada placa é por hora ou mensal.");
     if (form.placas.some((p) => !(Number(p.quantidade) > 0))) {
-      return alert(ehHora ? "Informe as horas trabalhadas de cada placa." : "Informe os dias trabalhados de cada placa.");
+      return alert("Informe as horas ou os dias trabalhados de cada placa.");
     }
+    const tiposUsados = [...new Set(form.placas.map(tipoDaPlaca))];
+    const tipoMedicao = tiposUsados.length > 1 ? "Misto" : tiposUsados[0];
     if (ehParceria) {
       if (!form.parceiro.trim()) return alert("Informe o parceiro.");
       if (!form.parceiro_vencimento) return alert("Informe o vencimento da medição do parceiro.");
@@ -469,15 +515,27 @@ export function Medicoes() {
     const payload = {
       modalidade: form.modalidade,
       empresa_id: form.empresa_id,
-      cliente_id: form.cliente_id || null,
-      tipo_cobranca: form.tipo_cobranca,
-      dias_mes: ehMensal ? diasMes : null,
-      placas: form.placas.map((p) => ({
-        placa: p.placa,
-        valor: Number(p.valor) || 0,
-        ...(ehMensal ? { dias_trabalhados: Number(p.quantidade) || 0 } : { horas_trabalhadas: Number(p.quantidade) || 0 }),
-        ...(ehParceria ? { valor_parceiro: Number(p.valor_parceiro) || 0 } : {}),
-      })),
+      cliente_id: form.cliente_nome.trim() ? null : form.cliente_id || null,
+      cliente_nome: form.cliente_nome.trim(),
+      obra: form.obra.trim(),
+      tipo_cobranca: tipoMedicao,
+      dias_mes: algumaMensal ? diasMes : null,
+      placas: form.placas.map((p) => {
+        const tipoPlaca = tipoDaPlaca(p);
+        return {
+          placa: p.placa,
+          equipamento: p.equipamento || equipamentosPorPlaca[p.placa] || "",
+          tipo_cobranca: tipoPlaca,
+          valor: Number(p.valor) || 0,
+          ...(tipoPlaca === TIPO_MENSAL
+            ? { dias_trabalhados: Number(p.quantidade) || 0 }
+            : {
+                horas_trabalhadas: Number(p.quantidade) || 0,
+                ...(Number(p.horas_contratadas) > 0 ? { horas_contratadas: Number(p.horas_contratadas) } : {}),
+              }),
+          ...(ehParceria ? { valor_parceiro: Number(p.valor_parceiro) || 0 } : {}),
+        };
+      }),
       valor_excedente: excedente,
       vendas: form.vendas.map((v) => ({ id: v.id })),
       data_medicao: form.data_medicao,
@@ -519,7 +577,7 @@ export function Medicoes() {
     if (!confirm("Excluir esta medição (e a medição do parceiro vinculada)?")) return;
     setProcessandoId(String(medicao.id));
     try {
-      await chamarApi(`/api/medicoes/${principalId}`, "DELETE");
+      if (!(await deleteRegistro(`/api/medicoes/${principalId}`))) return;
       await carregar();
     } catch (erro) {
       alert(mensagemErro(erro, "Não foi possível excluir a medição."));
@@ -538,8 +596,6 @@ export function Medicoes() {
     try {
       await chamarApi(`/api/medicoes/${medicao.id}/acao`, "POST", { acao: "aprovar" });
       await carregar();
-    } catch (erro) {
-      alert(mensagemErro(erro));
     } finally {
       setProcessandoId(null);
     }
@@ -552,17 +608,41 @@ export function Medicoes() {
     try {
       await chamarApi(`/api/medicoes/${medicao.id}/acao`, "POST", { acao: "retornar", motivo });
       await carregar();
-    } catch (erro) {
-      alert(mensagemErro(erro));
     } finally {
       setProcessandoId(null);
     }
   }
 
   function gerarPdf(medicao: MedicaoApi) {
-    const cliente = clientes.find((item) => String(item.id) === String(medicao.cliente_id))?.nome || "";
+    const cliente =
+      medicao.cliente_nome?.trim() ||
+      clientes.find((item) => String(item.id) === String(medicao.cliente_id))?.nome ||
+      "";
     const empresa = empresas.find((item) => String(item.id) === String(medicao.empresa_id));
-    gerarPdfMedicao({ ...medicao, cliente, empresa });
+    gerarPdfMedicao({ ...medicao, cliente, empresa }, equipamentosPorPlaca);
+  }
+
+  function enviarWhatsApp(medicao: MedicaoApi) {
+    const placas = obterPlacasMedicao(medicao.placas).map((p) => p.placa).join(", ") || "-";
+    const quem = medicao.papel === "parceiro"
+      ? `Parceiro: ${medicao.parceiro || "-"}`
+      : `Contratante: ${medicao.cliente_nome?.trim() || clientes.find((c) => String(c.id) === String(medicao.cliente_id))?.nome || "-"}`;
+    compartilharWhatsApp(
+      [
+        `*Medição ${medicao.numero}* — ${nomeEmpresa(medicao.empresa_id)}`,
+        quem,
+        medicao.obra ? `Obra: ${medicao.obra}` : "",
+        `Período: ${formatarPeriodoExibicao(medicao.periodo)}`,
+        `Placas: ${placas}`,
+        `*Total: ${formatCurrency(Number(medicao.valor || 0))}*`,
+        "Segue o PDF da medição em anexo.",
+      ].filter(Boolean).join("\n"),
+    );
+  }
+
+  async function alterarStatus(medicao: MedicaoApi, novo: string) {
+    if (novo === "aprovado") return aprovar(medicao);
+    if (novo === "aguardando") return retornar(medicao);
   }
 
   const nomeEmpresa = (id?: string | number | null) => {
@@ -663,7 +743,6 @@ export function Medicoes() {
                       <SortableTableHead<MedicaoApi> label="Tipo" sortKey="papel" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(m) => m.papel} />
                       <SortableTableHead<MedicaoApi> label="Empresa" sortKey="empresa" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(m) => nomeEmpresa(m.empresa_id)} />
                       <SortableTableHead<MedicaoApi> label="Placas" sortKey="placas" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(m) => obterPlacasMedicao(m.placas).map((p) => p.placa).join(", ")} />
-                      <SortableTableHead<MedicaoApi> label="Parceiro" sortKey="parceiro" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(m) => m.parceiro} />
                       <SortableTableHead<MedicaoApi> label="Período" sortKey="periodo" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(m) => m.periodo || m.data_medicao} />
                       <SortableTableHead<MedicaoApi> label="Vencimento" sortKey="data_vencimento" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(m) => m.data_vencimento} />
                       <SortableTableHead<MedicaoApi> label="Valor" sortKey="valor" activeSortKey={sortKey} direction={sortDirection} onSort={toggleSort} getValue={(m) => Number(m.valor || 0)} />
@@ -675,7 +754,6 @@ export function Medicoes() {
                     {medicoesOrdenadas.map((medicao) => {
                       const ehParceiro = medicao.papel === "parceiro";
                       const aguardando = medicao.status === "aguardando";
-                      const aprovada = medicao.status === "aprovado";
                       const bloqueadaPorContratante = ehParceiro && aguardando && !principalAprovada(medicao);
                       return (
                         <TableRow key={medicao.id}>
@@ -685,37 +763,29 @@ export function Medicoes() {
                           <TableCell>
                             {obterPlacasMedicao(medicao.placas).map((p) => p.placa).join(", ") || "-"}
                           </TableCell>
-                          <TableCell>{medicao.parceiro || "-"}</TableCell>
                           <TableCell>{formatarPeriodoExibicao(medicao.periodo)}</TableCell>
                           <TableCell>
                             {medicao.data_vencimento ? medicao.data_vencimento.slice(0, 10).split("-").reverse().join("/") : "-"}
                           </TableCell>
                           <TableCell>{formatCurrency(Number(medicao.valor || 0))}</TableCell>
                           <TableCell>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${COR_STATUS[medicao.status] ?? "bg-slate-100"}`}>
-                              {ROTULO_STATUS[medicao.status] ?? medicao.status}
-                            </span>
+                            <StatusSelect
+                              value={medicao.status}
+                              opcoes={OPCOES_STATUS}
+                              disabled={bloqueadaPorContratante || processandoId === String(medicao.id)}
+                              onChange={(novo) => alterarStatus(medicao, novo)}
+                            />
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex flex-wrap justify-end gap-1">
-                              <Button variant="ghost" size="icon" title="Gerar PDF" onClick={() => gerarPdf(medicao)}>
+                              <Button variant="ghost" size="icon" title="Baixar PDF" onClick={() => gerarPdf(medicao)}>
                                 <FileDown className="h-4 w-4 text-primary" />
+                              </Button>
+                              <Button variant="ghost" size="icon" title="Compartilhar no WhatsApp" onClick={() => enviarWhatsApp(medicao)}>
+                                <MessageCircle className="h-4 w-4 text-emerald-600" />
                               </Button>
                               {aguardando && (
                                 <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    title={
-                                      bloqueadaPorContratante
-                                        ? "Aprove primeiro a medição do contratante"
-                                        : "Aprovar medição"
-                                    }
-                                    disabled={bloqueadaPorContratante || processandoId === String(medicao.id)}
-                                    onClick={() => aprovar(medicao)}
-                                  >
-                                    <BadgeCheck className="h-4 w-4 text-emerald-600" />
-                                  </Button>
                                   <Button variant="ghost" size="icon" title="Editar" onClick={() => editar(medicao)}>
                                     <Edit className="h-4 w-4" />
                                   </Button>
@@ -732,11 +802,6 @@ export function Medicoes() {
                                   )}
                                 </>
                               )}
-                              {aprovada && ehParceiro && (
-                                <Button variant="ghost" size="icon" title="Retornar para aguardando" onClick={() => retornar(medicao)}>
-                                  <Undo2 className="h-4 w-4 text-amber-600" />
-                                </Button>
-                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -747,7 +812,7 @@ export function Medicoes() {
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
                 Medições aprovadas não podem ser editadas nem excluídas. Para corrigir uma medição do contratante já
-                aprovada, use "Retornar medição" em Contas a Receber.
+                aprovada, volte o status para "Aguardando" na própria lista (ou em Contas a Receber).
               </p>
             </CardContent>
           </Card>
@@ -801,8 +866,11 @@ export function Medicoes() {
             </div>
 
             <div className="space-y-2 sm:col-span-2">
-              <Label>Cliente (contratante)</Label>
-              <Select value={form.cliente_id} onValueChange={(v) => campo("cliente_id", v ?? "")}>
+              <Label>Contratante (cliente)</Label>
+              <Select
+                value={form.cliente_nome.trim() ? "" : form.cliente_id}
+                onValueChange={(v) => setForm((atual) => ({ ...atual, cliente_id: v ?? "", cliente_nome: "" }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar cliente da medição" />
                 </SelectTrigger>
@@ -815,6 +883,16 @@ export function Medicoes() {
                   )}
                 </SelectContent>
               </Select>
+              <Input
+                value={form.cliente_nome}
+                onChange={(e) => setForm((atual) => ({ ...atual, cliente_nome: e.target.value, cliente_id: "" }))}
+                placeholder="Ou digite o contratante manualmente"
+                maxLength={255}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Obra</Label>
+              <Input value={form.obra} onChange={(e) => campo("obra", e.target.value)} placeholder="Nome ou local da obra (aparece no PDF)" maxLength={150} />
             </div>
 
             <div className="space-y-2">
@@ -834,9 +912,9 @@ export function Medicoes() {
               <Input type="date" value={form.periodo_fim} onChange={(e) => campo("periodo_fim", e.target.value)} />
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Lançamento <span className="text-destructive">*</span></Label>
-              <div className="grid gap-3 sm:grid-cols-2">
+            {ehParceria && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Tipo de contrato (parceria) <span className="text-destructive">*</span></Label>
                 <Select
                   value={form.tipo_cobranca}
                   onValueChange={(v) => setForm((atual) => ({ ...atual, tipo_cobranca: (v ?? "") as FormState["tipo_cobranca"], placas: [] }))}
@@ -850,41 +928,66 @@ export function Medicoes() {
                     <SelectItem value={TIPO_MENSAL}>Mensal (valor mensal ÷ dias do mês × dias trabalhados)</SelectItem>
                   </SelectContent>
                 </Select>
-                {ehMensal && (
-                  <Select value={form.dias_mes} onValueChange={(v) => campo("dias_mes", v ?? "30")}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Dias do mês" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="30">30 dias</SelectItem>
-                      <SelectItem value="31">31 dias</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  Medição com parceiro aceita apenas um tipo de contrato. Na frota, cada placa pode ser por hora ou mensal.
+                </p>
               </div>
-            </div>
+            )}
 
             <div className="space-y-2 sm:col-span-2">
               <Label>Placas desta medição</Label>
-              {form.tipo_cobranca && form.modalidade ? (
+              {form.modalidade && (!ehParceria || form.tipo_cobranca) ? (
                 <>
-                  <div className={`grid gap-2 ${ehParceria ? "sm:grid-cols-[1.2fr_1fr_1fr_1fr_auto]" : "sm:grid-cols-[1.4fr_1fr_1fr_auto]"}`}>
-                    {form.modalidade === "frota" ? (
-                      <PlacaInput
-                        id="placa-medicao"
-                        value={novaPlaca.placa}
-                        options={placasFrota.filter((p) => !form.placas.some((a) => a.placa === p.toUpperCase().replace(/\s+/g, "")))}
-                        onValueChange={(placa) => setNovaPlaca((atual) => ({ ...atual, placa }))}
-                        placeholder="Placa da frota..."
-                        showManualInput={false}
-                      />
-                    ) : (
+                  <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-6">
+                    <div className="sm:col-span-2">
+                      {form.modalidade === "frota" ? (
+                        <PlacaInput
+                          id="placa-medicao"
+                          value={novaPlaca.placa}
+                          options={placasFrota.filter((p) => !form.placas.some((a) => a.placa === p.toUpperCase().replace(/\s+/g, "")))}
+                          onValueChange={(placa) =>
+                            setNovaPlaca((atual) => ({
+                              ...atual,
+                              placa,
+                              equipamento: equipamentosPorPlaca[placa.toUpperCase().replace(/\s+/g, "")] ?? atual.equipamento,
+                            }))
+                          }
+                          placeholder="Placa da frota..."
+                          showManualInput={false}
+                        />
+                      ) : (
+                        <Input
+                          value={novaPlaca.placa}
+                          onChange={(e) => setNovaPlaca((atual) => ({ ...atual, placa: e.target.value.toUpperCase() }))}
+                          placeholder="Placa (manual)"
+                          aria-label="Placa manual"
+                        />
+                      )}
+                    </div>
+                    <div className="sm:col-span-2">
                       <Input
-                        value={novaPlaca.placa}
-                        onChange={(e) => setNovaPlaca((atual) => ({ ...atual, placa: e.target.value.toUpperCase() }))}
-                        placeholder="Placa (manual)"
-                        aria-label="Placa manual"
+                        value={novaPlaca.equipamento}
+                        onChange={(e) => setNovaPlaca((atual) => ({ ...atual, equipamento: e.target.value }))}
+                        placeholder="Equipamento (ex.: Caminhão Munck)"
+                        aria-label="Equipamento"
+                        maxLength={100}
                       />
+                    </div>
+                    {!ehParceria && (
+                      <div className="sm:col-span-2">
+                        <Select
+                          value={novaPlaca.tipo}
+                          onValueChange={(v) => setNovaPlaca((atual) => ({ ...atual, tipo: v ?? "" }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Contrato da placa" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={TIPO_HORA}>Por hora</SelectItem>
+                            <SelectItem value={TIPO_MENSAL}>Mensal</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
                     <Input
                       type="number"
@@ -894,6 +997,16 @@ export function Medicoes() {
                       onChange={(e) => setNovaPlaca((atual) => ({ ...atual, valor: e.target.value }))}
                       placeholder={ehHora ? "Valor hora (R$)" : "Valor mensal (R$)"}
                     />
+                    {ehHora && (
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={novaPlaca.horas_contratadas}
+                        onChange={(e) => setNovaPlaca((atual) => ({ ...atual, horas_contratadas: e.target.value }))}
+                        placeholder="Horas contratadas"
+                      />
+                    )}
                     <Input
                       type="number"
                       min="0"
@@ -917,13 +1030,29 @@ export function Medicoes() {
                       Adicionar
                     </Button>
                   </div>
+                  {algumaMensal && (
+                    <div className="flex items-center gap-2">
+                      <Label className="whitespace-nowrap">Dias do mês (contratos mensais)</Label>
+                      <Select value={form.dias_mes} onValueChange={(v) => campo("dias_mes", v ?? "30")}>
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="Dias do mês" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="30">30 dias</SelectItem>
+                          <SelectItem value="31">31 dias</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="overflow-x-auto rounded-md border border-border">
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead>Equipamento</TableHead>
                           <TableHead>Placa</TableHead>
-                          <TableHead>{ehHora ? "Vr hora" : "Vr mensal"}</TableHead>
-                          <TableHead>{ehHora ? "Horas" : `Dias (÷ ${diasMes})`}</TableHead>
+                          <TableHead>Contrato</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead>Trabalhado</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                           {ehParceria && <TableHead className="text-right">Total parceiro</TableHead>}
                           <TableHead />
@@ -932,39 +1061,49 @@ export function Medicoes() {
                       <TableBody>
                         {form.placas.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={ehParceria ? 6 : 5} className="text-center text-sm text-muted-foreground">
+                            <TableCell colSpan={ehParceria ? 8 : 7} className="text-center text-sm text-muted-foreground">
                               Nenhuma placa adicionada.
                             </TableCell>
                           </TableRow>
                         )}
-                        {form.placas.map((p) => (
-                          <TableRow key={p.placa}>
-                            <TableCell className="font-medium">{p.placa}</TableCell>
-                            <TableCell>{formatCurrency(Number(p.valor) || 0)}</TableCell>
-                            <TableCell>{p.quantidade}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(valorLinha(p.valor, p.quantidade))}</TableCell>
-                            {ehParceria && (
-                              <TableCell className="text-right">{formatCurrency(valorLinha(p.valor_parceiro, p.quantidade))}</TableCell>
-                            )}
-                            <TableCell className="text-right">
-                              <button
-                                type="button"
-                                aria-label={`Remover placa ${p.placa}`}
-                                onClick={() => setForm((atual) => ({ ...atual, placas: atual.placas.filter((x) => x.placa !== p.placa) }))}
-                                className="text-muted-foreground hover:text-destructive"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {form.placas.map((p) => {
+                          const tipoPlaca = tipoDaPlaca(p);
+                          const hora = tipoPlaca === TIPO_HORA;
+                          return (
+                            <TableRow key={p.placa}>
+                              <TableCell>{p.equipamento || equipamentosPorPlaca[p.placa] || "-"}</TableCell>
+                              <TableCell className="font-medium">{p.placa}</TableCell>
+                              <TableCell>{hora ? "Por hora" : "Mensal"}</TableCell>
+                              <TableCell>{formatCurrency(Number(p.valor) || 0)}</TableCell>
+                              <TableCell>
+                                {hora
+                                  ? `${p.quantidade}h${Number(p.horas_contratadas) > 0 ? ` de ${p.horas_contratadas}h` : ""}`
+                                  : `${p.quantidade} de ${diasMes} dias`}
+                              </TableCell>
+                              <TableCell className="text-right">{formatCurrency(valorLinha(p.valor, p.quantidade, tipoPlaca))}</TableCell>
+                              {ehParceria && (
+                                <TableCell className="text-right">{formatCurrency(valorLinha(p.valor_parceiro, p.quantidade, tipoPlaca))}</TableCell>
+                              )}
+                              <TableCell className="text-right">
+                                <button
+                                  type="button"
+                                  aria-label={`Remover placa ${p.placa}`}
+                                  onClick={() => setForm((atual) => ({ ...atual, placas: atual.placas.filter((x) => x.placa !== p.placa) }))}
+                                  className="text-muted-foreground hover:text-destructive"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
                 </>
               ) : (
                 <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
-                  Selecione a modalidade (frota ou parceria) e o tipo de lançamento (hora ou mensal) para adicionar placas.
+                  Selecione a modalidade (frota ou parceria){ehParceria ? " e o tipo de contrato (hora ou mensal)" : ""} para adicionar placas.
                 </p>
               )}
             </div>
