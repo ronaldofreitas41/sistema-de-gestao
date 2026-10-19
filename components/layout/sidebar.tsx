@@ -40,6 +40,7 @@ interface NavItem {
 
 interface NavGroup {
   label: string;
+  solo?: boolean;
   items: NavItem[];
 }
 
@@ -316,13 +317,14 @@ export function Sidebar({
           const grupoAtivo = isGroupActive(grupo);
 
           // Quando não houver preferência salva, grupos ativos ficam abertos.
-          const isOpen = openGroups[grupo.label] ?? grupoAtivo;
+          const isOpen = grupo.solo || (openGroups[grupo.label] ?? grupoAtivo);
 
           return (
             <div key={grupo.label} className="mb-4">
               {!collapsed ? (
                 <>
-                  {/* Cabeçalho clicável do grupo */}
+                  {/* Cabeçalho clicável do grupo (itens avulsos aparecem direto na barra) */}
+                  {!grupo.solo && (
                   <button
                     type="button"
                     onClick={() => toggleGroup(grupo.label)}
@@ -342,6 +344,7 @@ export function Sidebar({
                       )}
                     />
                   </button>
+                  )}
 
                   {/* Opções do grupo */}
                   <div

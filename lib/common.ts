@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import { NavItem, Permissoes } from "./types";
 
-export const navGroups: { label: string; items: NavItem[] }[] = [
+export const navGroups: { label: string; solo?: boolean; items: NavItem[] }[] = [
   {
     label: "Visão geral",
     items: [
@@ -49,6 +49,30 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         label: "Dashboard",
         resource: "dashboard",
         icon: LayoutDashboard,
+      },
+    ],
+  },
+  {
+    label: "Pendencias",
+    solo: true,
+    items: [
+      {
+        href: "/pendencias",
+        label: "Pendencias",
+        resource: "pendencias",
+        icon: Siren,
+      },
+    ],
+  },
+  {
+    label: "Relatórios",
+    solo: true,
+    items: [
+      {
+        href: "/relatorios",
+        label: "Relatórios",
+        resource: "relatorios",
+        icon: BarChart3,
       },
     ],
   },
@@ -74,10 +98,10 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         icon: Landmark,
       },
       {
-        href: "/relatorios",
-        label: "Relatórios",
-        resource: "relatorios",
-        icon: BarChart3,
+        href: "/medicoes",
+        label: "Medições",
+        resource: "medicoes",
+        icon: ChartLine,
       },
       {
         href: "/prejuizos",
@@ -85,22 +109,17 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         resource: "prejuizos",
         icon: ArrowDownRight,
       },
+      { href: "/seguro", label: "Seguro", resource: "seguro", icon: Lock },
       {
         href: "/funcionarios",
         label: "Funcionarios",
         resource: "funcionarios",
         icon: IdCardLanyard,
       },
-      {
-        href: "/pendencias",
-        label: "Pendencias",
-        resource: "pendencias",
-        icon: Siren,
-      },
     ],
   },
   {
-    label: "Faturamento",
+    label: "Cadastro",
     items: [
       {
         href: "/clientes",
@@ -120,18 +139,6 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         resource: "propostas",
         icon: Receipt,
       },
-      {
-        href: "/medicoes",
-        label: "Medições",
-        resource: "medicoes",
-        icon: ChartLine,
-      },
-      {
-        href: "/ajuda-motoristas",
-        label: "Ajuda Motoristas",
-        resource: "ajudas_motoristas",
-        icon: CircleQuestionMark,
-      },
     ],
   },
   {
@@ -143,6 +150,12 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         label: "Manutenção",
         resource: "manutencao",
         icon: Wrench,
+      },
+      {
+        href: "/ajuda-motoristas",
+        label: "Ajuda Motoristas",
+        resource: "ajudas_motoristas",
+        icon: CircleQuestionMark,
       },
       {
         href: "/venda-avaria",
@@ -162,7 +175,6 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
         resource: "mobilizacao",
         icon: Camera,
       },
-      { href: "/seguro", label: "Seguro", resource: "seguro", icon: Lock },
     ],
   },
   {
@@ -245,6 +257,24 @@ export const modulosPermissoes = navGroups.flatMap((group) =>
       label: item.label.trim(),
     })),
 );
+
+/** Ações específicas de um módulo (chaves já aplicadas no servidor). Substituem Editar/Excluir genéricos na tela de permissões. */
+export const permissoesExtras: Record<string, { chave: string; label: string }[]> = {
+  relatorios: [
+    { chave: "rel-fin", label: "Faturamento e lucros" },
+    { chave: "rel-cpagar", label: "Contas a pagar" },
+    { chave: "rel-creceber", label: "Contas a receber" },
+    { chave: "rel-estq", label: "Estoque e pneus" },
+    { chave: "rel-resultado", label: "Resultado por placa" },
+  ],
+  pneus: [
+    { chave: "pneus-criar", label: "Criar" },
+    { chave: "pneus-editar", label: "Editar" },
+    { chave: "pneus-inutilizar", label: "Inutilizar (saída)" },
+    { chave: "pneus-romaneio", label: "Romaneio de reforma" },
+    { chave: "pneus-excluir", label: "Excluir" },
+  ],
+};
 
 export const permissoesModulosPadrao: Permissoes = Object.fromEntries(
   modulosPermissoes.flatMap(({ resource }) => [
@@ -383,6 +413,11 @@ export const permissoesPadrao: Permissoes = {
   "fatloc-excluir": false,
   "fatloc-enviar": false,
 };
+
+// Os extras valem pelo padrão do servidor até alguém alterar.
+for (const lista of Object.values(permissoesExtras)) {
+  for (const { chave } of lista) permissoesModulosPadrao[chave] = permissoesPadrao[chave] === true;
+}
 
 export const nomesPermissoes: Record<string, string> = {
   dash: "Dashboard",
