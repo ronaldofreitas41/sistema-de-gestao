@@ -297,46 +297,6 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
     currentY += 8;
   };
 
-  drawSection(`Checklist (${checklist.filter((item) => item.completed).length}/${checklist.length})`);
-  const checklistHeight = Math.max(14, checklist.length * 6.5 + 7);
-  if (currentY + checklistHeight > limiteConteudo) {
-    doc.addPage();
-    currentY = 18;
-  }
-  doc.setFillColor(250, 251, 252);
-  doc.setDrawColor(...light);
-  doc.roundedRect(margin, currentY, contentWidth, checklistHeight, 2, 2, "FD");
-  if (checklist.length === 0) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...gray);
-    doc.text("— sem checklist —", margin + 5, currentY + 8);
-  } else {
-    checklist.forEach((item, index) => {
-      const y = currentY + 7 + index * 6.5;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      const checkColor: Rgb = item.completed ? [36, 137, 76] : gray;
-      doc.setTextColor(...checkColor);
-      doc.text(item.completed ? "✓" : "○", margin + 5, y);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(...gray);
-      doc.text(item.label, margin + 10, y);
-      if (item.completed) {
-        const labelWidth = doc.getTextWidth(item.label);
-        doc.setDrawColor(...gray);
-        doc.setLineWidth(0.25);
-        doc.line(margin + 10, y - 1, margin + 10 + labelWidth, y - 1);
-      }
-      if (index < checklist.length - 1) {
-        doc.setDrawColor(...light);
-        doc.line(margin + 4, y + 2.5, pageWidth - margin - 4, y + 2.5);
-      }
-    });
-  }
-  currentY += checklistHeight + 6;
-
   drawSection("Produtos / Peças");
   const productRows = products.length
     ? products.map((item) => [
@@ -383,6 +343,46 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
     },
   });
   currentY = (doc as any).lastAutoTable.finalY + 7;
+
+  drawSection(`Checklist (${checklist.filter((item) => item.completed).length}/${checklist.length})`);
+  const checklistHeight = Math.max(14, checklist.length * 6.5 + 7);
+  if (currentY + checklistHeight > limiteConteudo) {
+    doc.addPage();
+    currentY = 18;
+  }
+  doc.setFillColor(250, 251, 252);
+  doc.setDrawColor(...light);
+  doc.roundedRect(margin, currentY, contentWidth, checklistHeight, 2, 2, "FD");
+  if (checklist.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...gray);
+    doc.text("— sem checklist —", margin + 5, currentY + 8);
+  } else {
+    checklist.forEach((item, index) => {
+      const y = currentY + 7 + index * 6.5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      const checkColor: Rgb = item.completed ? [36, 137, 76] : gray;
+      doc.setTextColor(...checkColor);
+      doc.text(item.completed ? "✓" : "○", margin + 5, y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...gray);
+      doc.text(item.label, margin + 10, y);
+      if (item.completed) {
+        const labelWidth = doc.getTextWidth(item.label);
+        doc.setDrawColor(...gray);
+        doc.setLineWidth(0.25);
+        doc.line(margin + 10, y - 1, margin + 10 + labelWidth, y - 1);
+      }
+      if (index < checklist.length - 1) {
+        doc.setDrawColor(...light);
+        doc.line(margin + 4, y + 2.5, pageWidth - margin - 4, y + 2.5);
+      }
+    });
+  }
+  currentY += checklistHeight + 6;
 
   if (os.ob) {
     drawSection("Observações");
