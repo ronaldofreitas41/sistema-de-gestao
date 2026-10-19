@@ -60,6 +60,7 @@ import { printManutencaoPDF } from "@/lib/pdf/pdfManutencao";
 import { ManutencaoApi } from "@/lib/types";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { StatusSelect } from "@/components/ui/status-select";
+import { lerImagemComprimida } from "@/lib/imagem";
 import { compartilharWhatsApp } from "@/lib/whatsapp";
 
 
@@ -224,6 +225,7 @@ export function Manutencoes() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ManutencaoApi | null>(null);
+  const [visualizando, setVisualizando] = useState<ManutencaoApi | null>(null);
   const [form, setForm] = useState<FormData>(formularioInicial);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -359,6 +361,17 @@ export function Manutencoes() {
     return payload;
   }
 
+  async function visualizar(manutencao: ManutencaoApi) {
+    setCarregandoDetalheId(manutencao.id);
+    try {
+      setVisualizando(await buscarManutencaoCompleta(manutencao.id));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível carregar a manutenção.");
+    } finally {
+      setCarregandoDetalheId(null);
+    }
+  }
+
   async function editar(manutencao: ManutencaoApi) {
     setCarregandoDetalheId(manutencao.id);
     let dados: ManutencaoApi;
@@ -432,8 +445,15 @@ export function Manutencoes() {
     await carregar();
   }
 
-  function enviarWhatsApp(manutencao: ManutencaoApi) {
-    compartilharWhatsApp(
+  async function enviarWhatsApp(manutencao: ManutencaoApi) {
+    let arquivo: File | undefined;
+    try {
+      arquivo = await printManutencaoPDF(await buscarManutencaoCompleta(manutencao.id), "arquivo");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível gerar o PDF da O.S.");
+      return;
+    }
+    await compartilharWhatsApp(
       [
         `*${manutencao.osNum}* — MH3 Rental`,
         `Veículo: ${manutencao.placa || "-"} ${manutencao.eqLbl ? `(${manutencao.eqLbl})` : ""}`.trim(),
@@ -442,6 +462,8 @@ export function Manutencoes() {
         `Status: ${statusDaOS(manutencao.status) === "finalizada" ? "Finalizada" : "Em aberto"}`,
         "Segue o PDF da O.S. em anexo.",
       ].join("\n"),
+      undefined,
+      arquivo,
     );
   }
 
@@ -527,12 +549,7 @@ export function Manutencoes() {
 
   function adicionarFotos(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
-    Promise.all(files.map((file) => new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    })))
+    Promise.all(files.map((file) => lerImagemComprimida(file)))
       .then((photos) => setForm((atual) => ({ ...atual, fotos: [...atual.fotos, ...photos] })))
       .catch(() => alert("Não foi possível carregar uma ou mais fotos."));
     event.target.value = "";
@@ -729,12 +746,26 @@ export function Manutencoes() {
                       <StatusSelect
                         value={statusDaOS(manutencao.status)}
                         opcoes={OPCOES_STATUS_OS}
+                        disabled={statusDaOS(manutencao.status) === "finalizada"}
                         onChange={(novo) => alterarStatus(manutencao, novo)}
                       />
                     </TableCell>
 
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          title="Visualizar OS"
+                          aria-label="Visualizar OS"
+                          className="h-8 w-8 text-slate-600"
+                          disabled={carregandoDetalheId === manutencao.id}
+                          onClick={() => visualizar(manutencao)}
+                        >
+                          <Search className="h-3.5 w-3.5" />
+                        </Button>
+
                         <Button
                           type="button"
                           variant="outline"
@@ -1109,7 +1140,7 @@ export function Manutencoes() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status</Label>
-                  <Select value={form.status} onValueChange={(value) => setForm((atual) => ({ ...atual, status: value ?? "aberta", finStatus: value ?? "aberta" }))}>
+                  <Select value={form.status} disabled={!!editing && statusDaOS(editing.status) === "finalizada"} onValueChange={(value) => setForm((atual) => ({ ...atual, status: value ?? "aberta", finStatus: value ?? "aberta" }))}>
                     <SelectTrigger className="h-10 bg-muted/20"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="aberta">Em aberto</SelectItem>
@@ -1299,6 +1330,79 @@ export function Manutencoes() {
                   : "Salvar OS"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!visualizando} onOpenChange={(aberto) => !aberto && setVisualizando(null)}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{visualizando?.osNum ?? "Ordem de serviço"}</DialogTitle>
+            <DialogDescription>Detalhes da ordem de serviço.</DialogDescription>
+          </DialogHeader>
+          {visualizando && (() => {
+            const lista = (valor: unknown) => (Array.isArray(valor) ? valor : []) as Array<Record<string, any>>;
+            const itens = lista(visualizando.lancs);
+            const pneus = lista(visualizando.pneus);
+            const checklist = lista(visualizando.checklist);
+            return (
+              <div className="space-y-4 text-sm">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    ["Veículo", visualizando.placa || visualizando.eqLbl],
+                    ["Tipo", (visualizando.tipo && ROTULO_TIPO_OS[visualizando.tipo]) || visualizando.tipo],
+                    ["Status", statusDaOS(visualizando.status) === "finalizada" ? "Finalizada" : "Em aberto"],
+                    ["Entrada", formatarData(visualizando.en)],
+                    ["Saída", formatarData(visualizando.sa)],
+                    ["Responsável", visualizando.resp],
+                    ["Km / Horímetro", `${visualizando.km ?? "-"} / ${visualizando.hr ?? "-"}`],
+                    ["Próxima revisão", `${visualizando.pkm ?? "-"} km / ${visualizando.phr ?? "-"} h`],
+                  ].map(([rotulo, valor]) => (
+                    <div key={rotulo as string}>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">{rotulo}</p>
+                      <p className="font-medium">{(valor as string) || "-"}</p>
+                    </div>
+                  ))}
+                </div>
+                {pneus.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Pneus retirados do estoque</p>
+                    <p>{pneus.map((p) => p.numero || p.pneu_id).join(", ")}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Produtos / peças e serviços</p>
+                  {itens.length === 0 ? (
+                    <p className="text-muted-foreground">Nenhum lançamento.</p>
+                  ) : (
+                    <ul className="divide-y rounded-md border">
+                      {itens.map((item, indice) => (
+                        <li key={indice} className="flex justify-between gap-2 px-3 py-2">
+                          <span>{item.desc} <span className="text-muted-foreground">({item.tipo}, {item.qtd}x)</span></span>
+                          <strong>{Number(item.val || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {checklist.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Checklist</p>
+                    <ul className="space-y-1">
+                      {checklist.map((item, indice) => (
+                        <li key={indice}>{item.checked ? "✓" : "○"} {item.nome}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {visualizando.ob && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Observações</p>
+                    <p className="whitespace-pre-wrap">{visualizando.ob}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

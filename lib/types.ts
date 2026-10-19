@@ -516,6 +516,7 @@ export type ManutencaoApi = {
   lancs?: unknown;
   checklist?: unknown;
   fotos?: unknown;
+  pneus?: unknown;
 };
 
 export type Mobilizacao = {

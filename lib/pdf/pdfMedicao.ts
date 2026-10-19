@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
 import autoTable from "jspdf-autotable";
 import { obterPlacasMedicao, type PlacaMedicao } from "@/lib/medicoes";
 import { corEmpresaRgb, type Rgb } from "@/lib/pdf/cores";
@@ -50,6 +51,7 @@ function carregarImagem(src: string): Promise<HTMLImageElement | null> {
 export async function gerarPdfMedicao(
   medicao: any,
   equipamentosPorPlaca: Record<string, string> = {},
+  modo: EntregaPdf = "baixar",
 ) {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   const pageWidth = 297;
@@ -316,5 +318,5 @@ export async function gerarPdfMedicao(
   }
 
   doc.setProperties({ title: `Medição ${medicao.numero ?? medicao.id}` });
-  doc.save(`${ehParceiro ? "Medicao-Parceiro" : "Medicao"}-${medicao.numero ?? medicao.id}.pdf`);
+  return entregarPdf(doc, `${ehParceiro ? "Medicao-Parceiro" : "Medicao"}-${medicao.numero ?? medicao.id}.pdf`, modo);
 }

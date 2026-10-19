@@ -103,6 +103,9 @@ type PlacaForm = {
   valor: string;
   quantidade: string;
   valor_parceiro: string;
+  /** Horas ou dias trabalhados na medição do parceiro (podem diferir do contratante). */
+  quantidade_parceiro: string;
+  horas_contratadas_parceiro: string;
   /** Modalidade da placa (só na frota; na parceria vale a do contrato). */
   tipo: string;
   equipamento: string;
@@ -114,6 +117,8 @@ const placaVazia = (): PlacaForm => ({
   valor: "",
   quantidade: "",
   valor_parceiro: "",
+  quantidade_parceiro: "",
+  horas_contratadas_parceiro: "",
   tipo: "",
   equipamento: "",
   horas_contratadas: "",
@@ -349,6 +354,15 @@ export function Medicoes() {
     carregarLista("/api/vendas", setVendas);
   }, []);
 
+  // Dias do mês acompanham o período escolhido (o usuário ainda pode ajustar).
+  useEffect(() => {
+    if (editing || !form.periodo_inicio) return;
+    const [ano, mes] = form.periodo_inicio.split("-").map(Number);
+    if (!ano || !mes) return;
+    const dias = String(new Date(ano, mes, 0).getDate());
+    setForm((atual) => (atual.dias_mes === dias ? atual : { ...atual, dias_mes: dias }));
+  }, [form.periodo_inicio, editing]);
+
   const campo = <K extends keyof FormState>(chave: K, valor: FormState[K]) =>
     setForm((atual) => ({ ...atual, [chave]: valor }));
 
@@ -367,7 +381,8 @@ export function Medicoes() {
   }
 
   const subtotalContratante = form.placas.reduce((t, p) => t + valorLinha(p.valor, p.quantidade, tipoDaPlaca(p)), 0);
-  const subtotalParceiro = form.placas.reduce((t, p) => t + valorLinha(p.valor_parceiro, p.quantidade, tipoDaPlaca(p)), 0);
+  const quantidadeParceiro = (p: PlacaForm) => p.quantidade_parceiro || p.quantidade;
+  const subtotalParceiro = form.placas.reduce((t, p) => t + valorLinha(p.valor_parceiro, quantidadeParceiro(p), tipoDaPlaca(p)), 0);
   const excedente = Number(form.valor_excedente) || 0;
   const totaisContratante = totalMedicao(subtotalContratante, excedente, 0, form.vendas);
   const totaisParceiro = totalMedicao(
@@ -430,6 +445,9 @@ export function Medicoes() {
     if (ehParceria && !(Number(novaPlaca.valor_parceiro) >= 0 && novaPlaca.valor_parceiro !== "")) {
       return alert("Informe o valor do parceiro para esta placa.");
     }
+    if (ehParceria && novaPlaca.quantidade_parceiro !== "" && !(Number(novaPlaca.quantidade_parceiro) >= 0)) {
+      return alert(ehHora ? "Informe as horas trabalhadas do parceiro." : "Informe os dias trabalhados do parceiro.");
+    }
     const equipamento = novaPlaca.equipamento.trim() || equipamentosPorPlaca[placa] || "";
     setForm((atual) => ({ ...atual, placas: [...atual.placas, { ...novaPlaca, placa, tipo: tipoNova, equipamento }] }));
     setNovaPlaca(placaVazia());
@@ -459,6 +477,12 @@ export function Medicoes() {
         valor: String(p.valor ?? ""),
         quantidade: String(tipoPlaca === TIPO_HORA ? p.horas_trabalhadas ?? "" : p.dias_trabalhados ?? ""),
         valor_parceiro: String(placasParceiro.find((pp) => pp.placa === p.placa)?.valor ?? ""),
+        quantidade_parceiro: String(
+          (tipoPlaca === TIPO_HORA
+            ? placasParceiro.find((pp) => pp.placa === p.placa)?.horas_trabalhadas
+            : placasParceiro.find((pp) => pp.placa === p.placa)?.dias_trabalhados) ?? "",
+        ),
+        horas_contratadas_parceiro: String(placasParceiro.find((pp) => pp.placa === p.placa)?.horas_contratadas ?? ""),
         tipo: tipoPlaca,
         equipamento: p.equipamento || "",
         horas_contratadas: p.horas_contratadas ? String(p.horas_contratadas) : "",
@@ -531,7 +555,15 @@ export function Medicoes() {
                 horas_trabalhadas: Number(p.quantidade) || 0,
                 ...(Number(p.horas_contratadas) > 0 ? { horas_contratadas: Number(p.horas_contratadas) } : {}),
               }),
-          ...(ehParceria ? { valor_parceiro: Number(p.valor_parceiro) || 0 } : {}),
+          ...(ehParceria
+            ? {
+                valor_parceiro: Number(p.valor_parceiro) || 0,
+                quantidade_parceiro: Number(quantidadeParceiro(p)) || 0,
+                ...(Number(p.horas_contratadas_parceiro) > 0
+                  ? { horas_contratadas_parceiro: Number(p.horas_contratadas_parceiro) }
+                  : {}),
+              }
+            : {}),
         };
       }),
       valor_excedente: excedente,
@@ -611,21 +643,22 @@ export function Medicoes() {
     }
   }
 
-  function gerarPdf(medicao: MedicaoApi) {
+  function gerarPdf(medicao: MedicaoApi, modo: "baixar" | "arquivo" = "baixar") {
     const cliente =
       medicao.cliente_nome?.trim() ||
       clientes.find((item) => String(item.id) === String(medicao.cliente_id))?.nome ||
       "";
     const empresa = empresas.find((item) => String(item.id) === String(medicao.empresa_id));
-    gerarPdfMedicao({ ...medicao, cliente, empresa }, equipamentosPorPlaca);
+    return gerarPdfMedicao({ ...medicao, cliente, empresa }, equipamentosPorPlaca, modo);
   }
 
-  function enviarWhatsApp(medicao: MedicaoApi) {
+  async function enviarWhatsApp(medicao: MedicaoApi) {
+    const arquivo = await gerarPdf(medicao, "arquivo");
     const placas = obterPlacasMedicao(medicao.placas).map((p) => p.placa).join(", ") || "-";
     const quem = medicao.papel === "parceiro"
       ? `Parceiro: ${medicao.parceiro || "-"}`
       : `Contratante: ${medicao.cliente_nome?.trim() || clientes.find((c) => String(c.id) === String(medicao.cliente_id))?.nome || "-"}`;
-    compartilharWhatsApp(
+    await compartilharWhatsApp(
       [
         `*Medição ${medicao.numero}* — ${nomeEmpresa(medicao.empresa_id)}`,
         quem,
@@ -635,6 +668,8 @@ export function Medicoes() {
         `*Total: ${formatCurrency(Number(medicao.valor || 0))}*`,
         "Segue o PDF da medição em anexo.",
       ].filter(Boolean).join("\n"),
+      undefined,
+      arquivo,
     );
   }
 
@@ -1014,14 +1049,46 @@ export function Medicoes() {
                       placeholder={ehHora ? "Horas trabalhadas" : "Dias trabalhados"}
                     />
                     {ehParceria && (
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={novaPlaca.valor_parceiro}
-                        onChange={(e) => setNovaPlaca((atual) => ({ ...atual, valor_parceiro: e.target.value }))}
-                        placeholder={ehHora ? "Valor hora parceiro" : "Valor mensal parceiro"}
-                      />
+                      <>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={novaPlaca.valor_parceiro}
+                          onChange={(e) => setNovaPlaca((atual) => ({ ...atual, valor_parceiro: e.target.value }))}
+                          placeholder={ehHora ? "Valor hora parceiro" : "Valor mensal parceiro"}
+                        />
+                        {ehHora && (
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={novaPlaca.horas_contratadas_parceiro}
+                            onChange={(e) => setNovaPlaca((atual) => ({ ...atual, horas_contratadas_parceiro: e.target.value }))}
+                            placeholder="Horas contratadas parceiro"
+                          />
+                        )}
+                        <Input
+                          type="number"
+                          min="0"
+                          step={ehHora ? "0.01" : "1"}
+                          value={novaPlaca.quantidade_parceiro}
+                          onChange={(e) => setNovaPlaca((atual) => ({ ...atual, quantidade_parceiro: e.target.value }))}
+                          placeholder={ehHora ? "Horas trabalhadas parceiro" : "Dias trabalhados parceiro"}
+                        />
+                      </>
+                    )}
+                    {tipoNova && (
+                      <p className="text-sm sm:col-span-6">
+                        Total calculado: <strong>{formatCurrency(valorLinha(novaPlaca.valor, novaPlaca.quantidade, tipoNova))}</strong>
+                        {ehParceria && (
+                          <>
+                            {" · "}Parceiro:{" "}
+                            <strong>{formatCurrency(valorLinha(novaPlaca.valor_parceiro, novaPlaca.quantidade_parceiro || novaPlaca.quantidade, tipoNova))}</strong>
+                          </>
+                        )}
+                        {!ehHora && ` (valor mensal ÷ ${diasMes} dias × dias trabalhados)`}
+                      </p>
                     )}
                     <Button type="button" onClick={adicionarPlaca}>
                       <Plus className="mr-1 h-4 w-4" />
@@ -1036,6 +1103,8 @@ export function Medicoes() {
                           <SelectValue placeholder="Dias do mês" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="28">28 dias</SelectItem>
+                          <SelectItem value="29">29 dias</SelectItem>
                           <SelectItem value="30">30 dias</SelectItem>
                           <SelectItem value="31">31 dias</SelectItem>
                         </SelectContent>
@@ -1077,10 +1146,15 @@ export function Medicoes() {
                                 {hora
                                   ? `${p.quantidade}h${Number(p.horas_contratadas) > 0 ? ` de ${p.horas_contratadas}h` : ""}`
                                   : `${p.quantidade} de ${diasMes} dias`}
+                                {ehParceria && (
+                                  <span className="block text-xs text-muted-foreground">
+                                    Parceiro: {hora ? `${quantidadeParceiro(p)}h` : `${quantidadeParceiro(p)} dias`}
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell className="text-right">{formatCurrency(valorLinha(p.valor, p.quantidade, tipoPlaca))}</TableCell>
                               {ehParceria && (
-                                <TableCell className="text-right">{formatCurrency(valorLinha(p.valor_parceiro, p.quantidade, tipoPlaca))}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(valorLinha(p.valor_parceiro, quantidadeParceiro(p), tipoPlaca))}</TableCell>
                               )}
                               <TableCell className="text-right">
                                 <button

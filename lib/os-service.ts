@@ -130,6 +130,9 @@ export async function atualizarOS(id: string, body: Dados, request?: Request) {
     const atual = await tx.mh3_manutencoes.findUnique({ where: { id } });
     if (!atual) throw new ErroNegocio(404, "OS não encontrada.");
     const { dados: dadosForm, pneus } = await montarDados(body, tx);
+    if (atual.status === "finalizada" && dadosForm.status !== "finalizada") {
+      throw new ErroNegocio(409, "OS finalizada não pode voltar para Em aberto.");
+    }
     // Entrada e responsável ficam como foram gravados na criação.
     const { en: _entrada, resp: _responsavel, ...dados } = dadosForm;
 
@@ -162,6 +165,9 @@ export async function alterarStatusOS(id: string, novoStatus: unknown, request?:
   const resultado = await prisma.$transaction(async (tx) => {
     const atual = await tx.mh3_manutencoes.findUnique({ where: { id } });
     if (!atual) throw new ErroNegocio(404, "OS não encontrada.");
+    if (atual.status === "finalizada" && status !== "finalizada") {
+      throw new ErroNegocio(409, "OS finalizada não pode voltar para Em aberto.");
+    }
     const atualizada = await tx.mh3_manutencoes.update({
       where: { id },
       data: {

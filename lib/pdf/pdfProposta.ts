@@ -1,9 +1,10 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Proposta } from "@/lib/types";
+import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
 import { corEmpresaRgb, type Rgb } from "@/lib/pdf/cores";
 
-export function generatePropostaPDF(proposta: Proposta) {
+export function generatePropostaPDF(proposta: Proposta, modo: EntregaPdf = "baixar") {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   const red: Rgb = corEmpresaRgb(proposta.empresaEmitente?.cor_primaria, [190, 0, 0]);
   const dark: Rgb = [65, 65, 65];
@@ -492,5 +493,5 @@ export function generatePropostaPDF(proposta: Proposta) {
   const filename = `Proposta_${proposta.numero || proposta.id}_${proposta.contratante || "Cliente"}`
     .replace(/[^a-zA-Z0-9_-]/g, "_");
   doc.setProperties({ title: `Proposta - ${proposta.contratante || "Cliente"}` });
-  doc.save(`${filename}.pdf`);
+  return entregarPdf(doc, `${filename}.pdf`, modo);
 }

@@ -199,8 +199,25 @@ async function prepararMedicoes(tx: Tx, body: Dados, ignorarIds: bigint[], legad
     if (!Number.isFinite(valorParceiro) || valorParceiro < 0) {
       throw new ErroNegocio(400, `Informe o valor do parceiro para a placa ${p.placa}.`);
     }
-    const { valor_parceiro: _ignorado, valor_calculado: _calc, ...resto } = p;
-    return { ...resto, valor: valorParceiro };
+    const {
+      valor_parceiro: _ignorado,
+      quantidade_parceiro: quantidadeParceiro,
+      horas_contratadas_parceiro: horasContratadasParceiro,
+      valor_calculado: _calc,
+      ...resto
+    } = p;
+    // A medição do parceiro pode ter horas/dias diferentes das do contratante.
+    const tipoItem = String(resto.tipo_cobranca || tipo);
+    const temQuantidade = quantidadeParceiro !== undefined && quantidadeParceiro !== null && quantidadeParceiro !== "";
+    const trabalho = !temQuantidade
+      ? {}
+      : tipoItem === "Valor Mensal"
+        ? { dias_trabalhados: num(quantidadeParceiro) }
+        : { horas_trabalhadas: num(quantidadeParceiro) };
+    const contratadas = tipoItem === "Valor por Hora" && num(horasContratadasParceiro) > 0
+      ? { horas_contratadas: num(horasContratadasParceiro) }
+      : {};
+    return { ...resto, ...trabalho, ...contratadas, valor: valorParceiro };
   });
   const calculoParceiro = calc(placasParceiro);
   const vendasParceiro = await carregarVendas(tx, dadosParceiro.vendas, ignorarIds);
@@ -235,6 +252,30 @@ async function prepararMedicoes(tx: Tx, body: Dados, ignorarIds: bigint[], legad
   return { contratante: base, parceiro };
 }
 
+/** Ids das vendas vinculadas a uma ou mais medições. */
+function idsDasVendas(...medicoes: Array<{ vendas?: unknown } | null | undefined>) {
+  return medicoes.flatMap((m) =>
+    Array.isArray(m?.vendas) ? (m.vendas as { id?: string }[]).map((v) => v.id).filter((id): id is string => !!id) : [],
+  );
+}
+
+/** Venda puxada por medição fica faturada automaticamente (sem conta a receber própria); ao sair, volta a pendente. */
+async function sincronizarVendas(tx: Tx, vinculadas: string[], anteriores: string[] = []) {
+  const liberadas = anteriores.filter((id) => !vinculadas.includes(id));
+  if (liberadas.length) {
+    await tx.mh3_vendas.updateMany({
+      where: { id: { in: liberadas }, status: "faturada", em_medicao: true },
+      data: { status: "pendente", faturada: false },
+    });
+  }
+  if (vinculadas.length) {
+    await tx.mh3_vendas.updateMany({
+      where: { id: { in: vinculadas }, status: { not: "cancelado" } },
+      data: { status: "faturada", faturada: true },
+    });
+  }
+}
+
 export async function criarMedicao(body: Dados, request?: Request) {
   const resultado = await prisma.$transaction(async (tx) => {
     const { contratante, parceiro } = await prepararMedicoes(tx, body, []);
@@ -246,6 +287,7 @@ export async function criarMedicao(body: Dados, request?: Request) {
         data: { ...parceiro, numero: `${numero}-P`, medicao_principal_id: principal.id },
       });
     }
+    await sincronizarVendas(tx, idsDasVendas(principal, secundaria));
     return { principal, parceiro: secundaria };
   });
   await auditar({
@@ -298,6 +340,11 @@ export async function atualizarMedicao(id: bigint, body: Dados, request?: Reques
     } else if (parceiro) {
       await tx.mh3_medicoes.delete({ where: { id: parceiro.id } });
     }
+    await sincronizarVendas(
+      tx,
+      idsDasVendas(atualizada, atualizadaParceiro),
+      idsDasVendas(principal, parceiro),
+    );
     return { principal: atualizada, parceiro: atualizadaParceiro };
   });
   await auditar({
@@ -318,6 +365,7 @@ export async function excluirMedicao(id: bigint, request?: Request) {
     }
     if (parceiro) await tx.mh3_medicoes.delete({ where: { id: parceiro.id } });
     await tx.mh3_medicoes.delete({ where: { id: principal.id } });
+    await sincronizarVendas(tx, [], idsDasVendas(principal, parceiro));
     return principal.numero;
   });
   await auditar({

@@ -207,8 +207,13 @@ export function Propostas() {
     await fetchPropostas();
   }
 
-  function enviarWhatsApp(proposta: Proposta) {
-    compartilharWhatsApp(
+  async function enviarWhatsApp(proposta: Proposta) {
+    const empresaEmitente = empresas.find((empresa) => String(empresa.id) === String(proposta.empresaId));
+    const arquivo = await generatePropostaPDF(
+      { ...proposta, empresaLogo: empresaEmitente?.logo, empresaEmitente },
+      "arquivo",
+    );
+    await compartilharWhatsApp(
       [
         `*Proposta ${proposta.numero}* — ${proposta.emitente || "MH3 Rental"}`,
         `Contratante: ${proposta.contratante || "-"}`,
@@ -220,6 +225,8 @@ export function Propostas() {
         proposta.validade ? `Validade: ${proposta.validade}` : "",
         "Segue o PDF da proposta em anexo.",
       ].filter(Boolean).join("\n"),
+      undefined,
+      arquivo,
     );
   }
 

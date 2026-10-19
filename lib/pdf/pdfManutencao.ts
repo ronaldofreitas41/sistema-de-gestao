@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
 
 type ManutencaoPDF = {
   id: string;
@@ -169,7 +170,7 @@ function getPhotos(value: unknown): PhotoEntry[] {
   });
 }
 
-export async function printManutencaoPDF(os: ManutencaoPDF) {
+export async function printManutencaoPDF(os: ManutencaoPDF, modo: EntregaPdf = "baixar") {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   const red: Rgb = [190, 0, 0];
   const dark: Rgb = [45, 45, 45];
@@ -462,5 +463,5 @@ export async function printManutencaoPDF(os: ManutencaoPDF) {
   }
 
   doc.setProperties({ title: `Ordem de Serviço ${os.osNum || os.id}` });
-  doc.save(`OS-${os.osNum || os.id}.pdf`);
+  return entregarPdf(doc, `OS-${os.osNum || os.id}.pdf`, modo);
 }

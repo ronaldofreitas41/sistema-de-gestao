@@ -465,7 +465,7 @@ export function ComponenteAjudaMotorista() {
                               className="h-8 w-8 text-slate-600 hover:bg-slate-100 hover:text-slate-800"
                               onClick={() => setVisualizando(ajuda)}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Search className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"

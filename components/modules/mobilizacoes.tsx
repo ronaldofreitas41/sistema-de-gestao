@@ -18,6 +18,7 @@ import { AnexoFotos } from "../ui/anexo-fotos";
 import { fotosDoGrupo, gruposFotos, GRUPOS_FOTOS_LEGADOS } from "@/lib/common";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { StatusSelect } from "@/components/ui/status-select";
+import { lerImagemComprimida } from "@/lib/imagem";
 import { compartilharWhatsApp } from "@/lib/whatsapp";
 import { Mobilizacao } from "@/lib/types";
 import { generateMobilizacaoPDF } from "../../lib/pdf/pdfMobilizacao";
@@ -98,8 +99,9 @@ export function Mobilizacoes() {
     await carregar();
   }
 
-  function enviarWhatsApp(mobilizacao: Mobilizacao) {
-    compartilharWhatsApp(
+  async function enviarWhatsApp(mobilizacao: Mobilizacao) {
+    const arquivo = await generateMobilizacaoPDF(mobilizacao, "arquivo");
+    await compartilharWhatsApp(
       [
         `*${mobilizacao.codigo || `Mobilização ${mobilizacao.id}`}* — MH3 Rental`,
         `Tipo: ${mobilizacao.tipo ? mobilizacao.tipo.split("(")[0].trim() : "-"}`,
@@ -110,6 +112,8 @@ export function Mobilizacoes() {
         `Saída: ${mobilizacao.data ? String(mobilizacao.data).slice(0, 10).split("-").reverse().join("/") : "-"}`,
         "Segue o PDF da mobilização em anexo.",
       ].join("\n"),
+      undefined,
+      arquivo,
     );
   }
 
@@ -202,25 +206,7 @@ export function Mobilizacoes() {
 
     try {
       const novasFotos = await Promise.all(
-        arquivosSelecionados.map((arquivo) => {
-          return new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-
-            reader.onload = () => {
-              resolve(String(reader.result));
-            };
-
-            reader.onerror = () => {
-              reject(
-                new Error(
-                  `Não foi possível ler a imagem ${arquivo.name}`
-                )
-              );
-            };
-
-            reader.readAsDataURL(arquivo);
-          });
-        })
+        arquivosSelecionados.map((arquivo) => lerImagemComprimida(arquivo))
       );
 
       setForm((atual) => ({

@@ -28,6 +28,7 @@ import {
   Menu,
   X,
   FileText,
+  Download,
   Trash,
   MessageCircle,
 } from "lucide-react";
@@ -43,6 +44,7 @@ import { SortableListControls, useSortableData } from "@/components/ui/sortable-
 import { StatusSelect, type OpcaoStatus } from "@/components/ui/status-select";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { compartilharWhatsApp } from "@/lib/whatsapp";
+import { gerarPdfVenda } from "@/lib/pdf/pdfVenda";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -630,7 +632,15 @@ export function Vendas() {
                       )}
 
                       <button
-                        onClick={() => compartilharWhatsApp(mensagemWhatsApp(v), v.contato)}
+                        onClick={() => gerarPdfVenda(v)}
+                        className="p-1.5 rounded text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                        title="Gerar PDF"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+
+                      <button
+                        onClick={async () => compartilharWhatsApp(mensagemWhatsApp(v), v.contato, await gerarPdfVenda(v, "arquivo"))}
                         className="p-1.5 rounded text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
                         title="Compartilhar no WhatsApp"
                       >
@@ -890,9 +900,9 @@ export function Vendas() {
               <div className="space-y-1">
                 <Label>FORMA DE PAGAMENTO</Label>
                 <Select
-                  value={formData.pagamento || ""}
+                  value={formData.em_medicao ? "Medição" : formData.pagamento || ""}
                   onValueChange={(val) =>
-                    setFormData({ ...formData, pagamento: val })
+                    setFormData({ ...formData, pagamento: val, em_medicao: val === "Medição" })
                   }
                 >
                   <SelectTrigger className="bg-input border-border">
@@ -900,15 +910,17 @@ export function Vendas() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="À Vista">À Vista</SelectItem>
-                    <SelectItem value="PIX">PIX</SelectItem>
-                    <SelectItem value="Boleto">Boleto</SelectItem>
-                    <SelectItem value="Cartão">Cartão</SelectItem>
-                    <SelectItem value="Prazo 30d">Prazo 30d</SelectItem>
-                    <SelectItem value="Prazo 60d">Prazo 60d</SelectItem>
+                    <SelectItem value="Prazo">A Prazo</SelectItem>
+                    <SelectItem value="Medição">Em Medição</SelectItem>
+                    {formData.pagamento &&
+                      !formData.em_medicao &&
+                      !["À Vista", "Prazo"].includes(formData.pagamento) && (
+                        <SelectItem value={formData.pagamento}>{formData.pagamento}</SelectItem>
+                      )}
                   </SelectContent>
                 </Select>
               </div>
-              {!formData.em_medicao && ["Boleto", "Prazo 30d", "Prazo 60d"].includes(formData.pagamento || "") && (
+              {!formData.em_medicao && (formData.pagamento === "Prazo" || ["Boleto", "Prazo 30d", "Prazo 60d"].includes(formData.pagamento || "")) && (
                 <div className="space-y-1">
                   <Label>VENCIMENTO</Label>
                   <Input
@@ -924,23 +936,12 @@ export function Vendas() {
             </div>
 
             {/* Medição */}
+            {formData.em_medicao && (
             <div className="grid grid-cols-2 gap-3 p-3 rounded-lg border border-border bg-muted/20">
-              <div className="col-span-2 flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="em_medicao"
-                  checked={formData.em_medicao}
-                  onChange={(e) =>
-                    setFormData({ ...formData, em_medicao: e.target.checked })
-                  }
-                  className="h-4 w-4 accent-primary"
-                />
-                <Label htmlFor="em_medicao" className="cursor-pointer">
-                  Em Medição
-                </Label>
-              </div>
-              {formData.em_medicao && (
                 <>
+                  <p className="col-span-2 text-xs text-muted-foreground">
+                    Em Medição: a venda entra na medição da placa e fica Faturada automaticamente ao ser incluída nela.
+                  </p>
                   <div className="space-y-1">
                     <Label>Placa da Medição</Label>
                     <PlacaInput
@@ -970,8 +971,8 @@ export function Vendas() {
                     </Select>
                   </div>
                 </>
-              )}
             </div>
+            )}
 
             {/* Itens */}
             <div className="space-y-2">

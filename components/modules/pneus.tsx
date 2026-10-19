@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { AlertTriangle, Ban, Edit, Menu, Plus, Printer, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
+import { gerarPdfRomaneio } from "@/lib/pdf/pdfRomaneio";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { usuarioLogado, usuarioPode } from "@/lib/permissoes-client";
 import { useSortableData } from "@/components/ui/sortable-table";
@@ -317,26 +318,7 @@ export function Pneus() {
   }
 
   function imprimirRomaneio(r: Romaneio) {
-    const linhas = r.itens
-      .map(
-        (i) => `<tr><td>${i.pneu?.codigo ?? ""}</td><td>${i.pneu?.numero ?? ""}</td><td>${i.pneu?.marca ?? ""} ${i.pneu?.modelo ?? ""}</td><td>${i.pneu?.medida ?? ""}</td><td>${i.pneu?.dot ?? ""}</td><td>${i.pneu?.condicao ?? ""}</td><td></td></tr>`,
-      )
-      .join("");
-    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Romaneio ${r.numero}</title>
-      <style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;margin:24px;color:#111}h1{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #999;padding:6px 8px;font-size:12px;text-align:left}th{background:#eee}.meta{font-size:13px;margin:2px 0}.ass{margin-top:60px;display:flex;gap:40px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;font-size:12px;text-align:center}</style></head>
-      <body><h1>Romaneio de saída para reforma ${r.numero ?? ""}</h1>
-      <p class="meta"><strong>Reformadora:</strong> ${r.reformadora ?? ""}</p>
-      <p class="meta"><strong>Data de saída:</strong> ${formatDate(r.data_saida)} &nbsp; <strong>Previsão de retorno:</strong> ${formatDate(r.previsao_retorno)}</p>
-      ${r.observacoes ? `<p class="meta"><strong>Observações:</strong> ${r.observacoes}</p>` : ""}
-      <table><thead><tr><th>Código</th><th>Nº pneu</th><th>Marca / modelo</th><th>Medida</th><th>DOT</th><th>Condição</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table>
-      <p class="meta" style="margin-top:12px">Total: ${r.itens.length} pneu(s)</p>
-      <div class="ass"><div>Responsável MH3</div><div>Reformadora</div></div>
-      <script>window.onload=function(){window.print()}</script></body></html>`;
-    const janela = window.open("", "_blank");
-    if (!janela) return alert("Não foi possível abrir a impressão. Verifique o bloqueio de pop-ups.");
-    janela.document.open();
-    janela.document.write(html);
-    janela.document.close();
+    gerarPdfRomaneio(r);
   }
 
   function abrirRetorno(r: Romaneio) {

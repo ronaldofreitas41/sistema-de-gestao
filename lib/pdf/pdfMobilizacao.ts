@@ -2,11 +2,13 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { fotosDoGrupo, gruposFotos } from "@/lib/common";
 import { Mobilizacao } from "@/lib/types";
+import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
 
 type Rgb = [number, number, number];
 
 export async function generateMobilizacaoPDF(
-  mobilizacao: Mobilizacao
+  mobilizacao: Mobilizacao,
+  modo: EntregaPdf = "baixar"
 ) {
   const doc = new jsPDF({
     unit: "mm",
@@ -1104,7 +1106,5 @@ export async function generateMobilizacaoPDF(
   // SALVAR PDF
   // ============================================================
 
-  doc.save(
-    `${filename}.pdf`
-  );
+  return entregarPdf(doc, `${filename}.pdf`, modo);
 }
