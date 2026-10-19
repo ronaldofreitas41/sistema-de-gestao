@@ -23,14 +23,12 @@ export function DeleteAuthorizationProvider({
   children: React.ReactNode;
 }) {
   const [aberto, setAberto] = useState(false);
-  const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
   const resolverRef = useRef<((authorization: DeleteAuthorization | null) => void) | null>(null);
 
   const concluir = useCallback((authorization: DeleteAuthorization | null) => {
     const resolver = resolverRef.current;
     resolverRef.current = null;
-    setLogin("");
     setSenha("");
     setAberto(false);
     resolver?.(authorization);
@@ -57,7 +55,7 @@ export function DeleteAuthorizationProvider({
 
   function autorizar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    concluir({ login: login.trim(), senha });
+    concluir({ senha });
   }
 
   return (
@@ -73,27 +71,17 @@ export function DeleteAuthorizationProvider({
           <DialogHeader>
             <DialogTitle>Autorizar exclusão</DialogTitle>
             <DialogDescription>
-              Informe o login e a senha de um usuário autorizado para confirmar esta exclusão.
+              Para confirmar, digite a senha do seu usuário. Sem a senha correta, nada é excluído.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={autorizar} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="autorizador-login">Login do autorizador</Label>
-              <Input
-                id="autorizador-login"
-                autoComplete="username"
-                autoFocus
-                required
-                value={login}
-                onChange={(event) => setLogin(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="autorizador-senha">Senha</Label>
+              <Label htmlFor="autorizador-senha">Sua senha</Label>
               <Input
                 id="autorizador-senha"
                 type="password"
                 autoComplete="current-password"
+                autoFocus
                 required
                 value={senha}
                 onChange={(event) => setSenha(event.target.value)}

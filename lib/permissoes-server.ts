@@ -57,7 +57,8 @@ export async function exigirPermissao(request: Request | undefined, chave: strin
 }
 
 export async function validarAutorizacaoExclusao(request?: Request): Promise<Response | null> {
-  if (!request || !(await carregarSessao(request))) {
+  const sessao = request ? await carregarSessao(request) : null;
+  if (!request || !sessao) {
     return Response.json({ error: "Sessão expirada. Entre novamente." }, { status: 401 });
   }
 
@@ -65,52 +66,34 @@ export async function validarAutorizacaoExclusao(request?: Request): Promise<Res
   try {
     body = await request.clone().json();
   } catch {
-    return Response.json(
-      { error: "Informe o login e a senha de um usuário autorizado para excluir." },
-      { status: 400 },
-    );
+    return Response.json({ error: "Informe a sua senha para excluir." }, { status: 400 });
   }
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return Response.json(
-      { error: "Informe o login e a senha de um usuário autorizado para excluir." },
-      { status: 400 },
-    );
+  const senha =
+    body && typeof body === "object" && !Array.isArray(body) && typeof (body as { senha?: unknown }).senha === "string"
+      ? (body as { senha: string }).senha
+      : "";
+  if (!senha) {
+    return Response.json({ error: "Informe a sua senha para excluir." }, { status: 400 });
   }
 
-  const credenciais = body as { login?: unknown; senha?: unknown };
-  const login = typeof credenciais.login === "string" ? credenciais.login.trim() : "";
-  const senha = typeof credenciais.senha === "string" ? credenciais.senha : "";
-  if (!login || !senha) {
-    return Response.json(
-      { error: "Informe o login e a senha de um usuário autorizado para excluir." },
-      { status: 400 },
-    );
-  }
-
+  // A senha conferida é sempre a do próprio usuário logado.
   const usuario = await prisma.mh3_usuarios.findUnique({
-    where: { login },
-    select: { senha: true, perfil: true, permissoes: true, ativo: true },
+    where: { id: sessao.id },
+    select: { senha: true },
   });
-  if (!usuario || usuario.ativo === false) {
-    return Response.json({ error: "Login ou senha de autorização inválidos." }, { status: 401 });
-  }
-
-  const senhaArmazenada = String(usuario.senha ?? "");
-  const senhaValida = senhaArmazenada.startsWith("$2")
-    ? await bcrypt.compare(senha, senhaArmazenada)
-    : senha === senhaArmazenada;
+  const senhaArmazenada = String(usuario?.senha ?? "");
+  const senhaValida = !senhaArmazenada
+    ? false
+    : senhaArmazenada.startsWith("$2")
+      ? await bcrypt.compare(senha, senhaArmazenada)
+      : senha === senhaArmazenada;
   if (!senhaValida) {
-    return Response.json({ error: "Login ou senha de autorização inválidos." }, { status: 401 });
+    return Response.json({ error: "Senha incorreta. A exclusão não foi realizada." }, { status: 401 });
   }
 
-  const administrador = String(usuario.perfil ?? "").toLowerCase() === "admin";
-  const permissoes = lerPermissoes(usuario.permissoes);
-  if (!administrador && permissoes["exclusao:autorizar"] !== true) {
-    return Response.json(
-      { error: "Este usuário não tem autorização para aprovar exclusões." },
-      { status: 403 },
-    );
+  if (!sessao.admin && sessao.permissoes["exclusao:autorizar"] !== true) {
+    return Response.json({ error: "Seu usuário não tem permissão para excluir registros." }, { status: 403 });
   }
 
   return null;
