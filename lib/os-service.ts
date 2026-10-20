@@ -8,8 +8,9 @@ type Dados = Record<string, any>;
 
 export const TIPOS_OS = ["PREVENTIVA", "TROCA DE PNEUS", "MANUTENÇÃO"] as const;
 export const STATUS_OS = ["aberta", "finalizada"] as const;
+const OPCOES_TRANSACAO_OS = { maxWait: 10_000, timeout: 30_000 };
 
-/** Data de hoje (AAAA-MM-DD) no fuso de Brasília, para a entrada da OS não "virar o dia" à noite. */
+/** Data de hoje no fuso de Brasília, para a saída da OS não "virar o dia" à noite. */
 function hojeBrasilia() {
   return new Date(`${new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date())}T00:00:00.000Z`);
 }
@@ -101,19 +102,23 @@ export async function criarOS(body: Dados, request?: Request) {
     const { dados, pneus } = await montarDados(body, tx);
     const todas = await tx.mh3_manutencoes.findMany({ select: { osNum: true } });
     const maior = todas.reduce((m, r) => Math.max(m, extrairNumeroOs(r.osNum)), 0);
-    // A entrada é a data de criação e o responsável é quem abriu a OS; nenhum dos dois vem do formulário.
+    const id = crypto.randomUUID();
+    // O responsável é quem abriu a OS; não vem do formulário.
     const criada = await tx.mh3_manutencoes.create({
       data: {
-        id: crypto.randomUUID(),
+        id,
         osNum: formatarNumeroOs(maior + 1),
         ...dados,
-        en: hojeBrasilia(),
         resp: ator.nome,
       },
     });
-    await retirarPneusParaOS(tx, pneus.map((p) => p.pneu_id), { id: criada.id, osNum: criada.osNum, placa: dados.placa }, ator.nome);
-    return criada;
-  });
+    const osCriada = criada ?? await tx.mh3_manutencoes.findUnique({ where: { id } });
+    if (!osCriada) throw new Error("A OS não foi encontrada após a criação.");
+    if (pneus.length) {
+      await retirarPneusParaOS(tx, pneus.map((p) => p.pneu_id), { id: osCriada.id, osNum: osCriada.osNum, placa: dados.placa }, ator.nome);
+    }
+    return osCriada;
+  }, OPCOES_TRANSACAO_OS);
   await auditar({
     request,
     acao: "CRIAR",
@@ -133,8 +138,9 @@ export async function atualizarOS(id: string, body: Dados, request?: Request) {
     if (atual.status === "finalizada" && dadosForm.status !== "finalizada") {
       throw new ErroNegocio(409, "OS finalizada não pode voltar para Em aberto.");
     }
-    // Entrada e responsável ficam como foram gravados na criação.
-    const { en: _entrada, resp: _responsavel, ...dados } = dadosForm;
+    // O responsável fica como foi gravado na criação.
+    const { resp: _responsavel, ...dados } = dadosForm;
+    if (body.en === undefined) dados.en = atual.en;
 
     const anteriores: string[] = Array.isArray(atual.pneus)
       ? (atual.pneus as { pneu_id?: string }[]).map((p) => String(p.pneu_id))
@@ -148,7 +154,7 @@ export async function atualizarOS(id: string, body: Dados, request?: Request) {
     }
     const atualizada = await tx.mh3_manutencoes.update({ where: { id }, data: dados });
     return { atualizada, statusAnterior: atual.status };
-  });
+  }, OPCOES_TRANSACAO_OS);
   await auditar({
     request,
     acao: resultado.statusAnterior !== resultado.atualizada.status ? "STATUS_OS" : "EDITAR",

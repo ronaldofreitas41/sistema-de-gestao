@@ -298,7 +298,10 @@ export function Manutencoes() {
   }, [carregarPneus]);
 
   useEffect(() => {
-    carregar();
+    carregar().catch((error) => {
+      console.error("Erro ao carregar manutenções:", error);
+      alert(mensagemErro(error, "Não foi possível carregar as manutenções."));
+    });
     Promise.all([
       "/api/checklists",
       "/api/checklist-itens",
@@ -523,9 +526,9 @@ export function Manutencoes() {
       lancs: atual.lancs.map((item, itemIndex) => itemIndex !== index
         ? item
         : {
-            ...item,
-            [campo]: campo === "desc" || campo === "tipo" ? valor : Number(valor) || 0,
-          }),
+          ...item,
+          [campo]: campo === "desc" || campo === "tipo" ? valor : Number(valor) || 0,
+        }),
     }));
   }
 
@@ -682,13 +685,12 @@ export function Manutencoes() {
       <Card className="overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between border-b border-border px-4 py-4">
           <CardTitle
-            className={`flex items-center gap-2 text-base font-semibold ${
-              tipo === "abertas"
+            className={`flex items-center gap-2 text-base font-semibold ${tipo === "abertas"
                 ? "text-primary"
                 : tipo === "concluidas"
                   ? "text-emerald-700"
                   : "text-muted-foreground"
-            }`}
+              }`}
           >
             <Calculator className="h-5 w-5" />
             {titulo} ({registros.length})
@@ -863,9 +865,8 @@ export function Manutencoes() {
 
       {/* Conteúdo principal */}
       <div
-        className={`min-h-screen transition-[padding-left] duration-300 ${
-          sidebarCollapsed ? "md:pl-18" : "md:pl-65"
-        }`}
+        className={`min-h-screen transition-[padding-left] duration-300 ${sidebarCollapsed ? "md:pl-18" : "md:pl-65"
+          }`}
       >
         {/* Cabeçalho compacto */}
         <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-9">
@@ -995,11 +996,10 @@ export function Manutencoes() {
                 role="tab"
                 aria-selected={abaAtiva === tab}
                 onClick={() => setAbaAtiva(tab)}
-                className={`min-h-10 shrink-0 border-b-2 px-3 text-xs font-medium transition-colors ${
-                  abaAtiva === tab
+                className={`min-h-10 shrink-0 border-b-2 px-3 text-xs font-medium transition-colors ${abaAtiva === tab
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 {label}
               </button>
@@ -1103,8 +1103,10 @@ export function Manutencoes() {
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Entrada (data de criação)</Label>
-                  <Input type="date" value={form.en} readOnly disabled title="A data de entrada é a da criação da OS e não pode ser alterada." className="h-10 bg-muted/20" />
+                  <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Entrada</Label>
+                  <Input type="date" value={form.en}
+                    onChange={(event) => alterarCampo("en", event.target.value)}
+                    className="h-10 bg-muted/20" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Saída (conclusão)</Label>
@@ -1200,7 +1202,7 @@ export function Manutencoes() {
                     </TableHeader>
                     <TableBody>
                       {form.lancs.map((item, index) => (
-                        <TableRow key={`${index}-${item.desc}`}>
+                        <TableRow key={index}>
                           <TableCell><Input aria-label="Descrição do item" value={item.desc} onChange={(event) => alterarItemOS(index, "desc", event.target.value)} className="h-9 min-w-40" /></TableCell>
                           <TableCell>
                             <Select value={item.tipo} onValueChange={(value) => alterarItemOS(index, "tipo", value)}>
