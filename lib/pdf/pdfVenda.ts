@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
+import type { OrientacaoPdf } from "@/lib/pdf/orientacao";
 
 export type VendaPDF = {
   id: string;
@@ -35,13 +36,21 @@ function formatCurrency(value: number) {
   return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export async function gerarPdfVenda(venda: VendaPDF, modo: EntregaPdf = "baixar") {
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+export async function gerarPdfVenda(
+  venda: VendaPDF,
+  modo: EntregaPdf = "baixar",
+  orientacao: OrientacaoPdf = "landscape",
+) {
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: orientacao });
   const red: Rgb = [190, 0, 0];
   const dark: Rgb = [45, 45, 45];
   const gray: Rgb = [145, 145, 145];
   const light: Rgb = [226, 228, 230];
-  const pageWidth = 297;
+  // As medidas derivam do tamanho real da página para valer em paisagem e retrato.
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const rodapeY = pageHeight - 24;
+  const limiteConteudo = pageHeight - 27;
   const margin = 14;
   const contentWidth = pageWidth - margin * 2;
 
@@ -80,21 +89,21 @@ export async function gerarPdfVenda(venda: VendaPDF, modo: EntregaPdf = "baixar"
 
   const drawFooter = (page: number, total: number) => {
     doc.setFillColor(28, 28, 28);
-    doc.rect(0, 186, pageWidth, 18, "F");
+    doc.rect(0, rodapeY, pageWidth, 18, "F");
     doc.setFont("helvetica", "bolditalic");
     doc.setFontSize(10);
     doc.setTextColor(245, 245, 245);
-    doc.text("MH3 RENTAL LTDA", pageWidth / 2, 193, { align: "center" });
+    doc.text("MH3 RENTAL LTDA", pageWidth / 2, rodapeY + 7, { align: "center" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(220, 220, 220);
-    doc.text("CNPJ: 26.881.195/0001-10 · Rodovia BR 381, km 361 — João Monlevade/MG", pageWidth / 2, 198, { align: "center" });
-    doc.text("(31) 99977-6105 · comercial@mh3rental.com.br", pageWidth / 2, 202, { align: "center" });
+    doc.text("CNPJ: 26.881.195/0001-10 · Rodovia BR 381, km 361 — João Monlevade/MG", pageWidth / 2, rodapeY + 12, { align: "center" });
+    doc.text("(31) 99977-6105 · comercial@mh3rental.com.br", pageWidth / 2, rodapeY + 16, { align: "center" });
     doc.setFillColor(255, 255, 255);
-    doc.rect(0, 204, pageWidth, 6, "F");
+    doc.rect(0, rodapeY + 18, pageWidth, 6, "F");
     doc.setFontSize(8);
     doc.setTextColor(...gray);
-    doc.text(`Pág. ${page} de ${total}`, pageWidth - margin, 208.5, { align: "right" });
+    doc.text(`Pág. ${page} de ${total}`, pageWidth - margin, pageHeight - 1.5, { align: "right" });
   };
 
   const pagamento = venda.em_medicao
@@ -113,8 +122,10 @@ export async function gerarPdfVenda(venda: VendaPDF, modo: EntregaPdf = "baixar"
   drawHeader();
   doc.setFillColor(250, 251, 252);
   doc.setDrawColor(...light);
-  doc.roundedRect(margin, 42, contentWidth, 35, 2.5, 2.5, "FD");
-  const columns = 4;
+  const columns = orientacao === "portrait" ? 3 : 4;
+  const linhasCampos = Math.ceil(fields.length / columns);
+  const alturaCampos = 5 + linhasCampos * 15;
+  doc.roundedRect(margin, 42, contentWidth, alturaCampos, 2.5, 2.5, "FD");
   const columnWidth = contentWidth / columns;
   fields.forEach(([label, raw], index) => {
     const row = Math.floor(index / columns);
@@ -148,7 +159,7 @@ export async function gerarPdfVenda(venda: VendaPDF, modo: EntregaPdf = "baixar"
   foot.push(["", "", "", "TOTAL", formatCurrency(venda.total)]);
 
   autoTable(doc, {
-    startY: 84,
+    startY: 42 + alturaCampos + 7,
     head: [["DESCRIÇÃO", "TIPO", "QTD", "VALOR UNIT.", "SUBTOTAL"]],
     body: linhas,
     foot,
@@ -174,7 +185,7 @@ export async function gerarPdfVenda(venda: VendaPDF, modo: EntregaPdf = "baixar"
     let y = (doc as any).lastAutoTable.finalY + 8;
     const textoObs = doc.splitTextToSize(venda.observacoes, contentWidth - 8);
     const altura = Math.max(13, textoObs.length * 4.5 + 7);
-    if (y + altura + 8 > 183) {
+    if (y + altura + 8 > limiteConteudo) {
       doc.addPage();
       drawHeader();
       y = 46;

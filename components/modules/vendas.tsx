@@ -45,6 +45,7 @@ import { StatusSelect, type OpcaoStatus } from "@/components/ui/status-select";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { compartilharWhatsApp } from "@/lib/whatsapp";
 import { gerarPdfVenda } from "@/lib/pdf/pdfVenda";
+import { escolherOrientacaoPdf } from "@/lib/pdf/orientacao";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -632,7 +633,10 @@ export function Vendas() {
                       )}
 
                       <button
-                        onClick={() => gerarPdfVenda(v)}
+                        onClick={async () => {
+                          const orientacao = await escolherOrientacaoPdf();
+                          if (orientacao) await gerarPdfVenda(v, "baixar", orientacao);
+                        }}
                         className="p-1.5 rounded text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
                         title="Gerar PDF"
                       >

@@ -22,6 +22,7 @@ import { AlertTriangle, Ban, Edit, Menu, Plus, Printer, RotateCcw, Search, Trash
 import { Sidebar } from "@/components/layout/sidebar";
 import { deleteRegistro, formatCurrency, formatDate } from "@/lib/utils";
 import { gerarPdfRomaneio } from "@/lib/pdf/pdfRomaneio";
+import { escolherOrientacaoPdf } from "@/lib/pdf/orientacao";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { usuarioLogado, usuarioPode } from "@/lib/permissoes-client";
 import { useSortableData } from "@/components/ui/sortable-table";
@@ -317,8 +318,9 @@ export function Pneus() {
     }
   }
 
-  function imprimirRomaneio(r: Romaneio) {
-    gerarPdfRomaneio(r);
+  async function imprimirRomaneio(r: Romaneio) {
+    const orientacao = await escolherOrientacaoPdf();
+    if (orientacao) gerarPdfRomaneio(r, orientacao);
   }
 
   function abrirRetorno(r: Romaneio) {

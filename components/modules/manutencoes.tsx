@@ -56,6 +56,7 @@ import { SortableTableHead, useSortableData } from "@/components/ui/sortable-tab
 import {
   deleteRegistro,
 } from "@/lib/utils";
+import { escolherOrientacaoPdf } from "@/lib/pdf/orientacao";
 import { printManutencaoPDF } from "@/lib/pdf/pdfManutencao";
 import { ManutencaoApi } from "@/lib/types";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
@@ -471,10 +472,12 @@ export function Manutencoes() {
   }
 
   async function gerarPdf(manutencao: ManutencaoApi) {
+    const orientacao = await escolherOrientacaoPdf();
+    if (!orientacao) return;
     setCarregandoDetalheId(manutencao.id);
     try {
       const dados = await buscarManutencaoCompleta(manutencao.id);
-      printManutencaoPDF(dados);
+      printManutencaoPDF(dados, "baixar", orientacao);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Não foi possível carregar a manutenção.");
     } finally {

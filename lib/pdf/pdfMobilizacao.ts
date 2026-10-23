@@ -3,18 +3,21 @@ import autoTable from "jspdf-autotable";
 import { fotosDoGrupo, gruposFotos } from "@/lib/common";
 import { Mobilizacao } from "@/lib/types";
 import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
+import type { OrientacaoPdf } from "@/lib/pdf/orientacao";
 
 type Rgb = [number, number, number];
 
 export async function generateMobilizacaoPDF(
   mobilizacao: Mobilizacao,
-  modo: EntregaPdf = "baixar"
+  modo: EntregaPdf = "baixar",
+  orientacao: OrientacaoPdf = "landscape"
 ) {
   const doc = new jsPDF({
     unit: "mm",
     format: "a4",
-    orientation: "landscape",
+    orientation: orientacao,
   });
+  const retrato = orientacao === "portrait";
 
   // ============================================================
   // CORES
@@ -31,8 +34,8 @@ export async function generateMobilizacaoPDF(
 
   const margin = 14;
 
-  const pageWidth = 297;
-  const pageHeight = 210;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
   const contentWidth =
     pageWidth - margin * 2;
@@ -184,7 +187,7 @@ export async function generateMobilizacaoPDF(
   const addPage = () => {
     doc.addPage(
       "a4",
-      "landscape"
+      orientacao
     );
 
     currentY = 42;
@@ -396,7 +399,8 @@ export async function generateMobilizacaoPDF(
       ],
     ];
 
-    const columns = 3;
+    // Em retrato o card usa 2 colunas para os valores não serem cortados.
+    const columns = retrato ? 2 : 3;
 
     const rows = Math.ceil(
       fields.length / columns
@@ -552,8 +556,7 @@ export async function generateMobilizacaoPDF(
     total: number
   ) => {
     /*
-     * O rodapé começa em 277mm e vai até
-     * exatamente o final da página A4 (297mm).
+     * O rodapé ocupa o final da página, em qualquer orientação.
      */
 
     doc.setFillColor(

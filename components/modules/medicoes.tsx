@@ -49,6 +49,7 @@ import {
   type PlacaMedicao,
 } from "@/lib/medicoes";
 import { gerarPdfMedicao } from "@/lib/pdf/pdfMedicao";
+import { escolherOrientacaoPdf, type OrientacaoPdf } from "@/lib/pdf/orientacao";
 import { chamarApi, mensagemErro } from "@/lib/api-client";
 import { StatusSelect } from "@/components/ui/status-select";
 import { compartilharWhatsApp } from "@/lib/whatsapp";
@@ -643,13 +644,18 @@ export function Medicoes() {
     }
   }
 
-  function gerarPdf(medicao: MedicaoApi, modo: "baixar" | "arquivo" = "baixar") {
+  function gerarPdf(medicao: MedicaoApi, modo: "baixar" | "arquivo" = "baixar", orientacao: OrientacaoPdf = "landscape") {
     const cliente =
       medicao.cliente_nome?.trim() ||
       clientes.find((item) => String(item.id) === String(medicao.cliente_id))?.nome ||
       "";
     const empresa = empresas.find((item) => String(item.id) === String(medicao.empresa_id));
-    return gerarPdfMedicao({ ...medicao, cliente, empresa }, equipamentosPorPlaca, modo);
+    return gerarPdfMedicao({ ...medicao, cliente, empresa }, equipamentosPorPlaca, modo, orientacao);
+  }
+
+  async function baixarPdf(medicao: MedicaoApi) {
+    const orientacao = await escolherOrientacaoPdf();
+    if (orientacao) await gerarPdf(medicao, "baixar", orientacao);
   }
 
   async function enviarWhatsApp(medicao: MedicaoApi) {
@@ -811,7 +817,7 @@ export function Medicoes() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex flex-wrap justify-end gap-1">
-                              <Button variant="ghost" size="icon" title="Baixar PDF" onClick={() => gerarPdf(medicao)}>
+                              <Button variant="ghost" size="icon" title="Baixar PDF" onClick={() => baixarPdf(medicao)}>
                                 <FileDown className="h-4 w-4 text-primary" />
                               </Button>
                               <Button variant="ghost" size="icon" title="Compartilhar no WhatsApp" onClick={() => enviarWhatsApp(medicao)}>

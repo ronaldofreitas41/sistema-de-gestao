@@ -22,6 +22,7 @@ import { lerImagemComprimida } from "@/lib/imagem";
 import { compartilharWhatsApp } from "@/lib/whatsapp";
 import { Mobilizacao } from "@/lib/types";
 import { generateMobilizacaoPDF } from "../../lib/pdf/pdfMobilizacao";
+import { escolherOrientacaoPdf } from "@/lib/pdf/orientacao";
 
 
 
@@ -492,7 +493,10 @@ export function Mobilizacoes() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => generateMobilizacaoPDF(mobilizacao)}
+                                onClick={async () => {
+                                  const orientacao = await escolherOrientacaoPdf();
+                                  if (orientacao) await generateMobilizacaoPDF(mobilizacao, "baixar", orientacao);
+                                }}
                                 title="Baixar PDF da mobilização"
                                 aria-label="Baixar PDF da mobilização"
                                 className="h-8 w-8 hover:bg-green-50 hover:text-green-600"

@@ -2,18 +2,24 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Proposta } from "@/lib/types";
 import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
+import type { OrientacaoPdf } from "@/lib/pdf/orientacao";
 import { corEmpresaRgb, type Rgb } from "@/lib/pdf/cores";
 
-export function generatePropostaPDF(proposta: Proposta, modo: EntregaPdf = "baixar") {
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+export function generatePropostaPDF(
+  proposta: Proposta,
+  modo: EntregaPdf = "baixar",
+  orientacao: OrientacaoPdf = "landscape",
+) {
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: orientacao });
+  const retrato = orientacao === "portrait";
   const red: Rgb = corEmpresaRgb(proposta.empresaEmitente?.cor_primaria, [190, 0, 0]);
   const dark: Rgb = [65, 65, 65];
   const gray: Rgb = [105, 105, 105];
   const lightLine: Rgb = [225, 225, 225];
   const gold: Rgb = [181, 139, 0];
   const margin = 17;
-  const pageWidth = 297;
-  const pageHeight = 210;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const contentWidth = pageWidth - margin * 2;
   const footerHeight = 18;
   const footerTop = pageHeight - footerHeight;
@@ -40,7 +46,7 @@ export function generatePropostaPDF(proposta: Proposta, modo: EntregaPdf = "baix
   };
 
   const addPage = () => {
-    doc.addPage("a4", "landscape");
+    doc.addPage("a4", orientacao);
     currentY = 19;
   };
 
@@ -227,7 +233,7 @@ export function generatePropostaPDF(proposta: Proposta, modo: EntregaPdf = "baix
 
   const drawInfoCard = () => {
     const top = currentY;
-    const height = 49;
+    const height = retrato ? 66 : 49;
     const half = contentWidth / 2;
     const col = contentWidth / 4;
     doc.setDrawColor(...lightLine);
@@ -245,17 +251,35 @@ export function generatePropostaPDF(proposta: Proposta, modo: EntregaPdf = "baix
       doc.text(doc.splitTextToSize(value(item), width).slice(0, 1), x, y + 5.5);
     };
 
-    field("Data", formatDate(proposta.data), margin + 5, top + 7, col - 10);
-    field("Validade da proposta", formatDate(proposta.validade), margin + col + 5, top + 7, col - 10);
-    field("Empresa / Solicitante", proposta.contratante, margin + col * 2 + 5, top + 7, col - 10);
-    field("E-mail", proposta.email, margin + col * 3 + 5, top + 7, col - 10);
-    doc.setDrawColor(...lightLine);
-    doc.line(margin + 5, top + 17, pageWidth - margin - 5, top + 17);
-    field("Obra / Cidade", proposta.obra, margin + 5, top + 24, half - 10);
-    field("Veículo / Equipamento", proposta.veiculo, margin + half + 5, top + 24, half - 10);
-    doc.line(margin + 5, top + 34, pageWidth - margin - 5, top + 34);
-    field("Modelo", proposta.modelo, margin + 5, top + 41, half - 10);
-    field("Ano", proposta.ano, margin + half + 5, top + 41, half - 10);
+    const separador = (y: number) => doc.line(margin + 5, y, pageWidth - margin - 5, y);
+
+    if (retrato) {
+      // Em retrato cada linha tem 2 campos, para os textos não serem cortados.
+      field("Data", formatDate(proposta.data), margin + 5, top + 7, half - 10);
+      field("Validade da proposta", formatDate(proposta.validade), margin + half + 5, top + 7, half - 10);
+      doc.setDrawColor(...lightLine);
+      separador(top + 17);
+      field("Empresa / Solicitante", proposta.contratante, margin + 5, top + 24, half - 10);
+      field("E-mail", proposta.email, margin + half + 5, top + 24, half - 10);
+      separador(top + 34);
+      field("Obra / Cidade", proposta.obra, margin + 5, top + 41, half - 10);
+      field("Veículo / Equipamento", proposta.veiculo, margin + half + 5, top + 41, half - 10);
+      separador(top + 51);
+      field("Modelo", proposta.modelo, margin + 5, top + 58, half - 10);
+      field("Ano", proposta.ano, margin + half + 5, top + 58, half - 10);
+    } else {
+      field("Data", formatDate(proposta.data), margin + 5, top + 7, col - 10);
+      field("Validade da proposta", formatDate(proposta.validade), margin + col + 5, top + 7, col - 10);
+      field("Empresa / Solicitante", proposta.contratante, margin + col * 2 + 5, top + 7, col - 10);
+      field("E-mail", proposta.email, margin + col * 3 + 5, top + 7, col - 10);
+      doc.setDrawColor(...lightLine);
+      separador(top + 17);
+      field("Obra / Cidade", proposta.obra, margin + 5, top + 24, half - 10);
+      field("Veículo / Equipamento", proposta.veiculo, margin + half + 5, top + 24, half - 10);
+      separador(top + 34);
+      field("Modelo", proposta.modelo, margin + 5, top + 41, half - 10);
+      field("Ano", proposta.ano, margin + half + 5, top + 41, half - 10);
+    }
     currentY += height + 8;
   };
 

@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { entregarPdf } from "@/lib/pdf/entrega";
+import type { OrientacaoPdf } from "@/lib/pdf/orientacao";
 
 export type RomaneioPDF = {
   numero?: string | null;
@@ -26,11 +27,12 @@ function formatDate(value?: string | null) {
   return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : value || "—";
 }
 
-/** Romaneio de saída para reforma em PDF paisagem (baixa sozinho, sem depender de pop-up). */
-export function gerarPdfRomaneio(romaneio: RomaneioPDF) {
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+/** Romaneio de saída para reforma em PDF (baixa sozinho, sem depender de pop-up). */
+export function gerarPdfRomaneio(romaneio: RomaneioPDF, orientacao: OrientacaoPdf = "landscape") {
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: orientacao });
   const margin = 14;
-  const pageWidth = 297;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
@@ -74,16 +76,17 @@ export function gerarPdfRomaneio(romaneio: RomaneioPDF) {
   doc.setFontSize(10);
   doc.text(`Total: ${romaneio.itens.length} pneu(s)`, margin, fim);
   fim += 28;
-  if (fim > 195) {
+  if (fim > pageHeight - 15) {
     doc.addPage();
     fim = 40;
   }
   doc.setDrawColor(0, 0, 0);
-  doc.line(margin + 10, fim, margin + 110, fim);
-  doc.line(pageWidth - margin - 110, fim, pageWidth - margin - 10, fim);
+  const larguraLinha = Math.min(100, (pageWidth - margin * 2) / 2 - 15);
+  doc.line(margin + 10, fim, margin + 10 + larguraLinha, fim);
+  doc.line(pageWidth - margin - 10 - larguraLinha, fim, pageWidth - margin - 10, fim);
   doc.setFontSize(9);
-  doc.text("Responsável MH3", margin + 60, fim + 5, { align: "center" });
-  doc.text("Reformadora", pageWidth - margin - 60, fim + 5, { align: "center" });
+  doc.text("Responsável MH3", margin + 10 + larguraLinha / 2, fim + 5, { align: "center" });
+  doc.text("Reformadora", pageWidth - margin - 10 - larguraLinha / 2, fim + 5, { align: "center" });
 
   return entregarPdf(doc, `Romaneio-${romaneio.numero ?? "pneus"}.pdf`);
 }

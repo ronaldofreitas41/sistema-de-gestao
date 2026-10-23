@@ -60,6 +60,7 @@ import {
 
 import { RESPONSABILIDADES_PADRAO, SEGURO_PADRAO } from "@/lib/common";
 import { generatePropostaPDF } from "@/lib/pdf/pdfProposta";
+import { escolherOrientacaoPdf } from "@/lib/pdf/orientacao";
 
 const initialFormData: Omit<Proposta, "id"> = {
   empresaId: "",
@@ -672,17 +673,23 @@ export function Propostas() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700"
-                              onClick={() => {
+                              onClick={async () => {
+                                const orientacao = await escolherOrientacaoPdf();
+                                if (!orientacao) return;
                                 const empresaEmitente = empresas.find(
                                   (empresa) =>
                                     String(empresa.id) ===
                                     String(proposta.empresaId),
                                 );
-                                generatePropostaPDF({
-                                  ...proposta,
-                                  empresaLogo: empresaEmitente?.logo,
-                                  empresaEmitente,
-                                });
+                                generatePropostaPDF(
+                                  {
+                                    ...proposta,
+                                    empresaLogo: empresaEmitente?.logo,
+                                    empresaEmitente,
+                                  },
+                                  "baixar",
+                                  orientacao,
+                                );
                               }}
                               title="Gerar PDF"
                             >

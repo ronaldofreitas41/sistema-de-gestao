@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
+import type { OrientacaoPdf } from "@/lib/pdf/orientacao";
 import autoTable from "jspdf-autotable";
 import { obterPlacasMedicao, type PlacaMedicao } from "@/lib/medicoes";
 import { corEmpresaRgb, type Rgb } from "@/lib/pdf/cores";
@@ -45,17 +46,19 @@ function carregarImagem(src: string): Promise<HTMLImageElement | null> {
 }
 
 /**
- * Resumo da medição em PDF paisagem, baixado direto no computador.
+ * Resumo da medição em PDF (paisagem ou retrato), baixado direto no computador.
  * `tipo` da medição (contratante ou parceiro) define o título; as placas podem misturar hora e mensal.
  */
 export async function gerarPdfMedicao(
   medicao: any,
   equipamentosPorPlaca: Record<string, string> = {},
   modo: EntregaPdf = "baixar",
+  orientacao: OrientacaoPdf = "landscape",
 ) {
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
-  const pageWidth = 297;
-  const pageHeight = 210;
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: orientacao });
+  const retrato = orientacao === "portrait";
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 14;
   const rodapeAltura = 24;
   const limite = pageHeight - rodapeAltura - 4;
@@ -152,22 +155,26 @@ export async function gerarPdfMedicao(
     ["OBRA", medicao.obra || "-"],
     ["DATA", dataBr(medicao.data_medicao)],
   ];
-  const larguraColuna = (pageWidth - margin * 2) / dados.length;
+  const colunasDados = retrato ? 2 : dados.length;
+  const linhasDados = Math.ceil(dados.length / colunasDados);
+  const larguraColuna = (pageWidth - margin * 2) / colunasDados;
+  const alturaDados = 6 + linhasDados * 12;
   doc.setFillColor(250, 251, 252);
   doc.setDrawColor(...linha);
-  doc.roundedRect(margin, y, pageWidth - margin * 2, 18, 2, 2, "FD");
+  doc.roundedRect(margin, y, pageWidth - margin * 2, alturaDados, 2, 2, "FD");
   dados.forEach(([rotulo, valor], indice) => {
-    const x = margin + 5 + indice * larguraColuna;
+    const x = margin + 5 + (indice % colunasDados) * larguraColuna;
+    const topoLinha = y + Math.floor(indice / colunasDados) * 12;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...cinza);
-    doc.text(rotulo, x, y + 6.5);
+    doc.text(rotulo, x, topoLinha + 6.5);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(...escuro);
-    doc.text(doc.splitTextToSize(valor, larguraColuna - 8).slice(0, 1), x, y + 13);
+    doc.text(doc.splitTextToSize(valor, larguraColuna - 8).slice(0, 1), x, topoLinha + 13);
   });
-  y += 24;
+  y += alturaDados + 6;
 
   const estiloTabela = {
     theme: "grid" as const,
@@ -179,7 +186,7 @@ export async function gerarPdfMedicao(
 
   const subtitulo = (texto: string) => {
     if (y + 20 > limite) {
-      doc.addPage("a4", "landscape");
+      doc.addPage("a4", orientacao);
       cabecalho();
       y = 40;
     }
@@ -218,11 +225,11 @@ export async function gerarPdfMedicao(
       ...(mostrarSubtotais ? { foot: [["", "", "", "", "SUBTOTAL HORA", moeda(totalHora)]] } : {}),
       columnStyles: {
         0: { cellWidth: "auto" },
-        1: { halign: "center", cellWidth: 30 },
-        2: { halign: "center", cellWidth: 32 },
-        3: { halign: "right", cellWidth: 32 },
-        4: { halign: "center", cellWidth: 40 },
-        5: { halign: "right", cellWidth: 42, fontStyle: "bold" },
+        1: { halign: "center", cellWidth: retrato ? 24 : 30 },
+        2: { halign: "center", cellWidth: retrato ? 24 : 32 },
+        3: { halign: "right", cellWidth: retrato ? 26 : 32 },
+        4: { halign: "center", cellWidth: retrato ? 28 : 40 },
+        5: { halign: "right", cellWidth: retrato ? 32 : 42, fontStyle: "bold" },
       },
     });
     y = ultimoY() + 9;
@@ -246,11 +253,11 @@ export async function gerarPdfMedicao(
       ...(mostrarSubtotais ? { foot: [["", "", "", "", "SUBTOTAL MENSAL", moeda(totalMensal)]] } : {}),
       columnStyles: {
         0: { cellWidth: "auto" },
-        1: { halign: "center", cellWidth: 30 },
-        2: { halign: "right", cellWidth: 36 },
-        3: { halign: "center", cellWidth: 28 },
-        4: { halign: "center", cellWidth: 40 },
-        5: { halign: "right", cellWidth: 42, fontStyle: "bold" },
+        1: { halign: "center", cellWidth: retrato ? 24 : 30 },
+        2: { halign: "right", cellWidth: retrato ? 28 : 36 },
+        3: { halign: "center", cellWidth: retrato ? 20 : 28 },
+        4: { halign: "center", cellWidth: retrato ? 28 : 40 },
+        5: { halign: "right", cellWidth: retrato ? 32 : 42, fontStyle: "bold" },
       },
     });
     y = ultimoY() + 9;
@@ -299,7 +306,7 @@ export async function gerarPdfMedicao(
 
   if (medicao.observacoes) {
     if (y + 16 > limite) {
-      doc.addPage("a4", "landscape");
+      doc.addPage("a4", orientacao);
       cabecalho();
       y = 40;
     }

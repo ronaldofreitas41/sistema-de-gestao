@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { DeleteAuthorizationProvider } from '@/components/ui/delete-authorization-provider'
+import { OrientacaoPdfProvider } from '@/components/ui/orientacao-pdf-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -42,7 +43,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="light bg-background">
       <body className="antialiased">
-        <DeleteAuthorizationProvider>{children}</DeleteAuthorizationProvider>
+        <DeleteAuthorizationProvider>
+          <OrientacaoPdfProvider>{children}</OrientacaoPdfProvider>
+        </DeleteAuthorizationProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

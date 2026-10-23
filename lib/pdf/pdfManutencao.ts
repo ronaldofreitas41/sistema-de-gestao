@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { entregarPdf, type EntregaPdf } from "@/lib/pdf/entrega";
+import type { OrientacaoPdf } from "@/lib/pdf/orientacao";
 
 type ManutencaoPDF = {
   id: string;
@@ -170,14 +171,21 @@ function getPhotos(value: unknown): PhotoEntry[] {
   });
 }
 
-export async function printManutencaoPDF(os: ManutencaoPDF, modo: EntregaPdf = "baixar") {
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+export async function printManutencaoPDF(
+  os: ManutencaoPDF,
+  modo: EntregaPdf = "baixar",
+  orientacao: OrientacaoPdf = "landscape",
+) {
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: orientacao });
   const red: Rgb = [190, 0, 0];
   const dark: Rgb = [45, 45, 45];
   const gray: Rgb = [145, 145, 145];
   const light: Rgb = [226, 228, 230];
-  const pageWidth = 297;
-  const limiteConteudo = 183;
+  // Todas as medidas derivam do tamanho real da página para o layout valer nas duas orientações.
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const rodapeY = pageHeight - 24;
+  const limiteConteudo = pageHeight - 27;
   const margin = 14;
   const contentWidth = pageWidth - margin * 2;
 
@@ -219,22 +227,22 @@ export async function printManutencaoPDF(os: ManutencaoPDF, modo: EntregaPdf = "
 
   const drawFooter = (page: number, total: number) => {
     doc.setFillColor(28, 28, 28);
-    doc.rect(0, 186, pageWidth, 18, "F");
+    doc.rect(0, rodapeY, pageWidth, 18, "F");
     doc.setFont("helvetica", "bolditalic");
     doc.setFontSize(10);
     doc.setTextColor(245, 245, 245);
-    doc.text("MH3 RENTAL LTDA", pageWidth / 2, 193, { align: "center" });
+    doc.text("MH3 RENTAL LTDA", pageWidth / 2, rodapeY + 7, { align: "center" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(220, 220, 220);
-    doc.text("CNPJ: 26.881.195/0001-10 · Rodovia BR 381, km 361 — João Monlevade/MG", pageWidth / 2, 198, { align: "center" });
-    doc.text("(31) 99977-6105 · comercial@mh3rental.com.br", pageWidth / 2, 202, { align: "center" });
+    doc.text("CNPJ: 26.881.195/0001-10 · Rodovia BR 381, km 361 — João Monlevade/MG", pageWidth / 2, rodapeY + 12, { align: "center" });
+    doc.text("(31) 99977-6105 · comercial@mh3rental.com.br", pageWidth / 2, rodapeY + 16, { align: "center" });
     doc.setFillColor(255, 255, 255);
-    doc.rect(0, 204, pageWidth, 6, "F");
+    doc.rect(0, rodapeY + 18, pageWidth, 6, "F");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...gray);
-    doc.text(`Pág. ${page} de ${total}`, pageWidth - margin, 208.5, { align: "right" });
+    doc.text(`Pág. ${page} de ${total}`, pageWidth - margin, pageHeight - 1.5, { align: "right" });
   };
 
   const fields: [string, string][] = [
@@ -411,7 +419,7 @@ export async function printManutencaoPDF(os: ManutencaoPDF, modo: EntregaPdf = "
   ];
   const photoColumns = 3;
   const photoGap = 3;
-  const photoWidth = (contentWidth - photoGap) / photoColumns;
+  const photoWidth = (contentWidth - photoGap * (photoColumns - 1)) / photoColumns;
   for (let index = 0; index < photoRows.length; index += photoColumns) {
     const row = photoRows.slice(index, index + photoColumns);
     const height = row.some((photo) => photo.source) ? 43 : 11;
