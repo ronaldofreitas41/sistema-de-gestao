@@ -70,6 +70,12 @@ type OcorrenciaPendente = {
 const prazoTexto = (dias: number) =>
   dias < 0 ? `vencida há ${-dias} dia(s)` : dias === 0 ? "vence hoje" : `vence em ${dias} dia(s)`;
 
+function normalizarDataParaApi(data: string) {
+  if (!data) return null;
+  const correspondencia = data.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return correspondencia ? `${correspondencia[3]}-${correspondencia[2]}-${correspondencia[1]}` : data;
+}
+
 export function ComponenteAjudaMotorista() {
   const [ajudas, setAjudas] = useState<Ajuda_Motorista[]>([]);
   const [search, setSearch] = useState("");
@@ -210,7 +216,7 @@ export function ComponenteAjudaMotorista() {
       motorista: ajuda.motorista || "",
       telefone: ajuda.telefone || "",
       valor: ajuda.valor ? String(ajuda.valor) : "",
-      data: ajuda.data ? ajuda.data.split("T")[0] : "",
+      data: ajuda.data ? ajuda.data.split("T")[0].split("-").reverse().join("/") : "",
       forma_pagamento: ajuda.forma_pagamento || "PIX",
       pix: ajuda.pix || "",
       observacoes: ajuda.observacoes || "",
@@ -230,7 +236,7 @@ export function ComponenteAjudaMotorista() {
       ...formData,
       valor: Number(formData.valor) || 0,
       recorrente: formData.recorrente ? 1 : 0,
-      data: formData.data,
+      data: normalizarDataParaApi(formData.data),
     };
 
     try {
