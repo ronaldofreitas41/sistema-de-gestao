@@ -12,10 +12,13 @@ import {
   Plus,
   Search,
   TimerReset,
+  Trash2,
   X,
 } from "lucide-react";
 
 import { Sidebar } from "@/components/layout/sidebar";
+import { mensagemErro } from "@/lib/api-client";
+import { deleteRegistro } from "@/lib/utils";
 import { PlacaInput } from "@/components/ui/placa-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,6 +163,7 @@ export default function AcompRevisaoPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(async () => {
@@ -324,6 +328,20 @@ export default function AcompRevisaoPage() {
       alert("Erro ao salvar o acompanhamento de revisão.");
     } finally {
       setSalvando(false);
+    }
+  }
+
+  async function excluir(revisao: Revisao) {
+    if (excluindoId) return;
+    if (!confirm("Excluir este acompanhamento de revisão?")) return;
+    setExcluindoId(String(revisao.id));
+    try {
+      if (!(await deleteRegistro(`/api/revisoes/${revisao.id}`))) return;
+      setRevisoes((atual) => atual.filter((item) => String(item.id) !== String(revisao.id)));
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível excluir o acompanhamento."));
+    } finally {
+      setExcluindoId(null);
     }
   }
 
@@ -546,16 +564,30 @@ export default function AcompRevisaoPage() {
                           {dados.ultimaOs || "Não informada"}
                         </p>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        title="Editar acompanhamento"
-                        aria-label="Editar acompanhamento"
-                        onClick={() => abrirEdicao(revisao)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          title="Editar acompanhamento"
+                          aria-label="Editar acompanhamento"
+                          onClick={() => abrirEdicao(revisao)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          title="Excluir acompanhamento"
+                          aria-label="Excluir acompanhamento"
+                          className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                          disabled={excluindoId !== null}
+                          onClick={() => excluir(revisao)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-4 pt-5">
                       <div
