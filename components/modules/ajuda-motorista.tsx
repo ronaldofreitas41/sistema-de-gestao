@@ -254,6 +254,17 @@ export function ComponenteAjudaMotorista() {
     }
   };
 
+  const desfazerConfirmacao = async (ajuda: any, mes: string) => {
+    if (!confirm(`Desfazer a confirmação de ${mes.split("-").reverse().join("/")}? A conta a pagar gerada será excluída e a ajuda volta para Pendências.`)) return;
+    try {
+      await chamarApi("/api/pendencias", "POST", { acao: "desfazer_ajuda", ajudaId: ajuda.id, mes });
+      setVisualizando(null);
+      await fetchAjudas();
+    } catch (erro) {
+      alert(mensagemErro(erro, "Não foi possível desfazer a confirmação."));
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (deletingId) return;
     setDeletingId(id);
@@ -545,6 +556,19 @@ export function ComponenteAjudaMotorista() {
                 </div>
               )}
             </dl>
+          )}
+          {visualizando?.recorrente && visualizando.meses_tratados && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Meses confirmados</p>
+              {String(visualizando.meses_tratados).split(",").filter(Boolean).map((mes: string) => (
+                <div key={mes} className="flex items-center justify-between rounded border border-border px-3 py-2 text-sm">
+                  <span>{mes.split("-").reverse().join("/")}</span>
+                  <Button size="sm" variant="outline" onClick={() => desfazerConfirmacao(visualizando, mes)}>
+                    Desfazer confirmação
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setVisualizando(null)}>Fechar</Button>

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { confirmarOcorrencia, ocorrenciasPendentes } from "@/lib/ajuda-service";
+import { confirmarOcorrencia, desfazerOcorrencia, ocorrenciasPendentes } from "@/lib/ajuda-service";
 import { carregarSessao, exigirPermissao, sessaoPode } from "@/lib/permissoes-server";
 import { respostaErro, serializar } from "@/lib/medicao-service";
 
@@ -115,6 +115,11 @@ export async function POST(request: NextRequest) {
     if (body.acao === "confirmar_ajuda" && body.ajudaId && /^\d+$/.test(body.ajudaId)) {
       await exigirPermissao(request, "confirma-ajuda", "confirmar ajudas de motorista");
       return Response.json(serializar(await confirmarOcorrencia(BigInt(body.ajudaId), String(body.mes), request)), { status: 201 });
+    }
+    if (body.acao === "desfazer_ajuda" && body.ajudaId && /^\d+$/.test(body.ajudaId)) {
+      await exigirPermissao(request, "confirma-ajuda", "desfazer confirmações de ajudas de motorista");
+      await desfazerOcorrencia(BigInt(body.ajudaId), String(body.mes), request);
+      return Response.json({ ok: true });
     }
     return Response.json({ error: "Ação inválida." }, { status: 400 });
   } catch (erro) {

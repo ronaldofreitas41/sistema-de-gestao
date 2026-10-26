@@ -116,6 +116,7 @@ export interface Ajuda_Motorista {
   placa: string;
   recorrente: boolean;
   confirma_user: string;
+  meses_tratados?: string | null;
   despesa_id: string;
 }
 

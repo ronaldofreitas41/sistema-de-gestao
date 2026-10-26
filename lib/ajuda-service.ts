@@ -131,3 +131,35 @@ export async function lancarAjudaAvulsa(
   await prisma.mh3_ajudas_motorista.update({ where: { id: ajuda.id }, data: { despesa_id: despesa.id } });
   return despesa;
 }
+
+/** Desfaz a confirmação de um mês: apaga a conta a pagar (se ainda não paga) e devolve a ocorrência para Pendências. */
+export async function desfazerOcorrencia(ajudaId: bigint, mes: string, request?: Request) {
+  if (!/^\d{4}-\d{2}$/.test(mes)) throw new ErroNegocio(400, "Mês inválido.");
+  const ajuda = await prisma.mh3_ajudas_motorista.findUnique({ where: { id: ajudaId } });
+  if (!ajuda) throw new ErroNegocio(404, "Ajuda não encontrada.");
+  const todos = tratados(ajuda.meses_tratados);
+  if (!todos.has(mes)) throw new ErroNegocio(409, "Este mês não está confirmado.");
+
+  const despesas = await prisma.mh3_despesas.findMany({
+    where: { origem: `ajuda:${ajuda.id}`, data_competencia: new Date(`${mes}-01T00:00:00.000Z`) },
+  });
+  if (despesas.some((d) => d.status_disp === "pago")) {
+    throw new ErroNegocio(409, "A conta a pagar desta ajuda já foi paga. Estorne o pagamento primeiro.");
+  }
+
+  todos.delete(mes);
+  await prisma.$transaction([
+    prisma.mh3_despesas.deleteMany({ where: { id: { in: despesas.map((d) => d.id) } } }),
+    prisma.mh3_ajudas_motorista.update({
+      where: { id: ajudaId },
+      data: { meses_tratados: [...todos].sort().join(",") || null, despesa_id: null },
+    }),
+  ]);
+  await auditar({
+    request,
+    acao: "DESFAZER_AJUDA",
+    modulo: "mh3_ajudas_motorista",
+    registroId: ajudaId,
+    descricao: `Confirmação de ${mes} de ${ajuda.motorista} desfeita (${despesas.map((d) => d.num_desp).join(", ") || "sem despesa"})`,
+  });
+}
