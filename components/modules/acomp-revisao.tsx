@@ -608,7 +608,11 @@ export default function AcompRevisaoPage() {
                         ) : (
                           <CheckCircle2 className="h-4 w-4" />
                         )}
-                        {vencida ? "REVISÃO VENCIDA" : "Em dia"}
+                        {vencida
+                          ? "REVISÃO VENCIDA"
+                          : realizacaoAntiga(revisao.data_realizacao)
+                            ? "Entrar em contato"
+                            : "Em dia"}
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-lg bg-muted/50 p-3">
