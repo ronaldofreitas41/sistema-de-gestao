@@ -591,7 +591,7 @@ export default function AcompRevisaoPage() {
                     </CardHeader>
                     <CardContent className="space-y-4 pt-5">
                       <div
-                        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${vencida ? "bg-destructive/10 text-destructive" : "bg-emerald-50 text-emerald-700"}`}
+                        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${vencida ? "bg-red-100  text-red-700" : "bg-emerald-100 text-emerald-700"}`}
                       >
                         {vencida ? (
                           <AlertTriangle className="h-4 w-4" />
@@ -633,7 +633,7 @@ export default function AcompRevisaoPage() {
                       <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <CalendarDays className="h-3.5 w-3.5" />
-                          Contato:{" "}
+                          Data:{" "}
                           {revisao.data_realizacao
                             ? revisao.data_realizacao
                                 .slice(0, 10)
@@ -644,6 +644,7 @@ export default function AcompRevisaoPage() {
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <Phone className="h-3.5 w-3.5" />
+                          Contato:{" "}
                           {dados.contato || "Contato não informado"}
                           {dados.telefone ? ` · ${dados.telefone}` : ""}
                         </span>
