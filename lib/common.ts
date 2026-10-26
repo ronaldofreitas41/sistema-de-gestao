@@ -40,192 +40,181 @@ import {
 } from "lucide-react";
 import { NavItem, Permissoes } from "./types";
 
-export const navGroups: { label: string; solo?: boolean; items: NavItem[] }[] = [
-  {
-    label: "Visão geral",
-    items: [
-      {
-        href: "/dashboard",
-        label: "Dashboard",
-        resource: "dashboard",
-        icon: LayoutDashboard,
-      },
-    ],
-  },
-  {
-    label: "Pendencias",
-    solo: true,
-    items: [
-      {
-        href: "/pendencias",
-        label: "Pendencias",
-        resource: "pendencias",
-        icon: Siren,
-      },
-    ],
-  },
-  {
-    label: "Relatórios",
-    solo: true,
-    items: [
-      {
-        href: "/relatorios",
-        label: "Relatórios",
-        resource: "relatorios",
-        icon: BarChart3,
-      },
-    ],
-  },
-  {
-    label: "Financeiro",
-    items: [
-      {
-        href: "/contas-pagar",
-        label: "Contas a pagar",
-        resource: "contas_pagar",
-        icon: Receipt,
-      },
-      {
-        href: "/contas-receber",
-        label: "Contas a receber",
-        resource: "contas_receber",
-        icon: Receipt,
-      },
-      {
-        href: "/fluxo",
-        label: "Fluxo de caixa",
-        resource: "fluxo",
-        icon: Landmark,
-      },
-      {
-        href: "/medicoes",
-        label: "Medições",
-        resource: "medicoes",
-        icon: ChartLine,
-      },
-      {
-        href: "/prejuizos",
-        label: "Prejuízos",
-        resource: "prejuizos",
-        icon: ArrowDownRight,
-      },
-      { href: "/seguro", label: "Seguro", resource: "seguro", icon: Lock },
-      {
-        href: "/funcionarios",
-        label: "Funcionarios",
-        resource: "funcionarios",
-        icon: IdCardLanyard,
-      },
-    ],
-  },
-  {
-    label: "Cadastro",
-    items: [
-      {
-        href: "/clientes",
-        label: "Clientes",
-        resource: "clientes",
-        icon: UsersRound,
-      },
-      {
-        href: "/parceiros",
-        label: "Parceiros",
-        resource: "parceiros",
-        icon: Handshake,
-      },
-      {
-        href: "/proposta",
-        label: "Proposta",
-        resource: "propostas",
-        icon: Receipt,
-      },
-    ],
-  },
-  {
-    label: "Frota e Manutenção",
-    items: [
-      { href: "/frota", label: "Frota ", resource: "frota", icon: Truck },
-      {
-        href: "/manutencao",
-        label: "Manutenção",
-        resource: "manutencao",
-        icon: Wrench,
-      },
-      {
-        href: "/ajuda-motoristas",
-        label: "Ajuda Motoristas",
-        resource: "ajudas_motoristas",
-        icon: CircleQuestionMark,
-      },
-      {
-        href: "/venda-avaria",
-        label: "Venda/Avaria  ",
-        resource: "venda_avaria",
-        icon: CircleDollarSign,
-      },
-      {
-        href: "/acomp-revisao",
-        label: "Acomp. Revisão",
-        resource: "acomp_revisao",
-        icon: Wrench,
-      },
-      {
-        href: "/mobilizacao",
-        label: "Mobilização",
-        resource: "mobilizacao",
-        icon: Camera,
-      },
-    ],
-  },
-  {
-    label: "Estoque e Compras",
-    items: [
-      { href: "/estoque", label: "Estoque", resource: "estoque", icon: Box },
-      { href: "/nf-e", label: "Nf-e", resource: "nf_e", icon: LibraryBig },
-      {
-        href: "/pneus",
-        label: "Pneus",
-        resource: "pneus",
-        icon: LoaderPinwheel,
-      },
-    ],
-  },
-  // {
-  //   label: "Sistema",
-  //   items: [
-  //     {
-  //       href: "/tratativas",
-  //       label: "Tratativas",
-  //       resource: "tratativas",
-  //       icon: Handshake,
-  //     },
-  //     { href: "/ajuda", label: "Ajuda", resource: "ajuda", icon: CircleHelp },
-  //   ],
-  // },
-  {
-    label: "Configuracoes",
-    items: [
-      {
-        href: "/usuarios",
-        label: "Usuarios",
-        resource: "usuarios",
-        icon: UsersRound,
-      },
-      {
-        href: "/empresas",
-        label: "Empresas",
-        resource: "empresas",
-        icon: Building2,
-      },
-      {
-        href: "/checklist",
-        label: "Checklist",
-        resource: "checklist",
-        icon: Check,
-      },
-    ],
-  },
-];
+export const navGroups: { label: string; solo?: boolean; items: NavItem[] }[] =
+  [
+    {
+      label: "Visão geral",
+      items: [
+        {
+          href: "/dashboard",
+          label: "Dashboard",
+          resource: "dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          href: "/pendencias",
+          label: "Pendencias",
+          resource: "pendencias",
+          icon: Siren,
+        },
+        {
+          href: "/relatorios",
+          label: "Relatórios",
+          resource: "relatorios",
+          icon: BarChart3,
+        },
+      ],
+    },
+    {
+      label: "Financeiro",
+      items: [
+        {
+          href: "/contas-pagar",
+          label: "Contas a pagar",
+          resource: "contas_pagar",
+          icon: Receipt,
+        },
+        {
+          href: "/contas-receber",
+          label: "Contas a receber",
+          resource: "contas_receber",
+          icon: Receipt,
+        },
+        {
+          href: "/fluxo",
+          label: "Fluxo de caixa",
+          resource: "fluxo",
+          icon: Landmark,
+        },
+        {
+          href: "/medicoes",
+          label: "Medições",
+          resource: "medicoes",
+          icon: ChartLine,
+        },
+        {
+          href: "/prejuizos",
+          label: "Prejuízos",
+          resource: "prejuizos",
+          icon: ArrowDownRight,
+        },
+        { href: "/seguro", label: "Seguro", resource: "seguro", icon: Lock },
+        {
+          href: "/funcionarios",
+          label: "Funcionarios",
+          resource: "funcionarios",
+          icon: IdCardLanyard,
+        },
+      ],
+    },
+    {
+      label: "Cadastro",
+      items: [
+        {
+          href: "/clientes",
+          label: "Clientes",
+          resource: "clientes",
+          icon: UsersRound,
+        },
+        {
+          href: "/parceiros",
+          label: "Parceiros",
+          resource: "parceiros",
+          icon: Handshake,
+        },
+        {
+          href: "/proposta",
+          label: "Proposta",
+          resource: "propostas",
+          icon: Receipt,
+        },
+      ],
+    },
+    {
+      label: "Frota e Manutenção",
+      items: [
+        { href: "/frota", label: "Frota ", resource: "frota", icon: Truck },
+        {
+          href: "/manutencao",
+          label: "Manutenção",
+          resource: "manutencao",
+          icon: Wrench,
+        },
+        {
+          href: "/ajuda-motoristas",
+          label: "Ajuda Motoristas",
+          resource: "ajudas_motoristas",
+          icon: CircleQuestionMark,
+        },
+        {
+          href: "/venda-avaria",
+          label: "Venda/Avaria  ",
+          resource: "venda_avaria",
+          icon: CircleDollarSign,
+        },
+        {
+          href: "/acomp-revisao",
+          label: "Acomp. Revisão",
+          resource: "acomp_revisao",
+          icon: Wrench,
+        },
+        {
+          href: "/mobilizacao",
+          label: "Mobilização",
+          resource: "mobilizacao",
+          icon: Camera,
+        },
+      ],
+    },
+    {
+      label: "Estoque e Compras",
+      items: [
+        { href: "/estoque", label: "Estoque", resource: "estoque", icon: Box },
+        { href: "/nf-e", label: "Nf-e", resource: "nf_e", icon: LibraryBig },
+        {
+          href: "/pneus",
+          label: "Pneus",
+          resource: "pneus",
+          icon: LoaderPinwheel,
+        },
+      ],
+    },
+    // {
+    //   label: "Sistema",
+    //   items: [
+    //     {
+    //       href: "/tratativas",
+    //       label: "Tratativas",
+    //       resource: "tratativas",
+    //       icon: Handshake,
+    //     },
+    //     { href: "/ajuda", label: "Ajuda", resource: "ajuda", icon: CircleHelp },
+    //   ],
+    // },
+    {
+      label: "Configuracoes",
+      items: [
+        {
+          href: "/usuarios",
+          label: "Usuarios",
+          resource: "usuarios",
+          icon: UsersRound,
+        },
+        {
+          href: "/empresas",
+          label: "Empresas",
+          resource: "empresas",
+          icon: Building2,
+        },
+        {
+          href: "/checklist",
+          label: "Checklist",
+          resource: "checklist",
+          icon: Check,
+        },
+      ],
+    },
+  ];
 
 export type MetricaCard = {
   label: string;
@@ -259,7 +248,10 @@ export const modulosPermissoes = navGroups.flatMap((group) =>
 );
 
 /** Ações específicas de um módulo (chaves já aplicadas no servidor). Substituem Editar/Excluir genéricos na tela de permissões. */
-export const permissoesExtras: Record<string, { chave: string; label: string }[]> = {
+export const permissoesExtras: Record<
+  string,
+  { chave: string; label: string }[]
+> = {
   relatorios: [
     { chave: "rel-fin", label: "Faturamento e lucros" },
     { chave: "rel-cpagar", label: "Contas a pagar" },
@@ -416,7 +408,8 @@ export const permissoesPadrao: Permissoes = {
 
 // Os extras valem pelo padrão do servidor até alguém alterar.
 for (const lista of Object.values(permissoesExtras)) {
-  for (const { chave } of lista) permissoesModulosPadrao[chave] = permissoesPadrao[chave] === true;
+  for (const { chave } of lista)
+    permissoesModulosPadrao[chave] = permissoesPadrao[chave] === true;
 }
 
 export const nomesPermissoes: Record<string, string> = {
@@ -645,7 +638,8 @@ export const gruposFotos = [
   {
     id: "equipamentos-input",
     grupo: "macaco_chave",
-    titulo: "🟡 Macaco / Chave de Roda / Cabo de Força / Pino de Reboque / Triângulo / Extintor",
+    titulo:
+      "🟡 Macaco / Chave de Roda / Cabo de Força / Pino de Reboque / Triângulo / Extintor",
   },
   {
     id: "calco-input",
@@ -678,7 +672,10 @@ export const GRUPOS_FOTOS_LEGADOS: Record<string, string[]> = {
 };
 
 /** Fotos de um grupo, incluindo as dos grupos legados que foram reunidos nele. */
-export function fotosDoGrupo(fotos: Record<string, string[]> | null | undefined, grupo: string): string[] {
+export function fotosDoGrupo(
+  fotos: Record<string, string[]> | null | undefined,
+  grupo: string,
+): string[] {
   const lista = [grupo, ...(GRUPOS_FOTOS_LEGADOS[grupo] ?? [])];
   return lista.flatMap((chave) => fotos?.[chave] ?? []);
 }
