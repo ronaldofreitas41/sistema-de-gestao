@@ -120,6 +120,16 @@ function lerObservacoes(
   }
 }
 
+/** Data de realização há mais de um mês em relação a hoje. */
+function realizacaoAntiga(data?: string | null) {
+  const iso = data?.slice(0, 10);
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const limite = new Date();
+  limite.setMonth(limite.getMonth() - 1);
+  limite.setHours(0, 0, 0, 0);
+  return new Date(`${iso}T00:00:00`) < limite;
+}
+
 function nomeEquipamento(equipamento?: Equipamento, placaManual?: string) {
   if (!equipamento) return placaManual || "Equipamento não identificado";
   return [
@@ -591,7 +601,7 @@ export default function AcompRevisaoPage() {
                     </CardHeader>
                     <CardContent className="space-y-4 pt-5">
                       <div
-                        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${vencida ? "bg-red-100  text-red-700" : "bg-emerald-100 text-emerald-700"}`}
+                        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${vencida ? "bg-red-100  text-red-700" : realizacaoAntiga(revisao.data_realizacao) ? "bg-yellow-100 text-yellow-700" : "bg-emerald-100 text-emerald-700"}`}
                       >
                         {vencida ? (
                           <AlertTriangle className="h-4 w-4" />
